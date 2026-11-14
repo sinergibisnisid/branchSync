@@ -286,7 +286,26 @@
     'Preset:': 'Presets:', 'Hari kerja 08.00–15.00': 'Weekdays 08:00–15:00', 'Sen–Sab 08.00–14.00': 'Mon–Sat 08:00–14:00', '24 jam setiap hari': '24 hours every day',
     'Buka 24 jam': 'Open 24 hours', 'Tambah jam': 'Add hours', '24 jam': '24 hours', 'Sabtu': 'Saturday', 'Minggu': 'Sunday',
     'Terapkan Senin ke semua hari buka': 'Apply Monday to all open days', 'Jam Senin diterapkan ke semua hari buka.': 'Monday hours applied to all open days.',
-    'Aktifkan hari Senin terlebih dahulu.': 'Turn Monday on first.', 'Jam operasional: aktifkan minimal satu hari buka.': 'Opening hours: turn on at least one open day.'
+    'Aktifkan hari Senin terlebih dahulu.': 'Turn Monday on first.',
+    // Tahap 1: tautan, penyimpanan, hak akses
+    'Salin tautan halaman ini': 'Copy link to this page', 'Salin tautan unit ini': 'Copy link to this location', 'Salin tautan': 'Copy link', 'Tautan halaman ini': 'Link to this page',
+    'Tautan disalin. Penerima perlu masuk untuk membukanya.': 'Link copied. Recipients need to sign in to open it.',
+    'Lihat sebagai (Demo)': 'View as (Demo)', 'Balas ulasan': 'Reply to reviews', 'Peran dari akun server': 'Role from the server account',
+    'Lihat sebagai (Demo) — klik untuk mengganti': 'View as (Demo) — click to change',
+    'Anda hanya dapat melihat pengaturan workspace. Hubungi Administrator untuk mengubahnya.': 'You can only view workspace settings. Contact an Administrator to change them.',
+    'Penyimpanan browser': 'Browser storage', 'IndexedDB — kapasitas besar, cocok untuk ribuan unit.': 'IndexedDB — large capacity, suitable for thousands of locations.',
+    'localStorage — terbatas ±5 MB; unduh cadangan secara berkala.': 'localStorage — limited to ~5 MB; download backups regularly.', 'Memuat…': 'Loading…',
+    'Data Demo gagal disimpan di browser ini. Unduh cadangan JSON agar perubahan tidak hilang.': 'Demo data could not be saved in this browser. Download a JSON backup so changes are not lost.',
+    'Buka Pengaturan': 'Open Settings',
+    // Tahap 2: saved views, kolom, mobile
+    'Tampilan': 'Views', 'Tampilan tersimpan': 'Saved views', 'Simpan kombinasi filter untuk dipakai lagi': 'Save filter combinations to reuse',
+    'Belum ada tampilan tersimpan. Atur filter, lalu klik “Simpan tampilan saat ini”.': 'No saved views yet. Set filters, then click “Save current view”.',
+    'Simpan tampilan saat ini': 'Save current view', 'Filter ini sudah tersimpan': 'These filters are already saved', 'Simpan tampilan': 'Save view', 'Ganti nama tampilan': 'Rename view',
+    'Nama tampilan': 'View name', 'Sematkan di tampilan cepat': 'Pin to quick views', 'Filter yang disimpan:': 'Saved filters:', 'Simpan nama': 'Save name',
+    'Nama tampilan sudah dipakai.': 'This view name is already used.', 'Maksimal 20 tampilan tersimpan.': 'Maximum of 20 saved views.', 'Nama tampilan diperbarui.': 'View renamed.',
+    'Tampilan dihapus.': 'View deleted.', 'Hanya tampilan tersimpan yang dihapus; data unit kerja tidak berubah.': 'Only the saved view is deleted; location data does not change.',
+    'Hapus tampilan': 'Delete view', 'Atur kolom': 'Columns', 'Tampilkan kolom': 'Show columns', 'Kepadatan baris': 'Row density', 'Longgar': 'Comfortable', 'Padat': 'Compact',
+    'Reset ke default': 'Reset to default', 'Preferensi tidak dapat disimpan di browser ini.': 'Preferences could not be saved in this browser.', 'Jam operasional: aktifkan minimal satu hari buka.': 'Opening hours: turn on at least one open day.'
   };
   // Aksi di Riwayat (huruf besar & kecil di awal)
   const ACTIONS = {
@@ -363,6 +382,13 @@
     R('^Hapus rentang (Senin|Selasa|Rabu|Kamis|Jumat|Sabtu|Minggu)$', (m, a) => `Remove ${T(a)} range`),
     R('^Jam operasional (Senin|Selasa|Rabu|Kamis|Jumat|Sabtu|Minggu): (.+)$', (m, a, b) => `Opening hours ${T(a)}: ${{ 'isi jam buka atau pilih 24 jam.': 'enter opening hours or choose 24 hours.', 'lengkapi jam buka dan tutup.': 'complete the opening and closing times.', 'jam tutup harus setelah jam buka.': 'closing time must be after opening time.', 'rentang jam saling tumpang tindih.': 'time ranges overlap.' }[b] || b}`),
     R('^Unit terdekat: (.+) — (.+?)( \\(kemungkinan duplikat\\))?$', (m, a, b, c) => `Nearest location: ${a} — ${b}${c ? ' (possible duplicate)' : ''}`),
+    R('^Tidak diizinkan untuk peran (.+) — butuh izin “(.+)”\\.$', (m, a, b) => `Not allowed for the ${T(a)} role — requires the “${T(b)}” permission.`),
+    R('^Sekarang melihat sebagai (.+)\\.$', (m, a) => `Now viewing as ${T(a)}.`), R('^Peran: (.+)$', (m, a) => `Role: ${T(a)}`),
+    R('^(IndexedDB|localStorage) — (.+) Data Live tidak disimpan di browser\\.$', (m, a, b) => `${tr(a + ' — ' + b) || a + ' — ' + b} Live data is not stored in the browser.`),
+    R('^Tampilan “(.+)” disimpan\\.$', 'View “$1” saved.'), R('^“(.+)” disematkan di tampilan cepat\\.$', '“$1” pinned to quick views.'), R('^Sematan “(.+)” dilepas\\.$', '“$1” unpinned.'),
+    R('^Lepas sematan (.+)$', 'Unpin $1'), R('^Sematkan (.+)$', 'Pin $1'), R('^Ganti nama (.+)$', 'Rename $1'), R('^Hapus tampilan “(.+)”\\?$', 'Delete view “$1”?'),
+    R('^(.+) \\((naik|turun)\\)$', (m, a, b) => `${T(a)} (${b === 'naik' ? 'ascending' : 'descending'})`),
+    R(`^(.+) · ${N} unit$`, (m, a, n) => `${tr(a) || terms(a)} · ${n} locations`),
     R(`^Buat ${N} unit$`, 'Create $1 locations'), R(`^Buat ${N} unit uji$`, 'Create $1 test locations'),
     R(`^Bulanan \\(tanggal ${N}\\)$`, 'Monthly (day $1)'), R(`^Coba lagi semua \\(${N}\\)$`, 'Retry all ($1)'), R('^Contoh: (.+)$', 'Example: $1'),
     R('^Email GBP tidak dikenal · (.+)$', 'Unknown GBP email · $1'), R('^Hapus filter (.+)$', (m, a) => `Remove filter ${tr(a) || terms(a)}`),

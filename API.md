@@ -30,6 +30,10 @@ Token disimpan frontend di `sessionStorage` (hilang saat tab ditutup). Kata sand
 
 `user` = `{ "name": "Rina Wijaya", "email": "rina@bri.co.id", "role": "Operator" }`
 
+Opsional: `user.permissions` (array kode izin, mis. `["locations.read","reviews.reply"]`). Bila dikirim, frontend memakainya
+untuk menampilkan/menonaktifkan tombol; bila tidak, izin diambil dari `roles[]` di `/bootstrap` berdasarkan `user.role`.
+Server tetap wajib menegakkan izin di setiap endpoint (respons `403` dengan `message`).
+
 Respons `401` pada endpoint 🔒 membuat frontend menghapus sesi dan meminta login ulang.
 
 ## Format error
@@ -103,7 +107,7 @@ Ketidaksesuaian, kandidat duplikat, dan seluruh angka **Laporan & Analitik** **d
 data unit dengan `google`, serta jarak & kemiripan nama), memakai `settings.coordTol` dan `settings.dupRadius`.
 
 Izin yang dikenal: `locations.read`, `locations.write`, `locations.import`, `sync.run`, `claims.manage`,
-`approvals.decide`, `audit.read`, `users.manage`, `settings.write`. Server wajib menegakkan izin;
+`approvals.decide`, `reviews.reply`, `audit.read`, `users.manage`, `settings.write`. Server wajib menegakkan izin;
 frontend hanya menampilkan.
 
 ## Mengubah data
@@ -149,3 +153,9 @@ notifikasi Pub/Sub (`pubsubTopic`), lalu muncul di `/bootstrap`.
 *Simulasikan perubahan di Google*, *Simulasikan edit masuk*, *Simulasikan ulasan baru*, *Buat 1.000 unit uji*, *Reset data demo*,
 *Reset kuota harian*, dan tombol **Urungkan** pada notifikasi. Di mode Live, edit eksternal dan perubahan
 Google datang dari server (webhook/polling di sisi backend).
+
+
+## Tautan dalam aplikasi (frontend)
+
+Halaman admin memakai routing hash, misalnya `index.html#/unit-kerja?status=Offline&region=Jawa&unit=DM-007`.
+Rute ini murni di browser (tidak memanggil server) dan bisa dibagikan; penerima perlu masuk lebih dulu.

@@ -156,6 +156,7 @@
     camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
     locate: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>',
     clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
     star: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
     chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
@@ -189,15 +190,31 @@
   const PERMS = [
     ['locations.read', 'Lihat unit kerja'], ['locations.write', 'Ubah unit kerja'], ['locations.import', 'Impor data massal'],
     ['sync.run', 'Jalankan sinkronisasi'], ['claims.manage', 'Kelola klaim & titik baru'], ['approvals.decide', 'Putuskan edit eksternal'],
-    ['audit.read', 'Lihat riwayat'], ['users.manage', 'Kelola pengguna'], ['settings.write', 'Ubah pengaturan']
+    ['reviews.reply', 'Balas ulasan'], ['audit.read', 'Lihat riwayat'], ['users.manage', 'Kelola pengguna'], ['settings.write', 'Ubah pengaturan']
   ];
+  // Aksi → izin yang dibutuhkan. Dipakai btn() (menonaktifkan + tooltip) dan act() (penegakan).
+  const ACTION_PERM = {
+    'add-loc': 'locations.write', 'edit-loc': 'locations.write', 'delete-loc': 'locations.write', 'bulk-delete': 'locations.write',
+    'disc-push': 'locations.write', 'disc-pull': 'locations.write', 'disc-push-all': 'locations.write', 'disc-note': 'locations.write',
+    'dup-keep': 'locations.write', 'dup-ignore': 'locations.write',
+    'import': 'locations.import', 'import-commit': 'locations.import', 'import-sample': 'locations.import', 'import-parse': 'locations.import',
+    'sync-all': 'sync.run', 'sync-one': 'sync.run', 'bulk-sync': 'sync.run', 'retry': 'sync.run', 'retry-all': 'sync.run', 'resolve': 'sync.run',
+    'claim-new': 'claims.manage', 'point-new': 'claims.manage', 'claim-next': 'claims.manage', 'claim-reject': 'claims.manage', 'dup-report': 'claims.manage',
+    'cr-approve': 'approvals.decide', 'cr-reject': 'approvals.decide',
+    'review-reply': 'reviews.reply', 'review-edit': 'reviews.reply', 'review-delete': 'reviews.reply', 'review-send': 'reviews.reply',
+    'add-user': 'users.manage', 'edit-user': 'users.manage', 'toggle-user': 'users.manage', 'add-role': 'users.manage', 'edit-role': 'users.manage',
+    'api-toggle': 'settings.write', 'api-test': 'settings.write', 'api-reset': 'settings.write', 'gbp-oauth': 'settings.write',
+    'generate': 'settings.write', 'reset-data': 'settings.write', 'report-schedule': 'settings.write', 'report-unschedule': 'settings.write',
+    'export-audit': 'audit.read'
+  };
   const DEMO_USER = { name: 'Admin Demo', email: 'admin@example.test', role: 'Administrator' };
   let ME = DEMO_USER;
+  const demoUser = () => ({ ...DEMO_USER, role: (typeof prefs !== 'undefined' && prefs.demoRole) || 'Administrator' });
   const MODE = window.BranchMode;
   const isLive = () => !!(MODE && MODE.isLive());
   function userFromSession() {
     const u = (MODE && MODE.getUser()) || {};
-    return { name: u.name || u.username || u.email || 'Pengguna', email: u.email || '', role: u.role || 'Pengguna' };
+    return { name: u.name || u.username || u.email || 'Pengguna', email: u.email || '', role: u.role || 'Pengguna', permissions: Array.isArray(u.permissions) ? u.permissions : null };
   }
   const STORE_KEY = 'branchSync.admin.v2', PREF_KEY = 'branchSync.admin.prefs';
   const STREETS = ['Sudirman', 'Ahmad Yani', 'Diponegoro', 'Gatot Subroto', 'Merdeka', 'Veteran', 'Pahlawan', 'Pemuda', 'Imam Bonjol', 'Gajah Mada'];
@@ -254,6 +271,7 @@
     if (!Array.isArray(s0.reviews)) s0.reviews = buildReviews(s0.locations || []);
     s0.api = { clientId: '', hasClientSecret: false, hasApiKey: false, scopes: ['business.manage'], syncInterval: '60', pubsubTopic: '', ...(s0.api || {}) };
     s0.seq = { review: s0.reviews.length, schedule: 1, ...(s0.seq || {}) };
+    if (!s0.permsV2 && Array.isArray(s0.roles)) { s0.roles.forEach(r => { if (['Administrator', 'Operator'].includes(r.name) && !r.permissions.includes('reviews.reply')) r.permissions.push('reviews.reply'); }); s0.permsV2 = true; }
     if (!Array.isArray(s0.reportSchedules)) s0.reportSchedules = [{ id: 'RS-001', name: 'Laporan mingguan jaringan', frequency: 'weekly', day: '1', recipients: ['kepala.divisi@example.test'], format: 'PDF', period: '7', createdAt: Date.now() - 20 * DAY }];
     if (!s0.histBackfilled && Array.isArray(s0.runs)) {
       // Lengkapi riwayat sinkronisasi harian hingga 90 hari agar analitik tren terisi.
@@ -286,11 +304,11 @@
       { id: 'approvals', label: 'Persetujuan Edit', icon: 'inbox', count: () => state.approvals.filter(a => a.status === 'Menunggu').length, desc: 'Perubahan dari email GBP lain. Data tidak berubah sebelum BRI menyetujui.' },
       { id: 'reviews', label: 'Ulasan', icon: 'star', count: () => state.reviews.filter(rv => !rv.reply).length, desc: 'Ulasan nasabah dari setiap akun dan lokasi Google Maps. Balas langsung dari sini.' },
       { id: 'sync', label: 'Sync Monitor', icon: 'refresh', count: () => openFailures().length, desc: 'Pantau job sinkronisasi dan tindak lanjuti data yang gagal diperbarui.' },
-      { id: 'audit', label: 'Riwayat Perubahan', icon: 'history', desc: 'Jejak sebelum–sesudah setiap perubahan beserta pengguna internal maupun eksternal.' }
+      { id: 'audit', label: 'Riwayat Perubahan', icon: 'history', perm: 'audit.read', desc: 'Jejak sebelum–sesudah setiap perubahan beserta pengguna internal maupun eksternal.' }
     ] },
     { group: 'Administrasi', items: [
-      { id: 'access', label: 'Pengguna & Akses', icon: 'users', desc: 'Kelola pengguna, peran, dan izin akses.' },
-      { id: 'integrations', label: 'Integrasi Google', icon: 'plug', desc: 'Koneksi Google Business Profile, kuota API, dan notifikasi.' },
+      { id: 'access', label: 'Pengguna & Akses', icon: 'users', perm: 'users.manage', desc: 'Kelola pengguna, peran, dan izin akses.' },
+      { id: 'integrations', label: 'Integrasi Google', icon: 'plug', perm: 'settings.write', desc: 'Koneksi Google Business Profile, kuota API, dan notifikasi.' },
       { id: 'settings', label: 'Pengaturan', icon: 'sliders', desc: 'Preferensi workspace, target SLA, aturan deteksi, dan data demo.' }
     ] },
     { group: 'Bantuan', items: [
@@ -425,27 +443,70 @@
   /* ------------------------------------------------------------------ *
    * State & persistensi
    * ------------------------------------------------------------------ */
-  function loadState() {
+  /* Data Demo disimpan di IndexedDB (kapasitas besar). localStorage hanya cadangan
+     bila IndexedDB tidak tersedia, dan data lama dari localStorage dimigrasikan otomatis. */
+  const STORE = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((res, rej) => {
+      if (!window.indexedDB) { rej(new Error('IndexedDB tidak tersedia')); return; }
+      const rq = indexedDB.open('branchSync', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('kv');
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => rej(rq.error);
+      rq.onblocked = () => rej(new Error('IndexedDB terblokir'));
+    }));
+    const tx = (mode, fn) => open().then(db => new Promise((res, rej) => {
+      const t = db.transaction('kv', mode), rq = fn(t.objectStore('kv'));
+      t.oncomplete = () => res(rq.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('Transaksi dibatalkan'));
+    }));
+    return { get: k => tx('readonly', st => st.get(k)), set: (k, v) => tx('readwrite', st => st.put(v, k)) };
+  })();
+  let demoState = null, storageMode = 'pending'; // pending | idb | local
+  function legacyLoad() {
     try {
-      const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-      if (s && s.v === 2 && Array.isArray(s.locations)) return ensureExtras(s);
+      const s0 = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+      if (s0 && s0.v === 2 && Array.isArray(s0.locations)) return ensureExtras(s0);
     } catch (_) { /* penyimpanan tidak tersedia */ }
     return buildSeed();
   }
+  function loadState() { if (!demoState) demoState = legacyLoad(); return demoState; }
   let state = loadState();
   let prefs = { theme: '', collapsed: false, pageSize: 10 };
   try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREF_KEY) || '{}')); } catch (_) {}
   const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (_) {} };
   let saveTimer = 0;
-  // Data Live tidak pernah ditulis ke penyimpanan demo.
-  const persist = () => { if (isLive()) return; clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (isLive()) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (_) {} }, 250); };
+  // Data Live tidak pernah ditulis ke penyimpanan demo. Gagal simpan → peringatan (sekali).
+  let saveWarned = false;
+  const saveFailed = () => { if (saveWarned) return; saveWarned = true; toast('Data Demo gagal disimpan di browser ini. Unduh cadangan JSON agar perubahan tidak hilang.', { tone: 'bad', action: { label: 'Buka Pengaturan', run: () => navigate('settings') } }); };
+  const persist = () => {
+    if (isLive() || storageMode === 'pending') return;
+    demoState = state;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      if (isLive()) return;
+      if (storageMode === 'idb') STORE.set('demoState', demoState).then(() => { saveWarned = false; }, saveFailed);
+      else { try { localStorage.setItem(STORE_KEY, JSON.stringify(demoState)); saveWarned = false; } catch (_) { saveFailed(); } }
+    }, 400);
+  };
   let cache = {};
   const touch = () => { cache = {}; persist(); };
   const memo = (k, fn) => (k in cache ? cache[k] : (cache[k] = fn()));
+  // Izin pengguna aktif: dari server (Live, bila dikirim) atau dari matriks peran.
+  const myPerms = () => memo('perms', () => {
+    if (Array.isArray(ME.permissions)) return new Set(ME.permissions);
+    if (ME.role === 'Administrator') return new Set(PERMS.map(x => x[0]));
+    const r = (state.roles || []).find(x => x.name === ME.role);
+    return new Set(r ? r.permissions : ['locations.read']);
+  });
+  const can = perm => !perm || myPerms().has(perm);
+  const permLabel = perm => (PERMS.find(x => x[0] === perm) || [perm, perm])[1];
+  const deniedMsg = perm => `Tidak diizinkan untuk peran ${ME.role} — butuh izin “${permLabel(perm)}”.`;
+  const canView = v => can((NAV_ITEMS.find(n => n.id === v) || {}).perm);
+  function guard(perm) { if (can(perm)) return true; toast(deniedMsg(perm), { tone: 'warn' }); return false; }
   const snapshot = () => JSON.stringify(state);
 
   const ui = {
-    view: 'dashboard', navOpen: false, running: null, filterOpen: false, renderMs: 0,
+    view: 'dashboard', navOpen: false, running: null, pop: '', renderMs: 0,
     loc: { q: '', quick: 'all', status: [], region: [], type: [], gbp: [], sort: 'name', dir: 1, page: 1, selected: new Set() },
     map: { q: '', status: '', region: '', gbp: '', showGoogle: true },
     disc: { q: '', field: '' }, claims: { tab: 'active' }, approvals: { tab: 'pending' },
@@ -639,7 +700,7 @@
   function sessionExpired(message = 'Sesi Live berakhir atau tidak valid. Silakan masuk kembali.') {
     MODE.clearSession();
     if (isLive()) {
-      MODE.setMode('demo'); ME = DEMO_USER; state = loadState();
+      MODE.setMode('demo'); ME = demoUser(); state = loadState();
       ui.live = { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 };
       renderedView = null; touch();
       if (!shell.hidden) render();
@@ -649,7 +710,7 @@
   function switchToDemo() {
     if (!isLive()) { toast('Anda sudah berada di Mode Demo.'); return; }
     MODE.setMode('demo');
-    ME = DEMO_USER;
+    ME = demoUser();
     state = loadState();
     ui.live = { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 };
     ui.loc.selected.clear(); renderedView = null;
@@ -677,6 +738,7 @@
     return { status: 'Berhasil' };
   }
   async function runSync(codes, { retry = false, label = 'Semua unit' } = {}) {
+    if (!guard('sync.run')) return;
     if (ui.running) { toast('Sinkronisasi lain sedang berjalan.', { tone: 'warn' }); return; }
     if (isLive()) {
       ui.running = { done: 0, total: codes ? codes.length : state.locations.length, indeterminate: true };
@@ -754,7 +816,7 @@
         <nav class="bs-crumbs" aria-label="Lokasi halaman"><span>Workspace</span>${ic('chev')}<strong id="bsCrumb"></strong></nav>
         <div class="bs-top-end">
           <button type="button" class="bs-sync-pill" id="bsSyncPill" data-view="sync"></button>
-          <div class="bs-pop-wrap"><button type="button" class="bs-mode-btn" id="bsModeBtn" data-action="mode-menu" aria-haspopup="menu" aria-expanded="false" aria-controls="bsModeMenu"></button><div class="bs-popover bs-mode-menu" id="bsModeMenu" role="menu" aria-label="Mode aplikasi" hidden></div></div>
+          <button type="button" class="bs-role-chip" id="bsRoleChip" data-action="mode-menu" hidden></button><button type="button" class="bs-icon-btn bs-hide-sm" data-action="copy-link" aria-label="Salin tautan halaman ini" title="Salin tautan halaman ini">${ic('link')}</button><div class="bs-pop-wrap"><button type="button" class="bs-mode-btn" id="bsModeBtn" data-action="mode-menu" aria-haspopup="menu" aria-expanded="false" aria-controls="bsModeMenu"></button><div class="bs-popover bs-mode-menu" id="bsModeMenu" role="menu" aria-label="Mode aplikasi" hidden></div></div>
           <div class="bs-pop-wrap">
             <button type="button" class="bs-icon-btn" id="bsNotifBtn" data-action="notif" aria-haspopup="true" aria-expanded="false" aria-controls="bsNotif" aria-label="Notifikasi">${ic('bell')}<span class="bs-count-dot" id="bsNotifCount"></span></button>
             <div class="bs-popover bs-notif" id="bsNotif" hidden></div>
@@ -783,8 +845,10 @@
   /* ------------------------------------------------------------------ *
    * Komponen HTML
    * ------------------------------------------------------------------ */
-  const btn = (label, action, { id = '', icon = '', variant = '', title = '', attrs = '' } = {}) =>
-    `<button type="button" class="bs-btn ${variant}" data-action="${action}"${id !== '' ? ` data-id="${esc(id)}"` : ''}${title ? ` title="${esc(title)}" aria-label="${esc(title)}"` : ''} ${attrs}>${icon ? ic(icon) : ''}${label ? `<span>${label}</span>` : ''}</button>`;
+  const btn = (label, action, { id = '', icon = '', variant = '', title = '', attrs = '' } = {}) => {
+    const perm = ACTION_PERM[action], denied = !!perm && !can(perm);
+    return `<button type="button" class="bs-btn ${variant}${denied ? ' is-denied' : ''}" data-action="${action}"${id !== '' ? ` data-id="${esc(id)}"` : ''}${denied ? ` title="${esc(deniedMsg(perm))}" aria-disabled="true"` : title ? ` title="${esc(title)}"` : ''}${title ? ` aria-label="${esc(title)}"` : ''} ${attrs}>${icon ? ic(icon) : ''}${label ? `<span>${label}</span>` : ''}</button>`;
+  };
   const go = (label, view, variant = 'sm ghost') => `<button type="button" class="bs-btn ${variant}" data-view="${view}"><span>${label}</span>${ic('chev')}</button>`;
   const card = (title, body, { actions = '', sub = '', cls = '', flush = false } = {}) =>
     `<section class="bs-card ${cls}"><header class="bs-card-head"><div><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${actions ? `<div class="bs-card-actions">${actions}</div>` : ''}</header><div class="bs-card-body${flush ? ' flush' : ''}">${body}</div></section>`;
@@ -794,8 +858,13 @@
   const opts = (xs, v, all) => (all ? `<option value="">${all}</option>` : '') + xs.map(x => { const [val, lab] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(val)}"${String(val) === String(v) ? ' selected' : ''}>${esc(lab)}</option>`; }).join('');
   const selectF = (bind, label, xs, v, all = 'Semua') => `<label class="bs-field"><span>${label}</span><select data-bind="${bind}">${opts(xs, v, all)}</select></label>`;
   const searchF = (bind, label, v, ph, id) => `<label class="bs-field bs-grow"><span>${label}</span><span class="bs-input-ic">${ic('search')}<input type="search" id="${id}" data-bind="${bind}" data-search value="${esc(v)}" placeholder="${esc(ph)}" autocomplete="off"></span></label>`;
-  const table = (heads, rows, emptyMsg = 'Tidak ada data.') =>
-    `<div class="bs-table-wrap" tabindex="0" role="region" aria-label="Tabel data"><table class="bs-table"><thead><tr>${heads.map(h => `<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.join('') : `<tr><td class="bs-td-empty" colspan="${heads.length}">${emptyMsg}</td></tr>`}</tbody></table></div>`;
+  // Setiap <td> diberi data-label dari judul kolomnya → di layar kecil tabel tampil sebagai kartu.
+  const withLabels = (heads, rows) => {
+    const labels = heads.map(h => String(h).replace(/<[^>]+>/g, '').replace(/[↑↓↕]/g, '').trim());
+    return rows.map(r => { let i = 0; return r.replace(/<td\b/g, () => `<td data-label="${esc(labels[i++] || '')}"`); });
+  };
+  const table = (heads, rows, emptyMsg = 'Tidak ada data.', { cls = '' } = {}) =>
+    `<div class="bs-table-wrap ${cls}" tabindex="0" role="region" aria-label="Tabel data"><table class="bs-table bs-cards"><thead><tr>${heads.map(h => `<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? withLabels(heads, rows).join('') : `<tr><td class="bs-td-empty" colspan="${heads.length}">${emptyMsg}</td></tr>`}</tbody></table></div>`;
   const kv = pairs => `<dl class="bs-kv">${pairs.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
   const diffList = changes => `<ul class="bs-diff">${changes.map(c => `<li><span class="bs-diff-field">${esc(c.field)}</span><del>${esc(c.before) || '<em>kosong</em>'}</del>${ic('arrowR')}<ins>${esc(c.after) || '<em>kosong</em>'}</ins></li>`).join('')}</ul>`;
   function sparkline(values) {
@@ -888,65 +957,135 @@
     ['inactive', 'Tidak aktif', l => l.status === 'Tidak Aktif']
   ];
   const FILTERS = [['status', 'Status operasional', STATUSES], ['gbp', 'Status GBP', GBP], ['type', 'Tipe', TYPES], ['region', 'Region', REGIONS]];
+  /* ---------- Preferensi per pengguna (saved views, kolom, kepadatan) ---------- */
+  const UPREF_KEY = 'branchSync.admin.userPrefs';
+  let uprefsAll = {};
+  try { uprefsAll = JSON.parse(localStorage.getItem(UPREF_KEY) || '{}') || {}; } catch (_) { uprefsAll = {}; }
+  const userKey = () => `${isLive() ? `live:${MODE.host()}` : 'demo'}:${ME.email || ME.name}`;
+  const up = () => (uprefsAll[userKey()] ||= { views: [], cols: null, density: 'comfortable' });
+  const saveUP = () => { try { localStorage.setItem(UPREF_KEY, JSON.stringify(uprefsAll)); } catch (_) { toast('Preferensi tidak dapat disimpan di browser ini.', { tone: 'warn' }); } };
+  const LOC_COLS = [
+    { key: 'unit', label: 'Unit kerja', sort: 'name', required: true, cell: l => `<button type="button" class="bs-cell-link" data-action="open-loc" data-id="${esc(l.code)}"><strong>${esc(l.name)}</strong><small>${esc(l.code)} · ${esc(l.type)}</small></button>` },
+    { key: 'location', label: 'Lokasi', sort: 'city', cell: l => `${esc(l.city)}<small>${esc(l.province)}</small>` },
+    { key: 'region', label: 'Region', sort: 'region', cell: l => esc(l.region) },
+    { key: 'type', label: 'Tipe', sort: 'type', cell: l => esc(l.type) },
+    { key: 'status', label: 'Status', sort: 'status', cell: l => badge(l.status) },
+    { key: 'gbp', label: 'Status GBP', sort: 'gbp', cell: l => badge(l.gbp) },
+    { key: 'google', label: 'Data Google', sort: 'issues', cell: (l, iss) => (iss ? `<button type="button" class="bs-issue" data-action="open-loc" data-id="${esc(l.code)}" data-tab="compare">${ic('alert')}${iss.length} beda</button>` : l.google ? `<span class="bs-ok">${ic('check')}Sesuai</span>` : '<span class="bs-muted">Belum ada listing</span>') },
+    { key: 'phone', label: 'Telepon', cell: l => esc(l.phone || '—') },
+    { key: 'hours', label: 'Jam operasional', wrap: true, cell: l => esc(l.hours || '—') },
+    { key: 'address', label: 'Alamat', wrap: true, cell: l => esc(l.address || '—') },
+    { key: 'lastSync', label: 'Sinkron terakhir', sort: 'lastSync', cell: l => (l.lastSync ? `<span title="${fmtDate(l.lastSync)}">${fmtRel(l.lastSync)}</span>` : '<span class="bs-muted">Belum pernah</span>') },
+    { key: 'updated', label: 'Diperbarui', sort: 'updatedAt', cell: l => `<span title="${fmtDate(l.updatedAt)}">${fmtRel(l.updatedAt)}</span><small>${esc(l.updatedBy)}</small>` }
+  ];
+  const LOC_COLS_DEFAULT = ['unit', 'location', 'status', 'gbp', 'google', 'updated'];
+  const visibleCols = () => { const c = up().cols; const set = new Set(Array.isArray(c) && c.length ? c : LOC_COLS_DEFAULT); return LOC_COLS.filter(x => x.required || set.has(x.key)); };
+  const viewFilters = () => { const f = ui.loc; return { q: f.q.trim(), quick: f.quick, status: [...f.status].sort(), region: [...f.region].sort(), type: [...f.type].sort(), gbp: [...f.gbp].sort(), sort: f.sort, dir: f.dir }; };
+  const sameFilters = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function filterSummary(v) {
+    const parts = [];
+    if (v.q) parts.push(`“${v.q}”`);
+    if (v.quick && v.quick !== 'all') parts.push((QUICK.find(x => x[0] === v.quick) || ['', v.quick])[1]);
+    FILTERS.forEach(([k]) => { if (v[k] && v[k].length) parts.push(v[k].join(', ')); });
+    return parts.join(' · ') || 'Semua unit';
+  }
+  function locMatcher(v) {
+    const q = (v.q || '').toLowerCase(), im = issueMap(), quick = (QUICK.find(x => x[0] === v.quick) || QUICK[0])[2];
+    return l => (!q || `${l.name} ${l.code} ${l.city} ${l.province} ${l.address}`.toLowerCase().includes(q)) && FILTERS.every(([k]) => !(v[k] && v[k].length) || v[k].includes(l[k])) && quick(l, im);
+  }
+  const viewCount = v => memo(`vc:${JSON.stringify(v)}`, () => state.locations.filter(locMatcher(v)).length);
+  function applySavedView(id) {
+    const v = up().views.find(x => x.id === id); if (!v) return;
+    Object.assign(ui.loc, { q: v.filters.q || '', quick: v.filters.quick || 'all', status: [...(v.filters.status || [])], region: [...(v.filters.region || [])], type: [...(v.filters.type || [])], gbp: [...(v.filters.gbp || [])], sort: LOC_SORTS.includes(v.filters.sort) ? v.filters.sort : 'name', dir: v.filters.dir === -1 ? -1 : 1, page: 1 });
+    ui.loc.selected.clear(); ui.pop = '';
+    render();
+  }
+  function saveViewModal(id) {
+    const ex = id ? up().views.find(x => x.id === id) : null;
+    openModal(ex ? 'Ganti nama tampilan' : 'Simpan tampilan', formGrid([
+      { name: 'name', label: 'Nama tampilan', value: ex ? ex.name : '', full: true, hint: 'Contoh: KCP Jawa bermasalah', attrs: 'required maxlength="60"' },
+      ...(ex ? [] : [{ name: 'pin', label: 'Sematkan di tampilan cepat', type: 'checkbox', value: true, full: true }])
+    ]) + (ex ? '' : `<p class="bs-form-help">Filter yang disimpan: <b>${esc(filterSummary(viewFilters()))}</b></p>`), {
+      submit: ex ? 'Simpan nama' : 'Simpan tampilan',
+      onSubmit: p => {
+        const name = String(p.name || '').trim();
+        if (!name) return { name: 'Wajib diisi.' };
+        if (up().views.some(x => x !== ex && x.name.toLowerCase() === name.toLowerCase())) return { name: 'Nama tampilan sudah dipakai.' };
+        if (ex) ex.name = name;
+        else { if (up().views.length >= 20) return 'Maksimal 20 tampilan tersimpan.'; up().views.push({ id: `v${Date.now().toString(36)}`, name, pinned: !!p.pin, filters: viewFilters(), createdAt: Date.now() }); }
+        saveUP();
+        toast(ex ? 'Nama tampilan diperbarui.' : `Tampilan “${name}” disimpan.`, { tone: 'good' });
+      }
+    });
+  }
+
   function locFiltered() {
     const f = ui.loc, q = f.q.trim().toLowerCase(), im = issueMap(), quick = (QUICK.find(x => x[0] === f.quick) || QUICK[0])[2];
     const xs = state.locations.filter(l =>
       (!q || `${l.name} ${l.code} ${l.city} ${l.province} ${l.address}`.toLowerCase().includes(q)) &&
       FILTERS.every(([k]) => !f[k].length || f[k].includes(l[k])) && quick(l));
     const k = f.sort, dir = f.dir;
-    const val = l => (k === 'issues' ? im.get(l.code)?.length || 0 : l[k]);
+    const val = l => (k === 'issues' ? im.get(l.code)?.length || 0 : k === 'lastSync' ? l.lastSync || 0 : l[k] ?? '');
     return xs.sort((a, b) => { const va = val(a), vb = val(b); return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'id', { numeric: true })) * dir; });
   }
   function viewLocations() {
-    const f = ui.loc, all = locFiltered(), size = Number(prefs.pageSize) || 10;
+    const f = ui.loc, all = locFiltered(), size = Number(prefs.pageSize) || 10, U = up(), cols = visibleCols(), dense = U.density === 'compact';
     const pages = Math.max(1, Math.ceil(all.length / size));
     f.page = Math.min(Math.max(1, f.page), pages);
     const rows = all.slice((f.page - 1) * size, f.page * size), im = issueMap();
     const activeFilters = FILTERS.flatMap(([k, l]) => f[k].map(v => [k, l, v]));
-    const th = (label, key) => { const s = f.sort === key; return `<button type="button" class="bs-sort" data-action="sort" data-id="${key}" aria-label="Urutkan menurut ${label}">${label}<span aria-hidden="true">${s ? (f.dir > 0 ? '↑' : '↓') : '↕'}</span></button>`; };
+    const th = c => { if (!c.sort) return c.label; const on = f.sort === c.sort; return `<button type="button" class="bs-sort" data-action="sort" data-id="${c.sort}" aria-label="Urutkan menurut ${c.label}">${c.label}<span aria-hidden="true">${on ? (f.dir > 0 ? '↑' : '↓') : '↕'}</span></button>`; };
     const pageAllSel = rows.length && rows.every(l => f.selected.has(l.code));
-    const headCells = [
-      `<input type="checkbox" class="bs-check" data-action="select-page" aria-label="Pilih semua di halaman ini" ${pageAllSel ? 'checked' : ''}>`,
-      th('Unit kerja', 'name'), th('Lokasi', 'city'), th('Status', 'status'), th('Status GBP', 'gbp'), th('Data Google', 'issues'), th('Diperbarui', 'updatedAt'), '<span class="bs-sr">Aksi</span>'
-    ];
+    const headCells = [`<input type="checkbox" class="bs-check" data-action="select-page" aria-label="Pilih semua di halaman ini" ${pageAllSel ? 'checked' : ''}>`, ...cols.map(th), '<span class="bs-sr">Aksi</span>'];
     const body = rows.map(l => {
       const iss = im.get(l.code), sel = f.selected.has(l.code);
-      return `<tr class="${sel ? 'is-selected' : ''}">
-        <td class="bs-td-check"><input type="checkbox" class="bs-check" data-action="select" data-id="${esc(l.code)}" aria-label="Pilih ${esc(l.name)}" ${sel ? 'checked' : ''}></td>
-        <td><button type="button" class="bs-cell-link" data-action="open-loc" data-id="${esc(l.code)}"><strong>${esc(l.name)}</strong><small>${esc(l.code)} · ${esc(l.type)}</small></button></td>
-        <td>${esc(l.city)}<small>${esc(l.province)}</small></td>
-        <td>${badge(l.status)}</td><td>${badge(l.gbp)}</td>
-        <td>${iss ? `<button type="button" class="bs-issue" data-action="open-loc" data-id="${esc(l.code)}" data-tab="compare">${ic('alert')}${iss.length} beda</button>` : l.google ? `<span class="bs-ok">${ic('check')}Sesuai</span>` : '<span class="bs-muted">Belum ada listing</span>'}</td>
-        <td><span title="${fmtDate(l.updatedAt)}">${fmtRel(l.updatedAt)}</span><small>${esc(l.updatedBy)}</small></td>
-        <td class="bs-td-actions">${btn('', 'edit-loc', { id: l.code, icon: 'edit', variant: 'icon ghost', title: `Edit ${l.name}` })}</td></tr>`;
+      return `<tr class="${sel ? 'is-selected' : ''}"><td class="bs-td-check"><input type="checkbox" class="bs-check" data-action="select" data-id="${esc(l.code)}" aria-label="Pilih ${esc(l.name)}" ${sel ? 'checked' : ''}></td>${cols.map(c => `<td${c.wrap ? ' class="bs-td-wrap"' : c.key === 'unit' ? ' class="bs-td-title"' : ''}>${c.cell(l, iss)}</td>`).join('')}<td class="bs-td-actions">${btn('', 'edit-loc', { id: l.code, icon: 'edit', variant: 'icon ghost', title: `Edit ${l.name}` })}</td></tr>`;
     });
-    const quickCounts = QUICK.map(([v, l, fn]) => [v, l, state.locations.filter(fn).length]);
-    const filterPanel = `<details class="bs-filter" data-filter-pop ${ui.filterOpen ? 'open' : ''}><summary class="bs-btn">${ic('filter')}<span>Filter${activeFilters.length ? ` (${activeFilters.length})` : ''}</span></summary>
-      <div class="bs-popover bs-filter-panel">${FILTERS.map(([k, l, xs]) => `<fieldset><legend>${l}</legend>${xs.map(v => `<label class="bs-checkline"><input type="checkbox" data-filter="${k}" value="${esc(v)}" ${f[k].includes(v) ? 'checked' : ''}><span>${esc(v)}</span><small>${fmtNum(state.locations.filter(x => x[k] === v).length)}</small></label>`).join('')}</fieldset>`).join('')}
+    const cur = viewFilters(), pinned = U.views.filter(v => v.pinned), activeView = U.views.find(v => sameFilters(v.filters, cur));
+    const quickCounts = QUICK.map(([v, l, fn]) => [v, l, memo(`quick:${v}`, () => state.locations.filter(x => fn(x, im)).length)]);
+    const optCount = (k, v) => memo('optcounts', () => { const m = {}; state.locations.forEach(x => FILTERS.forEach(([kk]) => { const key = `${kk}:${x[kk]}`; m[key] = (m[key] || 0) + 1; })); return m; })[`${k}:${v}`] || 0;
+    const filterPanel = `<details class="bs-filter" data-pop="filter" ${ui.pop === 'filter' ? 'open' : ''}><summary class="bs-btn">${ic('filter')}<span>Filter${activeFilters.length ? ` (${activeFilters.length})` : ''}</span></summary>
+      <div class="bs-popover bs-filter-panel">${FILTERS.map(([k, l, xs]) => `<fieldset><legend>${l}</legend>${xs.map(v => `<label class="bs-checkline"><input type="checkbox" data-filter="${k}" value="${esc(v)}" ${f[k].includes(v) ? 'checked' : ''}><span>${esc(v)}</span><small>${fmtNum(optCount(k, v))}</small></label>`).join('')}</fieldset>`).join('')}
       <div class="bs-filter-foot">${btn('Hapus filter', 'clear-filters', { variant: 'sm ghost' })}${btn('Selesai', 'close-filter', { variant: 'sm primary' })}</div></div></details>`;
+    const viewsPanel = `<details class="bs-filter" data-pop="views" ${ui.pop === 'views' ? 'open' : ''}><summary class="bs-btn${activeView ? ' is-current' : ''}">${ic('star')}<span>${activeView ? esc(activeView.name) : 'Tampilan'}</span>${ic('chevD')}</summary>
+      <div class="bs-popover bs-views-panel"><div class="bs-pop-head"><strong>Tampilan tersimpan</strong><small>Simpan kombinasi filter untuk dipakai lagi</small></div>
+        ${U.views.length ? `<ul class="bs-views-list">${U.views.map(v => `<li class="${activeView === v ? 'is-active' : ''}">
+          <button type="button" class="bs-view-apply" data-action="view-apply" data-id="${esc(v.id)}"><strong>${esc(v.name)}</strong><small>${esc(filterSummary(v.filters))} · ${fmtNum(viewCount(v.filters))} unit</small></button>
+          ${btn('', 'view-pin', { id: v.id, icon: 'pin', variant: `icon sm ghost${v.pinned ? ' is-on' : ''}`, title: v.pinned ? `Lepas sematan ${v.name}` : `Sematkan ${v.name}`, attrs: `aria-pressed="${v.pinned}"` })}${btn('', 'view-rename', { id: v.id, icon: 'edit', variant: 'icon sm ghost', title: `Ganti nama ${v.name}` })}${btn('', 'view-delete', { id: v.id, icon: 'trash', variant: 'icon sm ghost', title: `Hapus ${v.name}` })}</li>`).join('')}</ul>`
+        : `<p class="bs-muted bs-pop-empty">Belum ada tampilan tersimpan. Atur filter, lalu klik “Simpan tampilan saat ini”.</p>`}
+        <div class="bs-filter-foot">${btn('Simpan tampilan saat ini', 'view-save', { icon: 'plus', variant: 'sm primary', attrs: activeView ? 'disabled title="Filter ini sudah tersimpan"' : '' })}</div></div></details>`;
+    const colsPanel = `<details class="bs-filter" data-pop="cols" ${ui.pop === 'cols' ? 'open' : ''}><summary class="bs-btn">${ic('sliders')}<span>Atur kolom</span></summary>
+      <div class="bs-popover bs-cols-panel"><fieldset><legend>Tampilkan kolom</legend>${LOC_COLS.map(c => `<label class="bs-checkline"><input type="checkbox" data-col="${c.key}" ${cols.includes(c) ? 'checked' : ''} ${c.required ? 'disabled' : ''}><span>${esc(c.label)}</span>${c.required ? '<small>wajib</small>' : ''}</label>`).join('')}</fieldset>
+        <fieldset><legend>Kepadatan baris</legend><label class="bs-checkline"><input type="radio" name="bs-density" data-density="comfortable" ${dense ? '' : 'checked'}><span>Longgar</span></label><label class="bs-checkline"><input type="radio" name="bs-density" data-density="compact" ${dense ? 'checked' : ''}><span>Padat</span></label></fieldset>
+        <div class="bs-filter-foot">${btn('Reset ke default', 'cols-reset', { variant: 'sm ghost' })}${btn('Selesai', 'close-pop', { variant: 'sm primary' })}</div></div></details>`;
+    const sortOpts = LOC_COLS.filter(c => c.sort).flatMap(c => [[`${c.sort}:1`, `${c.label} (naik)`], [`${c.sort}:-1`, `${c.label} (turun)`]]);
     const bulk = f.selected.size ? `<div class="bs-bulkbar" role="region" aria-label="Aksi massal">
       <strong>${fmtNum(f.selected.size)} dipilih</strong>
       ${f.selected.size < all.length ? btn(`Pilih semua ${fmtNum(all.length)} hasil`, 'select-all', { variant: 'sm ghost' }) : ''}
       <span class="bs-spacer"></span>
-      <label class="bs-inline-select"><span class="bs-sr">Ubah status</span><select data-action-change="bulk-status"><option value="">Ubah status…</option>${opts(STATUSES)}</select></label>
+      <label class="bs-inline-select"><span class="bs-sr">Ubah status</span><select data-action-change="bulk-status" ${can('locations.write') ? '' : `disabled title="${esc(deniedMsg('locations.write'))}"`}><option value="">Ubah status…</option>${opts(STATUSES)}</select></label>
       ${btn('Sinkronkan', 'bulk-sync', { icon: 'refresh', variant: 'sm' })}${btn('Ekspor', 'bulk-export', { icon: 'download', variant: 'sm' })}${btn('Hapus', 'bulk-delete', { icon: 'trash', variant: 'sm danger' })}
       ${btn('', 'clear-selection', { icon: 'x', variant: 'sm icon ghost', title: 'Batalkan pilihan' })}</div>` : '';
     const pageBtns = [];
     for (let p = 1; p <= pages; p++) if (p === 1 || p === pages || Math.abs(p - f.page) <= 1) pageBtns.push(p); else if (pageBtns[pageBtns.length - 1] !== '…') pageBtns.push('…');
     return head('Unit Kerja', navItem('locations').desc,
       btn('Impor CSV', 'import', { icon: 'upload' }) + btn('Ekspor', 'export-locs', { icon: 'download' }) + btn('Tambah unit', 'add-loc', { icon: 'plus', variant: 'primary' })) +
-      `<section class="bs-card"><div class="bs-card-body flush">
-        <div class="bs-segment" role="tablist" aria-label="Tampilan cepat">${quickCounts.map(([v, l, n]) => `<button type="button" role="tab" aria-selected="${f.quick === v}" data-action="quick" data-id="${v}">${l}<span>${fmtNum(n)}</span></button>`).join('')}</div>
-        <div class="bs-toolbar">${searchF('loc.q', 'Cari unit kerja', f.q, 'Nama, kode, kota, provinsi, atau alamat…  ( / )', 'bsLocQ')}${filterPanel}</div>
+      `<section class="bs-card bs-loc-card${f.selected.size ? ' has-bulk' : ''}"><div class="bs-card-body flush">
+        <div class="bs-segment" role="tablist" aria-label="Tampilan cepat">${quickCounts.map(([v, l, n]) => `<button type="button" role="tab" aria-selected="${f.quick === v && !activeView}" data-action="quick" data-id="${v}">${l}<span>${fmtNum(n)}</span></button>`).join('')}${pinned.map(v => `<button type="button" role="tab" class="bs-seg-pinned" aria-selected="${activeView === v}" data-action="view-apply" data-id="${esc(v.id)}">${ic('pin')}${esc(v.name)}<span>${fmtNum(viewCount(v.filters))}</span></button>`).join('')}</div>
+        <div class="bs-toolbar bs-loc-toolbar">${searchF('loc.q', 'Cari unit kerja', f.q, 'Nama, kode, kota, provinsi, atau alamat…  ( / )', 'bsLocQ')}${filterPanel}${viewsPanel}${colsPanel}
+</div>
+        <div class="bs-loc-mobilebar bs-mobile-only"><label class="bs-field"><span>Urutkan</span><select data-action-change="loc-sort">${opts(sortOpts, `${f.sort}:${f.dir}`)}</select></label>
+          <label class="bs-checkline bs-select-page"><input type="checkbox" class="bs-check" data-action="select-page" ${pageAllSel ? 'checked' : ''}><span>Pilih semua di halaman ini</span></label></div>
         ${activeFilters.length ? `<div class="bs-chips">${activeFilters.map(([k, l, v]) => `<button type="button" class="bs-chip" data-action="unfilter" data-id="${k}:${esc(v)}" aria-label="Hapus filter ${esc(l)}: ${esc(v)}"><span>${esc(l)}: <b>${esc(v)}</b></span>${ic('x')}</button>`).join('')}${btn('Hapus semua', 'clear-filters', { variant: 'sm ghost' })}</div>` : ''}
         ${bulk}
-        ${table(headCells, body, `<div class="bs-empty-inline">${ic('search')}<strong>Tidak ada unit yang cocok</strong><span>Ubah kata kunci atau ${f.q || activeFilters.length || f.quick !== 'all' ? '<button type="button" class="bs-inline-link" data-action="clear-all">hapus semua filter</button>' : 'tambahkan unit baru'}.</span></div>`)}
+        ${table(headCells, body, `<div class="bs-empty-inline">${ic('search')}<strong>Tidak ada unit yang cocok</strong><span>Ubah kata kunci atau ${f.q || activeFilters.length || f.quick !== 'all' ? '<button type="button" class="bs-inline-link" data-action="clear-all">hapus semua filter</button>' : 'tambahkan unit baru'}.</span></div>`, { cls: `bs-table-scroll${dense ? ' is-dense' : ''}` })}
         <div class="bs-pagination">
           <span>Menampilkan <b>${all.length ? (f.page - 1) * size + 1 : 0}–${Math.min(f.page * size, all.length)}</b> dari <b>${fmtNum(all.length)}</b> unit</span>
           <label class="bs-inline-select"><span>Baris</span><select data-bind="prefs.pageSize">${opts([10, 25, 50, 100], size)}</select></label>
           <div class="bs-pager">${btn('', 'page', { id: f.page - 1, icon: 'chevL', variant: 'icon sm', title: 'Halaman sebelumnya', attrs: f.page <= 1 ? 'disabled' : '' })}${pageBtns.map(p => p === '…' ? '<span class="bs-ellipsis">…</span>' : `<button type="button" class="bs-btn sm${p === f.page ? ' is-current' : ''}" data-action="page" data-id="${p}" ${p === f.page ? 'aria-current="page"' : ''}>${p}</button>`).join('')}${btn('', 'page', { id: f.page + 1, icon: 'chev', variant: 'icon sm', title: 'Halaman berikutnya', attrs: f.page >= pages ? 'disabled' : '' })}</div>
         </div></div></section>`;
   }
+
 
   /* ------------------------------------------------------------------ *
    * View: Peta
@@ -1146,7 +1285,7 @@
       <td class="bs-td-wrap">${x.changes.length ? `<details class="bs-changes"><summary>${x.changes.length} perubahan</summary>${diffList(x.changes)}</details>` : '<span class="bs-muted">—</span>'}</td></tr>`);
     return head('Riwayat Perubahan', navItem('audit').desc, btn('Ekspor CSV', 'export-audit', { icon: 'download' })) +
       card(`${fmtNum(xs.length)} aktivitas`, `<div class="bs-toolbar">${searchF('audit.q', 'Cari', a.q, 'Pengguna, unit, nilai sebelum/sesudah…', 'bsAuditQ')}${selectF('audit.module', 'Modul', modules, a.module)}${selectF('audit.actor', 'Pengguna', [['Internal', 'Internal BRI'], ['Eksternal', 'Eksternal (email lain)']], a.actor)}${selectF('audit.range', 'Periode', [['1', '24 jam'], ['7', '7 hari'], ['30', '30 hari']], a.range, 'Semua waktu')}</div>` +
-        table(['Waktu', 'Pengguna', 'Modul', 'Aksi', 'Sebelum → sesudah'], rows, 'Tidak ada aktivitas untuk filter ini.') + (xs.length > 200 ? `<p class="bs-muted bs-pad">Menampilkan 200 terbaru. Ekspor CSV untuk melihat semuanya.</p>` : ''));
+        table(['Waktu', 'Pengguna', 'Modul', 'Aksi', 'Sebelum → sesudah'], rows, 'Tidak ada aktivitas untuk filter ini.', { cls: 'bs-table-scroll' }) + (xs.length > 200 ? `<p class="bs-muted bs-pad">Menampilkan 200 terbaru. Ekspor CSV untuk melihat semuanya.</p>` : ''));
   }
 
   /* ------------------------------------------------------------------ *
@@ -1181,7 +1320,7 @@
     const users = state.users.filter(u => !q || `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(q));
     const userRows = users.map(u => `<tr><td><span class="bs-user"><span class="bs-avatar sm" aria-hidden="true">${initials(u.name)}</span><span><strong>${esc(u.name)}</strong><small>${esc(u.email)}</small></span></span></td><td>${esc(u.role)}</td><td>${badge(u.status)}</td><td>${fmtRel(u.lastActive)}</td>
       <td class="bs-td-actions">${btn('', 'edit-user', { id: u.id, icon: 'edit', variant: 'icon ghost sm', title: `Edit ${u.name}` })}${btn(u.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan', 'toggle-user', { id: u.id, variant: 'sm ghost', attrs: u.id === 1 ? 'disabled title="Akun Anda sendiri"' : '' })}</td></tr>`);
-    const matrix = `<div class="bs-table-wrap" tabindex="0" role="region" aria-label="Matriks izin"><table class="bs-table bs-matrix"><thead><tr><th scope="col">Izin</th>${state.roles.map((r, i) => `<th scope="col">${esc(r.name)}<small>${state.users.filter(u => u.role === r.name).length} pengguna</small>${i ? btn('', 'edit-role', { id: r.name, icon: 'edit', variant: 'icon ghost sm', title: `Ubah nama ${r.name}` }) : ''}</th>`).join('')}</tr></thead><tbody>${PERMS.map(([p, l]) => `<tr><th scope="row">${l}<small>${p}</small></th>${state.roles.map((r, i) => `<td><input type="checkbox" class="bs-check" data-role="${i}" data-perm="${p}" aria-label="${esc(r.name)}: ${l}" ${r.permissions.includes(p) ? 'checked' : ''} ${i === 0 ? 'disabled' : ''}></td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="bs-muted bs-pad">Administrator selalu memiliki semua izin agar workspace tidak terkunci. Pratinjau RBAC — tidak ada penegakan akses di backend.</p>`;
+    const matrix = `<div class="bs-table-wrap" tabindex="0" role="region" aria-label="Matriks izin"><table class="bs-table bs-matrix"><thead><tr><th scope="col">Izin</th>${state.roles.map((r, i) => `<th scope="col">${esc(r.name)}<small>${state.users.filter(u => u.role === r.name).length} pengguna</small>${i ? btn('', 'edit-role', { id: r.name, icon: 'edit', variant: 'icon ghost sm', title: `Ubah nama ${r.name}` }) : ''}</th>`).join('')}</tr></thead><tbody>${PERMS.map(([p, l]) => `<tr><th scope="row">${l}<small>${p}</small></th>${state.roles.map((r, i) => `<td><input type="checkbox" class="bs-check" data-role="${i}" data-perm="${p}" aria-label="${esc(r.name)}: ${l}" ${r.permissions.includes(p) ? 'checked' : ''} ${i === 0 || !can('users.manage') ? 'disabled' : ''}></td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="bs-muted bs-pad">Administrator selalu memiliki semua izin agar workspace tidak terkunci. Pratinjau RBAC — tidak ada penegakan akses di backend.</p>`;
     return head('Pengguna & Akses', navItem('access').desc, t === 'users' ? btn('Tambah pengguna', 'add-user', { icon: 'plus', variant: 'primary' }) : btn('Tambah peran', 'add-role', { icon: 'plus', variant: 'primary' })) +
       tabs('access.tab', [['users', 'Pengguna', state.users.length], ['roles', 'Peran & izin', state.roles.length]], t) +
       (t === 'users' ? card('Pengguna', `<div class="bs-toolbar">${searchF('access.q', 'Cari pengguna', ui.access.q, 'Nama, email, atau peran…', 'bsUserQ')}</div>` + table(['Pengguna', 'Peran', 'Status', 'Aktif terakhir', '<span class="bs-sr">Aksi</span>'], userRows)) : card('Matriks izin', matrix, { sub: 'Centang untuk memberi izin. Perubahan langsung tersimpan dan tercatat di Riwayat.' }));
@@ -1207,7 +1346,7 @@
       `<div class="bs-btn-row">${a.connected ? btn('Putuskan', 'api-toggle', { icon: 'plug' }) : btn('Hubungkan akun Google', 'gbp-oauth', { icon: 'external', variant: 'primary' })}${btn('Uji koneksi', 'api-test', { icon: 'zap' })}</div>`);
     const quotaCard = card('Kuota API harian', `<div class="bs-quota"><strong>${fmtNum(a.quotaUsed)}</strong><span>dari ${fmtNum(a.quotaLimit)} permintaan (${used}%)</span></div>${bar(a.quotaUsed, a.quotaLimit, `Kuota terpakai ${used}%`)}<p class="bs-muted bs-gap">Setiap pembaruan unit atau balasan ulasan memakai 1 permintaan. Batas kuota diatur di bawah.</p>${live ? '' : btn('Reset kuota harian', 'api-reset', { variant: 'sm ghost' })}`);
     const secretPh = has => (has ? '•••••••• tersimpan — isi untuk mengganti' : 'Belum diisi');
-    const form = `<form id="bsGoogleForm" novalidate>
+    const form = `<form id="bsGoogleForm" novalidate><fieldset class="bs-fieldset-plain" ${can('settings.write') ? '' : 'disabled'}>
       <div class="bs-form-grid">
         ${gField({ name: 'project', label: 'Project ID Google Cloud', value: a.project, hint: 'Mis. bri-branchsync-prod', attrs: 'autocomplete="off" spellcheck="false"' })}
         ${gField({ name: 'account', label: 'Email akun utama GBP', value: a.account, type: 'email', hint: 'Akun yang memiliki/mengelola lokasi', attrs: 'autocomplete="off"' })}
@@ -1223,7 +1362,7 @@
       </div>
       <p class="bs-form-error" id="bsGoogleError" role="alert"></p>
       <div class="bs-form-actions">${btn('Uji koneksi', 'api-test', { icon: 'zap' })}<button type="submit" class="bs-btn primary">${ic('check')}<span>Simpan konfigurasi</span></button></div>
-    </form>`;
+    </fieldset></form>`;
     return head('Integrasi Google', navItem('integrations').desc) +
       `<div class="bs-grid bs-grid-main">${statusCard}${quotaCard}</div>` +
       card('Kredensial & konfigurasi Google API', form, { sub: 'Diperlukan agar BranchSync dapat mengelola lokasi dan membalas ulasan atas nama BRI.' }) +
@@ -1376,12 +1515,13 @@
       ].join('')}</div>` +
       card(`Tren sinkronisasi ${bk.size === 1 ? 'harian' : 'mingguan'}`, columnChart(syncRows, { series: [{ key: 'ok', label: 'Berhasil', cls: 'bs-seg-good', dot: 'good' }, { key: 'fail', label: 'Gagal', cls: 'bs-seg-bad', dot: 'bad' }], labelEvery }), { sub: `${fmtNum(cur.ok + cur.fail)} pembaruan · ${fmtNum(cur.fail)} gagal` }) +
       `<div class="bs-grid bs-grid-2">${card('Volume ulasan per minggu', columnChart(volRows, { series: [{ key: 'n', label: 'Ulasan', cls: 'bs-seg-accent', dot: 's1' }], labelEvery: volRows.length > 8 ? 2 : 1 }), { sub: `${fmtNum(cur.rvs.length)} ulasan dalam periode` })}${card('Rata-rata rating per minggu', lineChart(ratRows, { label: 'Rata-rata rating', fmt: v => `${ratingTxt(v)} ★`, labelEvery: ratRows.length > 8 ? 2 : 1 }), { sub: 'Skala 1–5 bintang' })}</div>` +
-      card('Kinerja per region', regionRows.length ? `<div class="bs-table-wrap" tabindex="0" role="region" aria-label="Kinerja per region"><table class="bs-table bs-report-table"><thead><tr><th scope="col">Region</th><th scope="col">Unit</th><th scope="col">Online</th><th scope="col">Terverifikasi GBP</th><th scope="col">Beda data</th><th scope="col">Rating (periode)</th><th scope="col">Ulasan dibalas</th></tr></thead><tbody>${regionRows.join('')}</tbody></table></div>` : emptyState('Tidak ada data', 'Tidak ada unit dalam cakupan ini.', '', 'info'), { sub: 'Klik region untuk menyaring laporan · bar oranye = di bawah target', flush: !!regionRows.length }) +
+      card('Kinerja per region', regionRows.length ? `<div class="bs-table-wrap" tabindex="0" role="region" aria-label="Kinerja per region"><table class="bs-table bs-report-table bs-cards"><thead><tr><th scope="col">Region</th><th scope="col">Unit</th><th scope="col">Online</th><th scope="col">Terverifikasi GBP</th><th scope="col">Beda data</th><th scope="col">Rating (periode)</th><th scope="col">Ulasan dibalas</th></tr></thead><tbody>${withLabels(['Unit', 'Online', 'Terverifikasi GBP', 'Beda data', 'Rating (periode)', 'Ulasan dibalas'], regionRows).join('')}</tbody></table></div>` : emptyState('Tidak ada data', 'Tidak ada unit dalam cakupan ini.', '', 'info'), { sub: 'Klik region untuk menyaring laporan · bar oranye = di bawah target', flush: !!regionRows.length }) +
       `<div class="bs-grid bs-grid-2">${card('Komposisi status unit', composition('Status operasional', STATUSES, cnt('status')) + composition('Status Google Business Profile', GBP, cnt('gbp')))}${card('Lokasi dengan rating terendah', rankList(lowest, 'Belum ada ulasan dalam periode ini.', 5), { sub: 'Berdasarkan ulasan dalam periode', actions: go('Ulasan', 'reviews') })}</div>` +
       `<div class="bs-grid bs-grid-2">${card('Penyebab gagal sinkron teratas', rankList(reasonRows, 'Tidak ada kegagalan tercatat dalam periode ini.'), { actions: go('Sync Monitor', 'sync') })}${card('Aktivitas tim', rankList(teamRows, 'Belum ada aktivitas dalam periode ini.'), { sub: 'Jumlah perubahan per pengguna internal', actions: go('Riwayat', 'audit') })}</div>` +
       card('Laporan terjadwal', sched.length ? table(['Laporan', 'Jadwal', 'Penerima', '<span class="bs-sr">Aksi</span>'], sched) : emptyState('Belum ada jadwal', 'Kirim laporan otomatis ke email pimpinan secara berkala.', btn('Jadwalkan laporan', 'report-schedule', { icon: 'calendar', variant: 'sm' }), 'calendar'), { sub: isLive() ? 'Dikirim otomatis oleh server BranchSync.' : 'Mode Demo — jadwal disimpan, email tidak benar-benar dikirim.', flush: !!sched.length });
   }
   function reportScheduleModal() {
+    if (!guard('settings.write')) return;
     openModal('Jadwalkan laporan', formGrid([
       { name: 'name', label: 'Nama laporan', value: 'Laporan kinerja jaringan', full: true, attrs: 'required maxlength="80"' },
       { name: 'frequency', label: 'Frekuensi', type: 'select', options: [['weekly', 'Mingguan'], ['monthly', 'Bulanan (tanggal 1)']], value: 'weekly' },
@@ -1439,9 +1579,10 @@
   const SCN_KEY = 'branchSync.scenarioTests.v1';
   let scn = { tester: '', org: '', items: {} };
   try { Object.assign(scn, JSON.parse(localStorage.getItem(SCN_KEY) || '{}')); } catch (_) {}
+  const scnFull = () => toast(L2(['Penyimpanan browser penuh — hapus beberapa foto bukti.', 'Browser storage is full — remove some evidence photos.']), { tone: 'bad' });
   const saveScn = () => {
-    try { localStorage.setItem(SCN_KEY, JSON.stringify(scn)); return true; }
-    catch (_) { toast(L2(['Penyimpanan browser penuh — hapus beberapa foto bukti.', 'Browser storage is full — remove some evidence photos.']), { tone: 'bad' }); return false; }
+    if (storageMode === 'idb') { STORE.set('scenarioTests', scn).catch(scnFull); return true; }
+    try { localStorage.setItem(SCN_KEY, JSON.stringify(scn)); return true; } catch (_) { scnFull(); return false; }
   };
   const scnItem = no => (scn.items[no] ||= { result: '', notes: '', checks: [], evidence: [], updatedAt: null });
   const scnPeek = no => scn.items[no] || { result: '', notes: '', checks: [], evidence: [] };
@@ -1616,13 +1757,15 @@
       card('Mode & koneksi server', `<div class="bs-mode-row"><span class="bs-mode-badge" data-state="${isLive() ? 'online' : 'demo'}">${ic(isLive() ? 'plug' : 'zap')}</span><div><strong>${isLive() ? 'Live' : 'Mode Demo'}</strong><small>${isLive() ? `Masuk sebagai ${esc(ME.name)} · ${esc(MODE.host())}` : 'Data simulasi di browser ini. Tidak ada yang dikirim ke server.'}</small></div><div class="bs-seg-btns" role="group" aria-label="Pilih mode">${btn('Demo', 'mode-demo', { icon: 'zap', variant: `sm${isLive() ? '' : ' is-current'}`, attrs: `aria-pressed="${!isLive()}"` })}${btn('Live', 'mode-live', { icon: 'plug', variant: `sm${isLive() ? ' is-current' : ''}`, attrs: `aria-pressed="${isLive()}"` })}</div></div>
         <div class="bs-form-grid bs-gap"><label class="bs-field full"><span>URL server API</span><input id="bsApiUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" value="${esc(MODE.getBaseUrl())}" placeholder="https://api.branchsync.co.id/v1"><small>Dipakai pada mode Live. Daftar endpoint ada di API.md.</small></label></div>
         <div class="bs-btn-row">${btn('Uji koneksi', 'api-health', { icon: 'zap' })}${btn('Simpan URL', 'api-url-save', { icon: 'check' })}<span id="bsHealth" class="bs-health-msg" role="status" aria-live="polite"></span></div>`) +
-      `<form id="bsSettingsForm" class="bs-stack" novalidate>` +
+      (can('settings.write') ? '' : `<div class="bs-callout" data-tone="warn">${ic('info')}<p>Anda hanya dapat melihat pengaturan workspace. Hubungi Administrator untuk mengubahnya.</p></div>`) +
+      `<form id="bsSettingsForm" class="bs-stack" novalidate><fieldset class="bs-fieldset-plain" ${can('settings.write') ? '' : 'disabled'}>` +
       card('Workspace', `<div class="bs-form-grid">${f('workspace', 'Nama workspace', s.workspace, 'text', '', 'maxlength="80"')}<label class="bs-field"><span>Zona waktu</span><select name="timezone">${opts([['Asia/Jakarta', 'WIB — Asia/Jakarta'], ['Asia/Makassar', 'WITA — Asia/Makassar'], ['Asia/Jayapura', 'WIT — Asia/Jayapura']], s.timezone)}</select></label></div>`) +
       card('Target SLA', `<div class="bs-form-grid">${f('slaInternal', 'Proses internal (jam)', s.slaInternal, 'number', 'Waktu tim BRI memproses permintaan.', 'min="1" max="720"')}${f('slaGoogle', 'Acuan verifikasi Google (jam)', s.slaGoogle, 'number', 'Dipantau terpisah, di luar kendali BRI.', 'min="1" max="2000"')}</div>`) +
       card('Aturan deteksi', `<div class="bs-form-grid">${f('dupRadius', 'Radius duplikat (meter)', s.dupRadius, 'number', 'Unit bertipe sama dalam radius ini dianggap kemungkinan duplikat.', 'min="10" max="2000"')}${f('coordTol', 'Toleransi selisih koordinat (meter)', s.coordTol, 'number', 'Selisih titik di atas nilai ini dianggap tidak sesuai.', 'min="5" max="2000"')}</div>`) +
-      `<div class="bs-form-actions"><button type="submit" class="bs-btn primary">${ic('check')}<span>Simpan pengaturan</span></button></div></form>` +
+      `<div class="bs-form-actions"><button type="submit" class="bs-btn primary">${ic('check')}<span>Simpan pengaturan</span></button></div></fieldset></form>` +
       card(isLive() ? 'Data' : 'Data demo & uji performa', `<div class="bs-danger-list">
         ${isLive() ? '' : `<div><span><strong>Buat 1.000 unit uji</strong><small>Uji performa dashboard dengan data besar (skenario 4). Waktu proses ditampilkan.</small></span>${btn('Buat 1.000 unit', 'generate', { icon: 'zap' })}</div>`}
+        <div><span><strong>Penyimpanan browser</strong><small>${storageMode === 'idb' ? 'IndexedDB — kapasitas besar, cocok untuk ribuan unit.' : storageMode === 'local' ? 'localStorage — terbatas ±5 MB; unduh cadangan secara berkala.' : 'Memuat…'}${isLive() ? ' Data Live tidak disimpan di browser.' : ''}</small></span><span class="bs-badge" data-tone="${storageMode === 'idb' ? 'good' : 'warn'}"><i></i>${storageMode === 'idb' ? 'IndexedDB' : 'localStorage'}</span></div>
         <div><span><strong>Cadangkan data</strong><small>Unduh seluruh data workspace sebagai JSON.</small></span>${btn('Unduh JSON', 'backup', { icon: 'download' })}</div>
         ${isLive() ? '' : `<div><span><strong>Reset data demo</strong><small>Kembalikan semua data ke kondisi awal. Tidak bisa dibatalkan.</small></span>${btn('Reset data', 'reset-data', { icon: 'trash', variant: 'danger' })}</div>`}</div>`);
   }
@@ -1635,6 +1778,7 @@
     ui.drawer = { code, tab };
     renderDrawer();
     if (!sheet.open) { sheetTrigger = document.activeElement; sheet.showModal(); }
+    syncUrl();
   }
   let sheetTrigger = null;
   function renderDrawer() {
@@ -1668,7 +1812,7 @@
       <header class="bs-sheet-head"><div><p class="bs-eyebrow">${esc(l.code)} · ${esc(l.type)}</p><h2 id="bsDrawerTitle">${esc(l.name)}</h2><div class="bs-badges">${badge(l.status)}${badge(l.gbp)}${iss.length ? `<span class="bs-badge" data-tone="warn"><i></i>${iss.length} beda dengan Google</span>` : ''}</div></div>${btn('', 'sheet-close', { icon: 'x', variant: 'icon ghost', title: 'Tutup' })}</header>
       ${tabs('drawer.tab', [['overview', 'Ringkasan'], ['compare', 'Bandingkan Google', iss.length || null], ['reviews', 'Ulasan', state.reviews.filter(rv => rv.code === l.code).length], ['history', 'Riwayat', hist.length], ['sync', 'Sinkronisasi']], t)}
       <div class="bs-sheet-body">${body}</div>
-      <footer class="bs-sheet-foot">${btn('Hapus', 'delete-loc', { id: l.code, icon: 'trash', variant: 'danger ghost' })}<span class="bs-spacer"></span>${btn('Sinkronkan', 'sync-one', { id: l.code, icon: 'refresh', attrs: ui.running ? 'disabled' : '' })}${btn('Edit', 'edit-loc', { id: l.code, icon: 'edit', variant: 'primary' })}</footer></div>`;
+      <footer class="bs-sheet-foot">${btn('Hapus', 'delete-loc', { id: l.code, icon: 'trash', variant: 'danger ghost' })}${btn('', 'copy-link', { icon: 'link', variant: 'icon ghost', title: 'Salin tautan unit ini' })}<span class="bs-spacer"></span>${btn('Sinkronkan', 'sync-one', { id: l.code, icon: 'refresh', attrs: ui.running ? 'disabled' : '' })}${btn('Edit', 'edit-loc', { id: l.code, icon: 'edit', variant: 'primary' })}</footer></div>`;
   }
 
   /* ------------------------------------------------------------------ *
@@ -1870,6 +2014,7 @@
   }
 
   function locationForm(code) {
+    if (!guard('locations.write')) return;
     const l = code ? byCode().get(code) : null;
     hoursDraft = l?.hoursSpec ? JSON.parse(JSON.stringify(l.hoursSpec)) : parseHours(l?.hours || HOURS[0]);
     openModal(l ? `Edit ${l.name}` : 'Tambah unit kerja',
@@ -1954,6 +2099,7 @@
     return { items };
   }
   function importModal(text = '') {
+    if (!guard('locations.import')) return;
     const d = importDraft;
     const preview = d && d.items ? (() => {
       const ok = d.items.filter(x => !x.errors.length), upd = ok.filter(x => x.existing).length;
@@ -2004,8 +2150,9 @@
    * ------------------------------------------------------------------ */
   let palItems = [], palIndex = 0;
   const PAL_ACTIONS = [
-    ['Tambah unit kerja', 'plus', () => locationForm()], ['Impor data CSV', 'upload', () => { importDraft = null; importModal(); }],
-    ['Sinkronkan semua unit', 'refresh', () => runSync(null)], ['Usulkan titik baru', 'pin', () => pointForm()],
+    ['Tambah unit kerja', 'plus', () => locationForm(), 'locations.write'], ['Impor data CSV', 'upload', () => { importDraft = null; importModal(); }, 'locations.import'],
+    ['Sinkronkan semua unit', 'refresh', () => runSync(null), 'sync.run'], ['Usulkan titik baru', 'pin', () => pointForm(), 'claims.manage'],
+    ['Salin tautan halaman ini', 'link', () => copyLink()],
     ['Ganti tema terang/gelap', 'moon', () => toggleTheme()], ['Pintasan keyboard', 'keyboard', () => shortcutsModal()]
   ];
   function openPalette() {
@@ -2016,8 +2163,8 @@
   }
   function renderPalette(q) {
     q = q.trim().toLowerCase();
-    const nav = NAV_ITEMS.filter(n => !q || n.label.toLowerCase().includes(q)).map(n => ({ group: 'Menu', icon: n.icon, label: n.label, sub: '', run: () => navigate(n.id) }));
-    const acts = PAL_ACTIONS.filter(a => !q || a[0].toLowerCase().includes(q)).map(([label, icon, run]) => ({ group: 'Aksi', icon, label, sub: '', run }));
+    const nav = NAV_ITEMS.filter(n => canView(n.id) && (!q || n.label.toLowerCase().includes(q))).map(n => ({ group: 'Menu', icon: n.icon, label: n.label, sub: '', run: () => navigate(n.id) }));
+    const acts = PAL_ACTIONS.filter(a => can(a[3]) && (!q || a[0].toLowerCase().includes(q))).map(([label, icon, run]) => ({ group: 'Aksi', icon, label, sub: '', run }));
     const locs = q ? state.locations.filter(l => `${l.name} ${l.code} ${l.city}`.toLowerCase().includes(q)).slice(0, 8).map(l => ({ group: 'Unit kerja', icon: 'building', label: l.name, sub: `${l.code} · ${l.city}`, run: () => openDrawer(l.code) })) : [];
     palItems = [...locs, ...nav, ...acts];
     palIndex = 0;
@@ -2062,6 +2209,7 @@
     pop.innerHTML = `<div class="bs-menu-head">Mode aplikasi</div>
       <button type="button" class="bs-menu-item" role="menuitemradio" aria-checked="${!live}" data-action="mode-demo"><span class="bs-mode-badge" data-state="demo">${ic('zap')}</span><span><strong>Mode Demo</strong><small>Data simulasi di browser ini — aman untuk mencoba</small></span>${!live ? ic('check', 'bs-menu-check') : ''}</button>
       <button type="button" class="bs-menu-item" role="menuitemradio" aria-checked="${live}" data-action="mode-live"><span class="bs-mode-badge" data-state="online">${ic('plug')}</span><span><strong>Live</strong><small>${live ? `${st} · ${esc(host)}` : hasSession ? `Sesi aktif · ${esc(host)}` : 'Data asli dari server BranchSync — perlu masuk'}</small></span>${live ? ic('check', 'bs-menu-check') : ''}</button>
+      ${live ? '' : `<div class="bs-menu-sep" role="separator"></div><div class="bs-menu-head">Lihat sebagai (Demo)</div>${(state.roles || []).map(r => `<button type="button" class="bs-menu-item sm" role="menuitemradio" aria-checked="${ME.role === r.name}" data-action="demo-role" data-id="${esc(r.name)}">${ic('users')}<span>${esc(r.name)}</span>${ME.role === r.name ? ic('check', 'bs-menu-check') : ''}</button>`).join('')}`}
       <div class="bs-menu-sep" role="separator"></div>
       ${live ? `<button type="button" class="bs-menu-item sm" role="menuitem" data-action="live-retry">${ic('refresh')}<span>Muat ulang data</span></button>` : ''}
       <button type="button" class="bs-menu-item sm" role="menuitem" data-view="settings">${ic('sliders')}<span>Pengaturan koneksi</span></button>`;
@@ -2156,7 +2304,7 @@
    * Konten pengguna (nama unit, isi ulasan, input) tidak diterjemahkan.
    * ------------------------------------------------------------------ */
   const I18N = window.BranchAdminI18n || { dict: {}, patterns: [] };
-  const ATTRS = ['placeholder', 'aria-label', 'title'];
+  const ATTRS = ['placeholder', 'aria-label', 'title', 'data-label'];
   const SKIP = 'textarea, script, style, code, [data-no-i18n], .bs-review-text:not(.bs-muted), .bs-reply p, .bs-diff del, .bs-diff ins, .bs-val, .bs-note';
   const origText = new WeakMap(), origAttr = new WeakMap();
   const missing = new Set();
@@ -2185,7 +2333,7 @@
     const texts = []; let n;
     while ((n = walker.nextNode())) texts.push(n);
     texts.forEach(translateNode);
-    [root, ...root.querySelectorAll('[placeholder],[aria-label],[title]')].forEach(el => ATTRS.forEach(a => {
+    [root, ...root.querySelectorAll('[placeholder],[aria-label],[title],[data-label]')].forEach(el => ATTRS.forEach(a => {
       const v = el.getAttribute(a); if (!v || el.closest(SKIP)) return;
       const t = trString(v); if (t === v) return;
       const m = origAttr.get(el) || {}; if (!(a in m)) m[a] = v; origAttr.set(el, m);
@@ -2195,7 +2343,7 @@
   function restoreNode(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
     while ((n = walker.nextNode())) if (origText.has(n)) { n.nodeValue = origText.get(n); origText.delete(n); }
-    [root, ...root.querySelectorAll('[placeholder],[aria-label],[title]')].forEach(el => { const m = origAttr.get(el); if (m) { Object.entries(m).forEach(([a, v]) => el.setAttribute(a, v)); origAttr.delete(el); } });
+    [root, ...root.querySelectorAll('[placeholder],[aria-label],[title],[data-label]')].forEach(el => { const m = origAttr.get(el); if (m) { Object.entries(m).forEach(([a, v]) => el.setAttribute(a, v)); origAttr.delete(el); } });
   }
   const observer = new MutationObserver(muts => {
     if (!isEn()) return;
@@ -2233,7 +2381,7 @@
   let renderedView = null;
   const VIEWS = { dashboard: viewDashboard, map: viewMap, locations: viewLocations, discrepancies: viewDiscrepancies, duplicates: viewDuplicates, claims: viewClaims, approvals: viewApprovals, sync: viewSync, audit: viewAudit, sla: viewSla, access: viewAccess, integrations: viewIntegrations, settings: viewSettings, reviews: viewReviews, reports: viewReports, guide: viewGuide, scenarios: viewScenarios };
   function renderNav() {
-    $('bsNav').innerHTML = NAV.map(g => `<p class="bs-nav-label">${g.group}</p>${g.items.map(n => { const c = n.count ? n.count() : 0; return `<button type="button" data-view="${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''} title="${esc(n.label)}">${ic(n.icon)}<span class="bs-nav-text">${n.label}</span>${c ? `<span class="bs-nav-count" aria-label="${c} perlu perhatian">${c > 99 ? '99+' : c}</span>` : ''}</button>`; }).join('')}`).join('');
+    $('bsNav').innerHTML = NAV.map(g => ({ ...g, items: g.items.filter(n => canView(n.id)) })).filter(g => g.items.length).map(g => `<p class="bs-nav-label">${g.group}</p>${g.items.map(n => { const c = n.count ? n.count() : 0; return `<button type="button" data-view="${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''} title="${esc(n.label)}">${ic(n.icon)}<span class="bs-nav-text">${n.label}</span>${c ? `<span class="bs-nav-count" aria-label="${c} perlu perhatian">${c > 99 ? '99+' : c}</span>` : ''}</button>`; }).join('')}`).join('');
   }
   function updateChrome() {
     const last = state.runs[0];
@@ -2247,6 +2395,7 @@
     $('bsFooterMode').textContent = live
       ? (mstate === 'offline' ? `Live — tidak dapat terhubung ke ${host || 'server'}.` : mstate === 'busy' && !ui.live.ready ? `Live — menghubungkan ke ${host || 'server'}…` : `Live — terhubung ke ${host || 'server'}. Perubahan dikirim ke server${ui.live.syncedAt ? ` · data dimuat ${fmtRel(ui.live.syncedAt)}` : ''}.`)
       : 'Mode Demo — perubahan disimpan di browser ini dan tidak dikirim ke Google atau server.';
+    const rc = $('bsRoleChip'); rc.hidden = ME.role === 'Administrator'; rc.textContent = `Peran: ${ME.role}`; rc.title = isLive() ? 'Peran dari akun server' : 'Lihat sebagai (Demo) — klik untuk mengganti';
     $('bsAccName').textContent = ME.name; $('bsAccRole').textContent = ME.role || 'Pengguna'; $('bsAccAvatar').textContent = initials(ME.name);
     $('bsSyncPill').innerHTML = ui.running
       ? `<span class="bs-pulse"></span>${ui.running.indeterminate ? 'Menyinkronkan…' : `Menyinkronkan ${pct(ui.running.done, ui.running.total)}%`}`
@@ -2297,13 +2446,99 @@
     }
     if (sheet.open) renderDrawer();
     restoreFocus(f);
+    syncUrl();
     ui.renderMs = Math.max(1, Math.round(performance.now() - t0));
     updateChrome();
   }
-  function navigate(view, { focus = true } = {}) {
+  /* ---------- Routing hash: #/halaman?filter=…&unit=KODE ---------- */
+  const VIEW_SLUG = { dashboard: 'dashboard', map: 'peta', reports: 'laporan', sla: 'sla', locations: 'unit-kerja', discrepancies: 'ketidaksesuaian', duplicates: 'duplikat', claims: 'klaim', approvals: 'persetujuan', reviews: 'ulasan', sync: 'sync', audit: 'riwayat', access: 'akses', integrations: 'integrasi', settings: 'pengaturan', guide: 'panduan', scenarios: 'scenario-test' };
+  const SLUG_VIEW = Object.fromEntries(Object.entries(VIEW_SLUG).map(([v, sl]) => [sl, v]));
+  const LOC_SORTS = ['name', 'city', 'region', 'type', 'status', 'gbp', 'issues', 'lastSync', 'updatedAt'];
+  const DRAWER_TABS = ['overview', 'compare', 'reviews', 'history', 'sync'];
+  let routing = false, pushNext = false;
+  function routeParams() {
+    const P = new URLSearchParams(), put = (k, v, def = '') => { if (v != null && String(v) !== '' && String(v) !== String(def)) P.set(k, String(v)); };
+    switch (ui.view) {
+      case 'locations': { const f = ui.loc; put('q', f.q.trim()); put('tampilan', f.quick, 'all'); FILTERS.forEach(([k]) => put(k, f[k].join(','))); put('urut', f.sort, 'name'); put('arah', f.dir === -1 ? 'desc' : ''); put('hal', f.page, 1); break; }
+      case 'map': put('q', ui.map.q.trim()); put('status', ui.map.status); put('region', ui.map.region); put('gbp', ui.map.gbp); break;
+      case 'discrepancies': put('q', ui.disc.q.trim()); put('kolom', ui.disc.field); break;
+      case 'claims': put('tab', ui.claims.tab, 'active'); break;
+      case 'approvals': put('tab', ui.approvals.tab, 'pending'); break;
+      case 'sync': put('tab', ui.sync.tab, 'failures'); break;
+      case 'access': put('tab', ui.access.tab, 'users'); put('q', ui.access.q.trim()); break;
+      case 'audit': put('q', ui.audit.q.trim()); put('modul', ui.audit.module); put('pengguna', ui.audit.actor); put('periode', ui.audit.range === '' ? 'semua' : ui.audit.range, '30'); break;
+      case 'reviews': { const f = ui.reviews; put('akun', f.account); put('lokasi', f.location); put('rating', f.rating); put('status', f.status); put('urut', f.sort, 'newest'); put('q', f.q.trim()); break; }
+      case 'reports': put('periode', ui.report.period, '30'); put('region', ui.report.region); put('akun', ui.report.account); put('tipe', ui.report.type); break;
+      case 'guide': put('q', ui.guide.q.trim()); break;
+      case 'scenarios': put('kelompok', ui.scn.group); break;
+    }
+    if (ui.drawer) { put('unit', ui.drawer.code); put('panel', ui.drawer.tab, 'overview'); }
+    return P;
+  }
+  const currentHash = () => { const qs = routeParams().toString(); return `#/${VIEW_SLUG[ui.view] || 'dashboard'}${qs ? `?${qs}` : ''}`; };
+  function syncUrl() {
+    if (shell.hidden || routing) { pushNext = false; return; }
+    const h = currentHash();
+    if (location.hash !== h) {
+      const url = location.pathname + location.search + h;
+      try { if (pushNext) history.pushState({ bs: 1 }, '', url); else history.replaceState({ bs: 1 }, '', url); } catch (_) { /* file:// tertentu */ }
+    }
+    pushNext = false;
+  }
+  function parseRoute(hash) {
+    if (!hash || !hash.startsWith('#/')) return null;
+    const [path, qs] = hash.slice(2).split('?');
+    let slug = ''; try { slug = decodeURIComponent(path); } catch (_) { return null; }
+    return { view: SLUG_VIEW[slug] || '', P: new URLSearchParams(qs || '') };
+  }
+  // Terapkan rute ke state UI. Semua nilai divalidasi terhadap daftar yang diizinkan.
+  function applyRoute(r) {
+    let view = VIEWS[r.view] ? r.view : 'dashboard';
+    if (!canView(view)) view = 'dashboard';
+    const P = r.P, g = k => (P.get(k) || '').slice(0, 120), one = (k, allowed, def = '') => (allowed.includes(g(k)) ? g(k) : def), list = (k, allowed) => g(k).split(',').filter(x => allowed.includes(x));
+    switch (view) {
+      case 'locations': Object.assign(ui.loc, { q: g('q'), quick: one('tampilan', QUICK.map(x => x[0]), 'all'), status: list('status', STATUSES), region: list('region', REGIONS), type: list('type', TYPES), gbp: list('gbp', GBP), sort: one('urut', LOC_SORTS, 'name'), dir: g('arah') === 'desc' ? -1 : 1, page: Math.max(1, parseInt(g('hal'), 10) || 1) }); ui.loc.selected.clear(); break;
+      case 'map': Object.assign(ui.map, { q: g('q'), status: one('status', STATUSES), region: one('region', REGIONS), gbp: one('gbp', GBP) }); break;
+      case 'discrepancies': Object.assign(ui.disc, { q: g('q'), field: one('kolom', ['name', 'phone', 'hours', 'address', 'coords']) }); break;
+      case 'claims': ui.claims.tab = one('tab', ['active', 'done', 'rejected', 'all'], 'active'); break;
+      case 'approvals': ui.approvals.tab = one('tab', ['pending', 'history'], 'pending'); break;
+      case 'sync': ui.sync.tab = one('tab', ['failures', 'runs'], 'failures'); break;
+      case 'access': Object.assign(ui.access, { tab: one('tab', ['users', 'roles'], 'users'), q: g('q') }); break;
+      case 'audit': Object.assign(ui.audit, { q: g('q'), module: g('modul').slice(0, 60), actor: one('pengguna', ['Internal', 'Eksternal']), range: g('periode') === 'semua' ? '' : one('periode', ['1', '7', '30'], '30') }); break;
+      case 'reviews': Object.assign(ui.reviews, { account: g('akun').slice(0, 60), location: g('lokasi').slice(0, 40), rating: one('rating', ['1', '2', '3', '4', '5']), status: one('status', ['replied', 'unreplied']), sort: one('urut', ['newest', 'unreplied', 'lowest', 'highest'], 'newest'), q: g('q'), limit: 20, editing: null }); break;
+      case 'reports': Object.assign(ui.report, { period: one('periode', ['7', '30', '90'], '30'), region: one('region', REGIONS), account: g('akun').slice(0, 60), type: one('tipe', TYPES) }); break;
+      case 'guide': ui.guide.q = g('q'); break;
+      case 'scenarios': ui.scn.group = one('kelompok', ['A', 'B', 'C', 'D']); break;
+    }
+    return { view, unit: g('unit').slice(0, 40), panel: one('panel', DRAWER_TABS, 'overview') };
+  }
+  function openRouteUnit(res) { if (res && res.unit && byCode().has(res.unit)) openDrawer(res.unit, res.panel); }
+  window.addEventListener('popstate', () => {
+    if (shell.hidden) return;
+    const r = parseRoute(location.hash);
+    if (!r) return;
+    routing = true;
+    const res = applyRoute(r);
+    if (sheet.open && !res.unit) sheet.close();
+    closeModal(); toggleModeMenu(false);
+    ui.view = res.view; ui.pop = ''; renderedView = null;
+    closeNav();
+    render();
+    if (!isLive() || ui.live.ready) openRouteUnit(res);
+    routing = false;
+  });
+  function copyLink() {
+    syncUrl();
+    const url = location.href;
+    (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast('Tautan disalin. Penerima perlu masuk untuk membukanya.', { tone: 'good' }), () => openModal('Salin tautan', `<label class="bs-field"><span>Tautan halaman ini</span><input value="${esc(url)}" readonly onfocus="this.select()"></label>`, { footer: btn('Tutup', 'modal-close', { variant: 'primary' }) }));
+  }
+
+  function navigate(view, { focus = true, push = true } = {}) {
     if (!VIEWS[view]) return;
+    if (!canView(view)) { toast(deniedMsg((NAV_ITEMS.find(n => n.id === view) || {}).perm), { tone: 'warn' }); view = 'dashboard'; }
+    pushNext = push && view !== ui.view;
     if (view !== ui.view) renderedView = null;
-    ui.view = view; ui.filterOpen = false;
+    ui.view = view; ui.pop = '';
     if (view === 'map') renderedView = null;
     closeNav();
     render();
@@ -2413,6 +2648,7 @@
     toast(`${c.id} → ${next}.`, { tone: next === 'Selesai' ? 'good' : 'info' });
   }
   function claimForm(code = '') {
+    if (!guard('claims.manage')) return;
     const cands = state.locations.filter(l => l.gbp !== 'Terverifikasi' || l.code === code);
     openModal('Ajukan klaim', formGrid([
       { name: 'kind', label: 'Jenis permintaan', type: 'select', options: CLAIM_KINDS, value: byCode().get(code)?.gbp === 'Suspend' ? 'Banding suspend' : 'Klaim kepemilikan', full: true },
@@ -2433,6 +2669,7 @@
     });
   }
   function pointForm() {
+    if (!guard('claims.manage')) return;
     hoursDraft = presetHours('weekday');
     openModal('Usulkan titik lokasi baru',
       `<h3 class="bs-form-section">Informasi dasar</h3>` + formGrid([
@@ -2464,6 +2701,7 @@
     mountPicker('', '', null);
   }
   function userForm(id) {
+    if (!guard('users.manage')) return;
     const u = state.users.find(x => x.id === Number(id));
     openModal(u ? `Edit ${u.name}` : 'Tambah pengguna', formGrid([
       { name: 'name', label: 'Nama lengkap', value: u?.name, full: true }, { name: 'email', label: 'Email', type: 'email', value: u?.email, full: true, hint: 'Gunakan domain @example.test untuk demo.' },
@@ -2486,6 +2724,7 @@
     });
   }
   function roleForm(name) {
+    if (!guard('users.manage')) return;
     const r = state.roles.find(x => x.name === name);
     openModal(r ? `Ubah peran ${r.name}` : 'Tambah peran', formGrid([{ name: 'name', label: 'Nama peran', value: r?.name, full: true }]) + (r ? '' : `<fieldset class="bs-fieldset"><legend>Izin awal</legend>${PERMS.map(([p, l]) => `<label class="bs-checkline"><input type="checkbox" name="perm" value="${p}" ${p.endsWith('.read') ? 'checked' : ''}><span>${l}</span></label>`).join('')}</fieldset>`), {
       submit: 'Simpan',
@@ -2536,6 +2775,7 @@
   }
   function act(action, id, el) {
     const l = id ? byCode().get(id) : null;
+    if (ACTION_PERM[action] && !guard(ACTION_PERM[action])) return;
     switch (action) {
       case 'nav': navigate(id); break;
       case 'collapse': prefs.collapsed = !prefs.collapsed; savePrefs(); applyLayout(); break;
@@ -2547,9 +2787,25 @@
       case 'shortcuts': shortcutsModal(); break;
       case 'notif': toggleNotif(); break;
       case 'logout': logout(); break;
-      case 'tab': { const [path, v] = id.split(':'); const [a, b] = path.split('.'); ui[a][b] = v; if (a === 'drawer') renderDrawer(); else render(); break; }
+      case 'tab': { const [path, v] = id.split(':'); const [a, b] = path.split('.'); ui[a][b] = v; if (a === 'drawer') { renderDrawer(); syncUrl(); } else render(); break; }
       case 'modal-close': closeModal(); break;
       case 'mode-menu': toggleModeMenu(); break;
+      case 'demo-role': {
+        if (isLive()) break;
+        toggleModeMenu(false);
+        prefs.demoRole = id; savePrefs(); ME = demoUser(); cache = {};
+        renderedView = null;
+        if (!canView(ui.view)) navigate('dashboard'); else render();
+        toast(`Sekarang melihat sebagai ${id}.`, { tone: 'info' });
+        break;
+      }
+      case 'copy-link': copyLink(); break;
+      case 'view-save': saveViewModal(); break;
+      case 'view-apply': applySavedView(id); break;
+      case 'view-rename': saveViewModal(id); break;
+      case 'view-pin': { const v = up().views.find(x => x.id === id); if (v) { v.pinned = !v.pinned; saveUP(); render(); toast(v.pinned ? `“${v.name}” disematkan di tampilan cepat.` : `Sematan “${v.name}” dilepas.`); } break; }
+      case 'view-delete': { const v = up().views.find(x => x.id === id); if (!v) break; confirmModal(`Hapus tampilan “${esc(v.name)}”?`, 'Hanya tampilan tersimpan yang dihapus; data unit kerja tidak berubah.', 'Hapus tampilan', () => { const U = up(); U.views = U.views.filter(x => x !== v); saveUP(); toast('Tampilan dihapus.'); }); break; }
+      case 'cols-reset': { const U = up(); U.cols = null; U.density = 'comfortable'; saveUP(); render(); break; }
       case 'mode-demo': toggleModeMenu(false); closeModal(); switchToDemo(); break;
       case 'mode-live': toggleModeMenu(false); closeModal(); switchToLive(); break;
       case 'live-retry': toggleModeMenu(false); closeModal(); loadLive(); break;
@@ -2679,7 +2935,7 @@
       case 'unfilter': { const [k, v] = id.split(/:(.*)/s); ui.loc[k] = ui.loc[k].filter(x => x !== v); ui.loc.page = 1; render(); break; }
       case 'clear-filters': FILTERS.forEach(([k]) => { ui.loc[k] = []; }); ui.loc.page = 1; render(); break;
       case 'clear-all': FILTERS.forEach(([k]) => { ui.loc[k] = []; }); ui.loc.q = ''; ui.loc.quick = 'all'; ui.loc.page = 1; render(); break;
-      case 'close-filter': ui.filterOpen = false; render(); break;
+      case 'close-filter': case 'close-pop': ui.pop = ''; render(); break;
       case 'goto-filter': { const [k, v] = id.split(/:(.*)/s); FILTERS.forEach(([f]) => { ui.loc[f] = []; }); ui.loc.q = ''; ui.loc.quick = 'all'; ui.loc[k] = [v]; navigate('locations'); break; }
       case 'select': ui.loc.selected[el.checked ? 'add' : 'delete'](id); render(); break;
       case 'select-page': { const size = Number(prefs.pageSize) || 10, rows = locFiltered().slice((ui.loc.page - 1) * size, ui.loc.page * size); rows.forEach(r => ui.loc.selected[el.checked ? 'add' : 'delete'](r.code)); render(); break; }
@@ -2752,12 +3008,13 @@
 
   shell.addEventListener('click', e => {
     const t = e.target;
+    if (t.closest('.bs-skip')) { e.preventDefault(); $('bsMain').focus(); return; }
     if (t === modal) { closeModal(); return; }
     if (t === sheet) { sheet.close(); return; }
     // Tutup popover saat klik di luar
     if (!$('bsNotif').hidden && !t.closest('#bsNotif, #bsNotifBtn')) toggleNotif(false);
     if (!$('bsModeMenu').hidden && !t.closest('#bsModeMenu, #bsModeBtn')) toggleModeMenu(false);
-    if (ui.filterOpen && !t.closest('[data-filter-pop]')) { ui.filterOpen = false; shell.querySelector('[data-filter-pop]')?.removeAttribute('open'); }
+    if (ui.pop && !t.closest(`[data-pop="${ui.pop}"]`)) { shell.querySelector(`[data-pop="${ui.pop}"]`)?.removeAttribute('open'); ui.pop = ''; }
     const v = t.closest('[data-view]');
     if (v && !v.disabled) { if (!$('bsNotif').hidden) toggleNotif(false); if (!$('bsModeMenu').hidden) toggleModeMenu(false); if (sheet.open) sheet.close(); closeModal(); navigate(v.dataset.view); return; }
     const a = t.closest('[data-action]');
@@ -2766,7 +3023,11 @@
     act(a.dataset.action, a.dataset.id || '', a);
   });
   shell.addEventListener('toggle', e => {
-    if (e.target.matches?.('[data-filter-pop]')) ui.filterOpen = e.target.open;
+    if (e.target.matches?.('details[data-pop]')) {
+      const name = e.target.dataset.pop;
+      if (e.target.open) { if (ui.pop && ui.pop !== name) shell.querySelector(`[data-pop="${ui.pop}"]`)?.removeAttribute('open'); ui.pop = name; }
+      else if (ui.pop === name) ui.pop = '';
+    }
     if (e.target.matches?.('details.bs-scn')) { const no = Number(e.target.dataset.scnNo); if (e.target.open) ui.scn.open.add(no); else ui.scn.open.delete(no); }
   }, true);
   let scnTimer = 0;
@@ -2817,7 +3078,15 @@
       t.value = '';
       return;
     }
+    if (t.dataset.col) {
+      const U = up(), curCols = visibleCols().map(c => c.key);
+      U.cols = t.checked ? [...new Set([...curCols, t.dataset.col])] : curCols.filter(k => k !== t.dataset.col);
+      saveUP(); ui.pop = 'cols'; render(); return;
+    }
+    if (t.dataset.density) { up().density = t.dataset.density; saveUP(); ui.pop = 'cols'; render(); return; }
+    if (t.dataset.actionChange === 'loc-sort') { const [k, d] = t.value.split(':'); if (LOC_SORTS.includes(k)) { ui.loc.sort = k; ui.loc.dir = d === '-1' ? -1 : 1; ui.loc.page = 1; render(); } return; }
     if (t.dataset.actionChange === 'bulk-status' && t.value) {
+      if (!guard('locations.write')) { t.value = ''; return; }
       const status = t.value, n = ui.loc.selected.size, snap = snapshot();
       state.locations.forEach(l => { if (ui.loc.selected.has(l.code) && l.status !== status) { log('Unit Kerja', 'Mengubah status (massal)', { target: l.code, changes: [{ field: 'Status', before: l.status, after: status }] }); l.status = status; l.updatedAt = Date.now(); l.updatedBy = ME.name; } });
       remote('POST', '/locations/bulk-update', { codes: [...ui.loc.selected], patch: { status } });
@@ -2827,10 +3096,11 @@
     if (t.dataset.filter) {
       const k = t.dataset.filter;
       ui.loc[k] = t.checked ? [...new Set([...ui.loc[k], t.value])] : ui.loc[k].filter(x => x !== t.value);
-      ui.loc.page = 1; ui.filterOpen = true; render();
+      ui.loc.page = 1; ui.pop = 'filter'; render();
       return;
     }
     if (t.dataset.perm) {
+      if (!guard('users.manage')) { t.checked = !t.checked; return; }
       const r = state.roles[Number(t.dataset.role)], p = t.dataset.perm;
       r.permissions = t.checked ? [...new Set([...r.permissions, p])] : r.permissions.filter(x => x !== p);
       log('Pengguna & Akses', `${t.checked ? 'Memberi' : 'Mencabut'} izin`, { detail: `${r.name}: ${p}` });
@@ -2863,6 +3133,7 @@
       return;
     }
     if (form.id === 'bsGoogleForm') {
+      if (!guard('settings.write')) return;
       const fd = new FormData(form), p = Object.fromEntries(fd), errs = {};
       const next = { project: String(p.project || '').trim(), account: String(p.account || '').trim(), clientId: String(p.clientId || '').trim(), scopes: fd.getAll('scopes'), syncInterval: String(p.syncInterval || '60'), quotaLimit: Number(p.quotaLimit), pubsubTopic: String(p.pubsubTopic || '').trim(), webhook: fd.has('webhook') };
       const secret = String(p.clientSecret || ''), apiKey = String(p.apiKey || '').trim();
@@ -2896,6 +3167,7 @@
       return;
     }
     if (form.id === 'bsSettingsForm') {
+      if (!guard('settings.write')) return;
       const p = Object.fromEntries(new FormData(form)), s = state.settings, errs = [];
       const num = (k, min, max, label) => { const v = Number(p[k]); if (!Number.isFinite(v) || v < min || v > max) errs.push(`${label} harus ${min}–${max}.`); return v; };
       const next = { workspace: String(p.workspace || '').trim(), timezone: p.timezone, slaInternal: num('slaInternal', 1, 720, 'SLA internal'), slaGoogle: num('slaGoogle', 1, 2000, 'Acuan Google'), dupRadius: num('dupRadius', 10, 2000, 'Radius duplikat'), coordTol: num('coordTol', 5, 2000, 'Toleransi koordinat') };
@@ -2916,6 +3188,7 @@
   });
   sheet.addEventListener('close', () => {
     ui.drawer = null;
+    syncUrl();
     const t = sheetTrigger; sheetTrigger = null;
     if (t && t.isConnected) t.focus({ preventScroll: true }); else $('bsTitle')?.focus({ preventScroll: true });
   });
@@ -2932,13 +3205,13 @@
     }
     if (e.key === 'Escape') {
       if (!$('bsNotif').hidden) { toggleNotif(false); $('bsNotifBtn').focus(); return; }
-      if (ui.filterOpen) { ui.filterOpen = false; render(); return; }
+      if (ui.pop) { const name = ui.pop; ui.pop = ''; render(); shell.querySelector(`[data-pop="${name}"] summary`)?.focus(); return; }
       if (ui.navOpen) { closeNav(); shell.querySelector('.bs-menu').focus(); return; }
     }
     if (typing || modal.open || palette.open || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '/') { const s = shell.querySelector('#bsPage [data-search]'); if (s) { e.preventDefault(); s.focus(); s.select(); } }
     else if (e.key === '?') { e.preventDefault(); shortcutsModal(); }
-    else if (e.key.toLowerCase() === 'n' && !sheet.open) { e.preventDefault(); locationForm(); }
+    else if (e.key.toLowerCase() === 'n' && !sheet.open) { e.preventDefault(); if (guard('locations.write')) locationForm(); }
   });
   setInterval(() => { if (!shell.hidden && !ui.running) updateChrome(); }, 30000);
   // Live: muat ulang berkala agar edit eksternal & hasil sync terbaru muncul.
@@ -2960,10 +3233,27 @@
     document.body.classList.remove('admin-active');
     document.documentElement.lang = typeof language !== 'undefined' ? language : 'id';
     document.querySelector('.header-actions [data-login]')?.focus();
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
     window.dispatchEvent(new Event('resize'));
   }
+  const storageReady = (async () => {
+    try {
+      let s0 = await STORE.get('demoState'), sc = await STORE.get('scenarioTests');
+      if (!s0) { const raw = localStorage.getItem(STORE_KEY); if (raw) { s0 = JSON.parse(raw); await STORE.set('demoState', s0); localStorage.removeItem(STORE_KEY); } }
+      if (!sc) { const raw = localStorage.getItem(SCN_KEY); if (raw) { sc = JSON.parse(raw); await STORE.set('scenarioTests', sc); localStorage.removeItem(SCN_KEY); } }
+      storageMode = 'idb';
+      if (s0 && s0.v === 2 && Array.isArray(s0.locations)) demoState = ensureExtras(s0);
+      if (sc && typeof sc === 'object') scn = { tester: '', org: '', items: {}, ...sc };
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    } catch (_) {
+      storageMode = 'local';
+    }
+    if (!demoState) demoState = legacyLoad();
+    if (!isLive()) state = demoState;
+    cache = {};
+  })();
   window.BranchAdmin = {
-    enter(opts = {}) {
+    async enter(opts = {}) {
       try { loginTrigger = null; } catch (_) {}
       try { dialog.close(); } catch (_) {}
       document.querySelector('.page-container').hidden = true;
@@ -2977,14 +3267,20 @@
         MODE.setMode('demo'); live = false;
         notice = 'Sesi Live tidak aktif — Anda masuk di Mode Demo. Pilih “Live” di header untuk menyambung.';
       }
-      ME = live ? userFromSession() : DEMO_USER;
+      await storageReady;
+      ME = live ? userFromSession() : demoUser();
+      cache = {};
       ui.loc.selected.clear();
       if (live) { state = blankState(); ui.live = { ready: false, loading: true, error: null, syncedAt: 0, pending: 0 }; }
       else { state = loadState(); log('Dashboard', 'Masuk ke workspace', { detail: 'Sesi demo' }); }
       touch();
       applyLayout();
-      navigate(opts.view && VIEWS[opts.view] ? opts.view : 'dashboard');
-      if (live) loadLive().then(ok => ok && toast(notice || `Terhubung ke ${MODE.host()}. Selamat datang, ${ME.name}!`, { tone: 'good' }));
+      const route = parseRoute(location.hash);
+      let routed = null;
+      if (route) { routing = true; routed = applyRoute(route); routing = false; }
+      navigate(routed ? routed.view : opts.view && VIEWS[opts.view] ? opts.view : 'dashboard', { push: false });
+      if (routed && !live) openRouteUnit(routed);
+      if (live) loadLive().then(ok => { if (!ok) return; openRouteUnit(routed); toast(notice || `Terhubung ke ${MODE.host()}. Selamat datang, ${ME.name}!`, { tone: 'good' }); });
       else toast(notice || `Mode Demo — data simulasi. Ganti ke Live lewat menu mode di header.`, { tone: notice ? 'warn' : 'info' });
     }
   };

@@ -20,6 +20,19 @@ window.BranchAdminContent = {
       links: [['dashboard', ['Buka Dashboard', 'Open Dashboard']]]
     },
     {
+      id: 'links', icon: 'link', title: ['Tautan, penyimpanan & hak akses', 'Links, storage & permissions'],
+      summary: ['Membagikan halaman beserta filternya, dan memahami apa yang boleh dilakukan peran Anda.', 'Share a page with its filters, and understand what your role may do.'],
+      steps: [
+        ['Setiap halaman, filter, urutan, dan unit yang dibuka tersimpan di alamat (URL). Tombol Kembali/Maju browser berfungsi seperti biasa.', 'Every page, filter, sort order, and opened location is kept in the address (URL). The browser Back/Forward buttons work as usual.'],
+        ['Klik ikon tautan di header (atau di panel detail unit) untuk menyalin tautan, lalu bagikan ke rekan. Penerima perlu masuk untuk membukanya.', 'Click the link icon in the header (or in a location panel) to copy the link and share it. Recipients need to sign in to open it.'],
+        ['Tombol yang tidak diizinkan untuk peran Anda tampak pudar; arahkan kursor untuk melihat izin yang dibutuhkan. Menu tanpa izin baca disembunyikan.', 'Buttons your role may not use look faded; hover to see the required permission. Menus without read permission are hidden.'],
+        ['Di Mode Demo, pilih “Lihat sebagai” di menu mode header untuk mencoba tampilan Administrator, Operator, atau Viewer.', 'In Demo mode, use “View as” in the header mode menu to try the Administrator, Operator, or Viewer experience.'],
+        ['Data Mode Demo disimpan di IndexedDB browser sehingga muat ribuan unit. Unduh cadangan JSON di Pengaturan secara berkala.', 'Demo data is stored in the browser’s IndexedDB so it can hold thousands of locations. Download a JSON backup from Settings regularly.']
+      ],
+      tips: [['Izin tetap ditegakkan oleh server pada mode Live; tampilan di browser hanya membantu.', 'Permissions are still enforced by the server in Live mode; the browser view only helps.']],
+      links: [['act:copy-link', ['Salin tautan halaman ini', 'Copy link to this page']], ['access', ['Buka Pengguna & Akses', 'Open Users & Access']]]
+    },
+    {
       id: 'dashboard', icon: 'grid', title: ['Dashboard', 'Dashboard'],
       summary: ['Ringkasan kondisi jaringan dan daftar pekerjaan yang paling mendesak.', 'Network overview and the most urgent work.'],
       steps: [
@@ -38,9 +51,12 @@ window.BranchAdminContent = {
         ['Klik “Tambah unit”. Isi informasi dasar, lalu klik peta atau geser penanda untuk menandai titik lokasi.', 'Click “Add location”. Fill in the basics, then click the map or drag the pin to mark the point.'],
         ['Atur jam operasional per hari seperti di Google: aktifkan hari buka, isi jam buka–tutup, tambah rentang jam, atau pilih 24 jam. Gunakan “Salin Senin ke hari lain” untuk mempercepat.', 'Set opening hours per day like on Google: turn days on, enter open–close times, add ranges, or choose 24 hours. Use “Copy Monday to other days” to speed up.'],
         ['Klik nama unit untuk membuka panel detail: ringkasan, perbandingan dengan Google, ulasan, riwayat, dan sinkronisasi.', 'Click a location name to open the detail panel: overview, Google comparison, reviews, history, and sync.'],
-        ['Centang beberapa unit untuk aksi massal: ubah status, sinkronkan, ekspor, atau hapus.', 'Tick several locations for bulk actions: change status, sync, export, or delete.']
+        ['Centang beberapa unit untuk aksi massal: ubah status, sinkronkan, ekspor, atau hapus.', 'Tick several locations for bulk actions: change status, sync, export, or delete.'],
+        ['Simpan filter yang sering dipakai lewat “Tampilan” → “Simpan tampilan saat ini” (mis. “KCP Jawa bermasalah”). Tampilan yang disematkan muncul di deretan tampilan cepat; tampilan bisa diganti nama atau dihapus.', 'Save frequently used filters via “Views” → “Save current view” (e.g. “Problem sub-branches in Java”). Pinned views appear in the quick views row; views can be renamed or deleted.'],
+        ['Klik “Atur kolom” untuk menampilkan/menyembunyikan kolom (Region, Telepon, Jam operasional, Alamat, Sinkron terakhir, dll.) dan memilih kepadatan baris Longgar atau Padat. Pengaturan disimpan untuk akun Anda.', 'Click “Columns” to show/hide columns (Region, Phone, Opening hours, Address, Last sync, etc.) and pick Comfortable or Compact rows. Settings are saved for your account.'],
+        ['Di ponsel, tabel tampil sebagai kartu; gunakan pilihan “Urutkan” dan “Pilih semua di halaman ini”. Bilah aksi massal tetap menempel di bawah layar.', 'On phones, tables appear as cards; use “Sort” and “Select all on this page”. The bulk action bar stays at the bottom of the screen.']
       ],
-      tips: [['Sistem memperingatkan bila titik baru berdekatan dengan unit lain (kemungkinan duplikat).', 'The system warns when a new point is close to another location (possible duplicate).']],
+      tips: [['Sistem memperingatkan bila titik baru berdekatan dengan unit lain (kemungkinan duplikat).', 'The system warns when a new point is close to another location (possible duplicate).'], ['Judul kolom tetap terlihat saat tabel digulir.', 'Column headers stay visible while scrolling the table.']],
       links: [['locations', ['Buka Unit Kerja', 'Open Locations']], ['act:add-loc', ['Tambah unit', 'Add location']]]
     },
     {
