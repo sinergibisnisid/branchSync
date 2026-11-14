@@ -151,6 +151,11 @@
     chart: '<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6" rx=".5"/><rect x="12" y="7" width="3" height="10" rx=".5"/><rect x="17" y="13" width="3" height="4" rx=".5"/>',
     printer: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
     calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+    clipboard: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+    camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+    locate: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
     star: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
     chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
@@ -287,6 +292,10 @@
       { id: 'access', label: 'Pengguna & Akses', icon: 'users', desc: 'Kelola pengguna, peran, dan izin akses.' },
       { id: 'integrations', label: 'Integrasi Google', icon: 'plug', desc: 'Koneksi Google Business Profile, kuota API, dan notifikasi.' },
       { id: 'settings', label: 'Pengaturan', icon: 'sliders', desc: 'Preferensi workspace, target SLA, aturan deteksi, dan data demo.' }
+    ] },
+    { group: 'Bantuan', items: [
+      { id: 'guide', label: 'Panduan Pengguna', icon: 'book', desc: 'Cara memakai setiap fitur BranchSync, langkah demi langkah.' },
+      { id: 'scenarios', label: 'Scenario Test', icon: 'clipboard', desc: 'Tutorial dan pencatatan hasil 13 skenario uji piloting Dashboard BranchSync.' }
     ] }
   ];
   const NAV_ITEMS = NAV.flatMap(g => g.items);
@@ -444,7 +453,9 @@
     drawer: null,
     live: { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 },
     reviews: { account: '', location: '', rating: '', status: '', sort: 'newest', q: '', limit: 20, editing: null, drafts: {} },
-    report: { period: '30', region: '', account: '', type: '' }
+    report: { period: '30', region: '', account: '', type: '' },
+    guide: { q: '' },
+    scn: { group: '', open: new Set([1]) }
   };
 
   /* ------------------------------------------------------------------ *
@@ -748,6 +759,7 @@
             <button type="button" class="bs-icon-btn" id="bsNotifBtn" data-action="notif" aria-haspopup="true" aria-expanded="false" aria-controls="bsNotif" aria-label="Notifikasi">${ic('bell')}<span class="bs-count-dot" id="bsNotifCount"></span></button>
             <div class="bs-popover bs-notif" id="bsNotif" hidden></div>
           </div>
+          <button type="button" class="bs-icon-btn bs-hide-sm" data-view="guide" aria-label="Panduan pengguna" title="Panduan pengguna">${ic('book')}</button>
           <div class="bs-lang" role="group" aria-label="Bahasa" id="bsLang"><button type="button" data-action="lang" data-id="id" lang="id">ID</button><button type="button" data-action="lang" data-id="en" lang="en">EN</button></div>
           <button type="button" class="bs-icon-btn" id="bsThemeBtn" data-action="theme" aria-label="Ganti tema">${ic('moon')}</button>
           <button type="button" class="bs-icon-btn bs-hide-sm" data-action="shortcuts" aria-label="Pintasan keyboard" title="Pintasan keyboard (?)">${ic('keyboard')}</button>
@@ -755,8 +767,8 @@
       </header>
       <main class="bs-main" id="bsMain" tabindex="-1">
         <div class="bs-page" id="bsPage"></div>
-        <footer class="bs-footer"><span id="bsFooterInfo"></span><span id="bsFooterMode"></span></footer>
       </main>
+      <footer class="bs-footer" aria-label="Status workspace"><span id="bsFooterInfo"></span><span id="bsFooterMode"></span></footer>
     </div>
     <dialog class="bs-modal" id="bsModal" aria-labelledby="bsModalTitle"></dialog>
     <dialog class="bs-sheet" id="bsDrawer" aria-labelledby="bsDrawerTitle"></dialog>
@@ -1397,6 +1409,133 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * View: Panduan Pengguna & Scenario Test (konten dua bahasa)
+   * ------------------------------------------------------------------ */
+  const CONTENT = window.BranchAdminContent || { guide: [], scenarios: [], scenarioGroups: [] };
+  const L2 = pair => (Array.isArray(pair) ? (isEn() ? pair[1] : pair[0]) : pair);
+  function viewGuide() {
+    const q = ui.guide.q.trim().toLowerCase();
+    const text = g => [g.title, g.summary, ...g.steps, ...g.tips].map(pp => `${pp[0]} ${pp[1]}`).join(' ').toLowerCase();
+    const secs = CONTENT.guide.filter(g => !q || text(g).includes(q));
+    const link = ([v, lab]) => (v.startsWith('act:') ? btn(esc(L2(lab)), v.slice(4), { icon: 'arrowR', variant: 'sm' }) : go(esc(L2(lab)), v, 'sm'));
+    return `<div class="bs-stack-20" data-no-i18n>` +
+      head(L2(['Panduan Pengguna', 'User Guide']), L2(['Cara memakai setiap fitur BranchSync, langkah demi langkah. Klik tombol di setiap bagian untuk langsung membuka halamannya.', 'How to use every BranchSync feature, step by step. Click the buttons in each section to open the page directly.']),
+        `<button type="button" class="bs-btn" data-view="scenarios">${ic('clipboard')}<span>${L2(['Scenario Test', 'Scenario Test'])}</span></button>` + btn(L2(['Cetak panduan', 'Print guide']), 'guide-print', { icon: 'printer' })) +
+      `<div class="bs-guide">
+        <nav class="bs-guide-toc" aria-label="${esc(L2(['Daftar isi', 'Contents']))}">
+          <label class="bs-field"><span>${L2(['Cari di panduan', 'Search the guide'])}</span><span class="bs-input-ic">${ic('search')}<input type="search" id="bsGuideQ" data-bind="guide.q" data-search value="${esc(ui.guide.q)}" placeholder="${esc(L2(['Mis. impor, ulasan, SLA…', 'E.g. import, reviews, SLA…']))}" autocomplete="off"></span></label>
+          <ol>${CONTENT.guide.map(g => `<li><button type="button" data-action="guide-jump" data-id="${g.id}" ${secs.includes(g) ? '' : 'disabled'}>${ic(g.icon)}<span>${esc(L2(g.title))}</span></button></li>`).join('')}</ol>
+        </nav>
+        <div class="bs-guide-body">${secs.length ? secs.map((g, i) => `<section class="bs-card bs-guide-sec" id="guide-${g.id}">
+          <header class="bs-card-head"><div class="bs-guide-title"><span class="bs-guide-ic">${ic(g.icon)}</span><div><h2 tabindex="-1">${i + 1}. ${esc(L2(g.title))}</h2><p>${esc(L2(g.summary))}</p></div></div></header>
+          <div class="bs-card-body"><ol class="bs-guide-steps">${g.steps.map(st => `<li>${esc(L2(st))}</li>`).join('')}</ol>
+            ${g.tips.length ? `<div class="bs-callout">${ic('info')}<p>${g.tips.map(t => esc(L2(t))).join('<br>')}</p></div>` : ''}
+            ${g.links.length ? `<div class="bs-btn-row">${g.links.map(link).join('')}</div>` : ''}</div></section>`).join('')
+          : card(L2(['Tidak ditemukan', 'Not found']), emptyState(L2(['Tidak ada bagian yang cocok', 'No matching section']), L2(['Coba kata kunci lain.', 'Try another keyword.']), '', 'search'))}</div>
+      </div></div>`;
+  }
+
+  /* Scenario Test — hasil disimpan di browser ini (terpisah dari data Demo/Live) */
+  const SCN_KEY = 'branchSync.scenarioTests.v1';
+  let scn = { tester: '', org: '', items: {} };
+  try { Object.assign(scn, JSON.parse(localStorage.getItem(SCN_KEY) || '{}')); } catch (_) {}
+  const saveScn = () => {
+    try { localStorage.setItem(SCN_KEY, JSON.stringify(scn)); return true; }
+    catch (_) { toast(L2(['Penyimpanan browser penuh — hapus beberapa foto bukti.', 'Browser storage is full — remove some evidence photos.']), { tone: 'bad' }); return false; }
+  };
+  const scnItem = no => (scn.items[no] ||= { result: '', notes: '', checks: [], evidence: [], updatedAt: null });
+  const scnPeek = no => scn.items[no] || { result: '', notes: '', checks: [], evidence: [] };
+  const SCN_RESULTS = [['standard', ['Standar', 'Standard'], 'good'], ['partial', ['Kurang standar', 'Partially standard'], 'warn'], ['failed', ['Tidak dapat dijalankan', 'Cannot be run'], 'bad']];
+  const scnBadge = r => { const x = SCN_RESULTS.find(y => y[0] === r); return `<span class="bs-badge" data-tone="${x ? x[2] : 'neutral'}"><i></i>${esc(x ? L2(x[1]) : L2(['Belum diuji', 'Not tested']))}</span>`; };
+  function autoEvidence(no) {
+    const Ls = state.locations, im = issueMap(), lr = state.runs[0], fields = ['name', 'phone', 'hours', 'address', 'coords'];
+    const cnt = (xs, f) => xs.filter(f).length, claimsOf = k => state.claims.filter(c => (k === 'Titik baru') === (c.kind === 'Titik baru'));
+    const sla = slaStats(), bk = reportBuckets('30'), m30 = reportMetrics(bk.from, bk.to, { locs: Ls, codes: new Set(Ls.map(l => l.code)), filtered: false });
+    const run = lr ? `Sinkronisasi terakhir ${lr.id}: ${lr.ok} berhasil, ${lr.fail} gagal, ${lr.skip} dilewati (${fmtDate(lr.time)})` : 'Belum ada sinkronisasi';
+    const lines = {
+      1: [`Total unit: ${Ls.length}`, `Unit tanpa listing Google: ${cnt(Ls, l => !l.google)}`, `Unit ditambah/diubah 24 jam terakhir: ${cnt(Ls, l => Date.now() - l.updatedAt < DAY)}`, `Impor tercatat di riwayat: ${cnt(state.audit, a => a.action === 'Mengimpor data massal')}`, run],
+      2: [`Total unit: ${Ls.length}`, ...STATUSES.map(st => `${st}: ${cnt(Ls, l => l.status === st)}`), `Pencarian aktif: "${ui.loc.q || '-'}"`, `Filter aktif: ${FILTERS.flatMap(([k]) => ui.loc[k].map(v => `${k}=${v}`)).join(', ') || '-'}`, `Hasil daftar saat ini: ${locFiltered().length} unit`],
+      3: [`Unit dengan ketidaksesuaian: ${im.size}`, ...fields.map(f => `${FIELD_LABEL[f]}: ${sum([...im.values()].map(x => x.filter(i => i.field === f).length))}`), `Catatan temuan: ${Object.keys(state.discNotes).length}`, `Keputusan tercatat di riwayat: ${cnt(state.audit, a => a.module === 'Ketidaksesuaian')}`],
+      4: [`Total unit: ${Ls.length}`, `Waktu render halaman terakhir: ${ui.renderMs} ms`, `Ukuran layar: ${innerWidth}×${innerHeight}`, `Peramban: ${navigator.userAgent}`],
+      5: [`Perubahan unit tercatat 24 jam terakhir: ${cnt(state.audit, a => a.module === 'Unit Kerja' && Date.now() - a.time < DAY)}`, `Unit masih berbeda dengan Google: ${im.size}`, run],
+      6: [`Klaim (Get Verified/Suspend/Duplicate): ${claimsOf('x').length}`, `Selesai: ${cnt(claimsOf('x'), c => c.status === 'Selesai')}`, `Berjalan: ${cnt(claimsOf('x'), claimActive)}`, `Unit terverifikasi: ${cnt(Ls, l => l.gbp === 'Terverifikasi')}/${Ls.length}`, `Belum diklaim: ${cnt(Ls, l => l.gbp === 'Belum Diklaim')} · Suspend: ${cnt(Ls, l => l.gbp === 'Suspend')}`],
+      7: [`Pengajuan titik baru: ${claimsOf('Titik baru').length}`, `Selesai: ${cnt(claimsOf('Titik baru'), c => c.status === 'Selesai')}`, `Berjalan: ${cnt(claimsOf('Titik baru'), claimActive)}`, `Ditolak: ${cnt(claimsOf('Titik baru'), c => c.status === 'Ditolak')}`],
+      8: [`Pasangan duplikat terdeteksi: ${duplicatePairs().length}`, `Ditandai bukan duplikat: ${state.dupIgnored.length}`, `Unit berstatus Duplikat: ${cnt(Ls, l => l.gbp === 'Duplikat')}`, `Radius deteksi: ${state.settings.dupRadius} m`],
+      9: [`Notifikasi edit eksternal: ${state.api.webhook ? 'aktif' : 'nonaktif'}`, `Menunggu: ${cnt(state.approvals, a => a.status === 'Menunggu')}`, `Disetujui: ${cnt(state.approvals, a => a.status === 'Disetujui')}`, `Ditolak: ${cnt(state.approvals, a => a.status === 'Ditolak')}`, `Entri riwayat eksternal: ${cnt(state.audit, a => a.actor === 'Eksternal')}`],
+      10: [`Entri riwayat: ${state.audit.length}`, `Internal: ${cnt(state.audit, a => a.actor === 'Internal')}`, `Eksternal: ${cnt(state.audit, a => a.actor === 'Eksternal')}`, `Entri dengan detail sebelum–sesudah: ${cnt(state.audit, a => a.changes.length)}`, `Pengguna tercatat: ${new Set(state.audit.map(a => a.user)).size}`],
+      11: [`Rata-rata proses internal: ${fmtDur(sla.avgInternal)}`, `Rata-rata verifikasi Google: ${fmtDur(sla.avgGoogle)}`, `Kepatuhan SLA internal: ${sla.compliance}%`, `Target internal: ${state.settings.slaInternal} jam · acuan Google: ${state.settings.slaGoogle} jam`, `Permintaan berisiko/lewat SLA: ${sla.atRisk}`],
+      12: [`Kegagalan belum ditangani: ${openFailures().length}`, ...[...openFailures().reduce((mp, f) => mp.set(f.reason, (mp.get(f.reason) || 0) + 1), new Map())].map(([k, n]) => `· ${k}: ${n}`), `Kegagalan sudah diberi tindak lanjut: ${sum(state.runs.map(r => r.items.filter(i => i.status === 'Gagal' && i.resolved && i.note && !/^Berhasil/.test(i.note)).length))}`, run],
+      13: [`Keberhasilan sync 30 hari: ${m30.rate == null ? '-' : m30.rate.toFixed(1) + '%'}`, `Rata-rata rating 30 hari: ${m30.avgRating == null ? '-' : m30.avgRating.toFixed(2)}`, `Tingkat balasan ulasan: ${m30.replyRate == null ? '-' : m30.replyRate.toFixed(1) + '%'}`, `Kepatuhan SLA internal: ${sla.compliance}%`, `Skenario teruji: ${CONTENT.scenarios.filter(x => scnPeek(x.no).result).length}/${CONTENT.scenarios.length}`]
+    }[no] || [];
+    return [`Bukti otomatis · ${isLive() ? `Live (${MODE.host()})` : 'Mode Demo'} · ${fmtDate(Date.now())}`, ...lines].join('\n');
+  }
+  function compressImage(file) {
+    return new Promise((resolve, reject) => {
+      if (!/^image\//.test(file.type)) { reject(new Error(L2(['Berkas bukan gambar.', 'File is not an image.']))); return; }
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        const k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(L2(['Gambar tidak dapat dibaca.', 'The image could not be read.']))); };
+      img.src = url;
+    });
+  }
+  function viewScenarios() {
+    const all = CONTENT.scenarios, groups = CONTENT.scenarioGroups, list = all.filter(x => !ui.scn.group || x.group === ui.scn.group);
+    const counts = SCN_RESULTS.map(([k]) => all.filter(x => scnPeek(x.no).result === k).length), tested = sum(counts);
+    const gName = id => L2((groups.find(g => g.id === id) || { title: [id, id] }).title);
+    const navName = v => L2([navItem(v).label, (I18N.translate && I18N.translate(navItem(v).label)) || navItem(v).label]);
+    const stepBtn = (x, st) => (st.go ? `<button type="button" class="bs-btn sm ghost" data-action="scn-go" data-id="${st.go}">${ic('arrowR')}<span>${esc(L2(['Buka', 'Open']))} ${esc(navName(st.go))}</span></button>` : st.act ? btn(esc(L2(['Jalankan', 'Run'])), 'scn-act', { id: `${x.no}|${st.act}`, icon: 'zap', variant: 'sm ghost' }) : '');
+    const cardOf = x => {
+      const it = scnPeek(x.no), open = ui.scn.open.has(x.no), checked = x.evidence.filter((_, i) => it.checks[i]).length;
+      return `<details class="bs-scn" data-scn-no="${x.no}" ${open ? 'open' : ''}>
+        <summary><span class="bs-scn-no">${x.no}</span><span class="bs-scn-title"><strong>${esc(L2(x.title))}</strong><small>${esc(gName(x.group))} · Mandatory · ${checked}/${x.evidence.length} ${esc(L2(['bukti', 'evidence']))}</small></span>${scnBadge(it.result)}${ic('chevD', 'bs-scn-caret')}</summary>
+        <div class="bs-scn-body">
+          <div class="bs-scn-meta"><div><h4>${L2(['Hasil yang diharapkan', 'Expected result'])}</h4><p>${esc(L2(x.expected))}</p></div><div><h4>${L2(['Catatan dokumen', 'Document note'])}</h4><p>${esc(L2(x.note))}</p></div></div>
+          <h4>${L2(['Langkah pengujian di BranchSync', 'Test steps in BranchSync'])}</h4>
+          <ol class="bs-scn-steps">${x.steps.map(st => `<li><span>${esc(L2(st.t))}</span>${stepBtn(x, st)}</li>`).join('')}</ol>
+          <h4>${L2(['Bukti yang perlu dikumpulkan', 'Evidence to collect'])}</h4>
+          <ul class="bs-scn-checks">${x.evidence.map((e, i) => `<li><label class="bs-checkline"><input type="checkbox" data-scn-check="${x.no}:${i}" ${it.checks[i] ? 'checked' : ''}><span>${esc(L2(e))}</span></label></li>`).join('')}</ul>
+          ${it.evidence.length ? `<div class="bs-scn-evidence">${it.evidence.map((ev, i) => ev.type === 'image'
+            ? `<figure class="bs-scn-photo"><button type="button" class="bs-scn-thumb" data-action="scn-ev-view" data-id="${x.no}:${i}" aria-label="${esc(L2(['Lihat foto bukti', 'View evidence photo']))} ${i + 1}"><img src="${ev.data}" alt=""></button><figcaption>${fmtDate(ev.time, { dateStyle: 'short', timeStyle: 'short' })}${btn('', 'scn-ev-del', { id: `${x.no}:${i}`, icon: 'trash', variant: 'icon sm ghost', title: L2(['Hapus bukti', 'Delete evidence']) })}</figcaption></figure>`
+            : `<div class="bs-scn-auto"><pre>${esc(ev.text)}</pre>${btn('', 'scn-ev-del', { id: `${x.no}:${i}`, icon: 'trash', variant: 'icon sm ghost', title: L2(['Hapus bukti', 'Delete evidence']) })}</div>`).join('')}</div>` : ''}
+          <div class="bs-btn-row bs-scn-actions">${btn(esc(L2(['Mulai skenario', 'Start scenario'])), 'scn-start', { id: x.no, icon: 'arrowR', variant: 'primary sm' })}${btn(esc(L2(['Ambil bukti otomatis', 'Capture auto evidence'])), 'scn-auto', { id: x.no, icon: 'zap', variant: 'sm' })}<label class="bs-btn sm bs-file">${ic('camera')}<span>${L2(['Unggah foto bukti', 'Upload evidence photo'])}</span><input type="file" accept="image/*" multiple class="bs-sr" data-scn-upload="${x.no}"></label></div>
+          <fieldset class="bs-scn-result"><legend>${L2(['Hasil pengujian', 'Test result'])}</legend>${SCN_RESULTS.map(([k, lab, tone]) => `<label class="bs-scn-radio" data-tone="${tone}"><input type="radio" name="scn-res-${x.no}" value="${k}" data-scn-result="${x.no}" ${it.result === k ? 'checked' : ''}><span>${esc(L2(lab))}</span></label>`).join('')}</fieldset>
+          <label class="bs-field"><span>${L2(['Catatan / temuan penguji', 'Tester notes / findings'])}</span><textarea rows="3" data-scn-notes="${x.no}" placeholder="${esc(L2(['Tulis hasil pengamatan, kendala, atau rekomendasi…', 'Write observations, issues, or recommendations…']))}">${esc(it.notes)}</textarea></label>
+          ${it.updatedAt ? `<p class="bs-muted">${L2(['Terakhir diperbarui', 'Last updated'])} ${fmtDate(it.updatedAt)}</p>` : ''}
+        </div></details>`;
+    };
+    const segs = SCN_RESULTS.map(([k, , tone], i) => (counts[i] ? `<span data-tone="${tone}" style="flex:${counts[i]}"></span>` : '')).join('') + (all.length - tested ? `<span data-tone="neutral" style="flex:${all.length - tested}"></span>` : '');
+    return `<div class="bs-stack-20" data-no-i18n><div class="bs-print-head"><strong>${L2(['Laporan Hasil Scenario Test — BranchSync', 'Scenario Test Results Report — BranchSync'])}</strong><span>${L2(['Penguji', 'Tester'])}: ${esc(scn.tester || '-')} · ${esc(scn.org || '')} · ${L2(['Mode', 'Mode'])}: ${isLive() ? 'Live' : 'Demo'} · ${L2(['Dicetak', 'Printed'])}: ${fmtDate(Date.now())}</span></div>` +
+      head('Scenario Test', L2(['Tutorial menjalankan 13 skenario uji piloting Dashboard BranchSync sesuai dokumen “Skenario Test Piloting”, lengkap dengan pencatatan hasil dan bukti.', 'A tutorial for running the 13 BranchSync dashboard piloting test scenarios from the “Piloting Test Scenario” document, with result and evidence recording.']),
+        btn(esc(L2(['Ekspor CSV', 'Export CSV'])), 'scn-export', { icon: 'download' }) + btn(esc(L2(['Cetak / PDF', 'Print / PDF'])), 'scn-print', { icon: 'printer', variant: 'primary' })) +
+      `<div class="bs-grid bs-grid-main">${card(L2(['Kemajuan pengujian', 'Test progress']), `<div class="bs-scn-progress"><strong>${tested}<small>/${all.length}</small></strong><span>${L2(['skenario sudah diuji', 'scenarios tested'])}</span></div><div class="bs-comp-bar bs-scn-bar" role="img" aria-label="${esc(SCN_RESULTS.map(([, lab], i) => `${L2(lab)} ${counts[i]}`).join(', '))}">${segs}</div>
+        <ul class="bs-comp-legend">${SCN_RESULTS.map(([, lab, tone], i) => `<li><i data-tone="${tone}"></i><span>${esc(L2(lab))}</span><b>${counts[i]}</b></li>`).join('')}<li><i data-tone="neutral"></i><span>${esc(L2(['Belum diuji', 'Not tested']))}</span><b>${all.length - tested}</b></li></ul>`)}
+        ${card(L2(['Informasi penguji', 'Tester information']), `<div class="bs-form-grid"><label class="bs-field"><span>${L2(['Nama penguji', 'Tester name'])}</span><input data-scn-meta="tester" value="${esc(scn.tester)}" maxlength="80" autocomplete="name"></label><label class="bs-field"><span>${L2(['Instansi / divisi', 'Organization / division'])}</span><input data-scn-meta="org" value="${esc(scn.org)}" maxlength="80"></label></div>
+          <p class="bs-muted bs-gap">${L2(['Hasil disimpan di browser ini dan dapat diekspor sebagai bukti. Gunakan Mode Demo untuk latihan dan Live untuk pengujian resmi.', 'Results are saved in this browser and can be exported as evidence. Use Demo mode for practice and Live for official testing.'])}</p>${btn(esc(L2(['Reset hasil', 'Reset results'])), 'scn-reset', { icon: 'trash', variant: 'sm danger ghost' })}`)}</div>` +
+      `<div class="bs-callout">${ic('info')}<p>${L2(['Cara memakai: buka skenario → klik <b>Mulai skenario</b> atau tombol di setiap langkah → lakukan pengujian → centang bukti, ambil bukti otomatis atau unggah foto → pilih hasil <b>Standar / Kurang standar / Tidak dapat dijalankan</b> dan tulis catatan.', 'How to use: open a scenario → click <b>Start scenario</b> or the button on each step → run the test → tick evidence, capture auto evidence or upload photos → choose <b>Standard / Partially standard / Cannot be run</b> and write notes.'])}</p></div>` +
+      tabs('scn.group', [['', L2(['Semua', 'All']), all.length], ...groups.map(g => [g.id, L2(g.title), all.filter(x => x.group === g.id).length])], ui.scn.group) +
+      groups.filter(g => list.some(x => x.group === g.id)).map(g => `<section class="bs-scn-group"><h2 class="bs-scn-group-title">${esc(L2(g.title))}</h2>${list.filter(x => x.group === g.id).map(cardOf).join('')}</section>`).join('') +
+      `</div>`;
+  }
+  function scnStart(x, act) {
+    navigate(x.start.view);
+    const a = act || x.start.act;
+    if (!a) return;
+    setTimeout(() => {
+      if (a === 'import-sample') { importDraft = null; importModal(sampleCSV(25)); }
+      else if (a === 'claim-new') claimForm();
+      else if (a === 'point-new') pointForm();
+      else if (a === 'simulate-google') simulateGoogleChange();
+      else if (a === 'simulate-edit') simulateEdit();
+    }, 30);
+  }
+
+  /* ------------------------------------------------------------------ *
    * View: Ulasan Google
    * ------------------------------------------------------------------ */
   const stars = n => `<span class="bs-stars" role="img" aria-label="${n} dari 5 bintang">${'★'.repeat(n)}<span aria-hidden="true">${'★'.repeat(Math.max(0, 5 - n))}</span></span>`;
@@ -1539,7 +1678,9 @@
   function openModal(title, bodyHtml, { submit = 'Simpan', onSubmit = null, wide = false, desc = '', danger = false, footer = null } = {}) {
     if (!modal.open) modalTrigger = captureFocus();
     modalSubmit = onSubmit;
-    modal.classList.toggle('is-wide', wide);
+    destroyPicker();
+    modal.classList.toggle('is-wide', !!wide);
+    modal.classList.toggle('is-xl', wide === 'xl');
     modal.innerHTML = `<form id="bsModalForm" novalidate><header class="bs-modal-head"><div><h2 id="bsModalTitle">${esc(title)}</h2>${desc ? `<p>${desc}</p>` : ''}</div>${btn('', 'modal-close', { icon: 'x', variant: 'icon ghost', title: 'Tutup' })}</header>
       <div class="bs-modal-body">${bodyHtml}<p class="bs-form-error" id="bsFormError" role="alert"></p></div>
       <footer class="bs-modal-foot">${footer ?? (btn('Batal', 'modal-close', { variant: 'ghost' }) + (onSubmit ? `<button type="submit" class="bs-btn ${danger ? 'danger' : 'primary'}">${submit}</button>` : ''))}</footer></form>`;
@@ -1587,23 +1728,171 @@
     p.lng = String(p.lng).trim() !== '' && isFinite(lng) ? +lng.toFixed(6) : NaN;
     return e;
   }
+  /* ---------- Jam operasional (seperti Google Business Profile) ---------- */
+  const DAYS = [['mon', 'Senin', 'Sen'], ['tue', 'Selasa', 'Sel'], ['wed', 'Rabu', 'Rab'], ['thu', 'Kamis', 'Kam'], ['fri', 'Jumat', 'Jum'], ['sat', 'Sabtu', 'Sab'], ['sun', 'Minggu', 'Min']];
+  const blankDays = () => Object.fromEntries(DAYS.map(([k]) => [k, { open: false, h24: false, ranges: [] }]));
+  function presetHours(id) {
+    const sp = blankDays();
+    DAYS.forEach(([k], i) => {
+      if (id === '24') Object.assign(sp[k], { open: true, h24: true });
+      else if (id === 'mon-sat' && i < 6) Object.assign(sp[k], { open: true, ranges: [{ from: '08:00', to: '14:00' }] });
+      else if (id === 'weekday' && i < 5) Object.assign(sp[k], { open: true, ranges: [{ from: '08:00', to: '15:00' }] });
+    });
+    return sp;
+  }
+  function parseHours(str) {
+    const s0 = String(str || '').trim(), sp = blankDays(), short = DAYS.map(d => d[2]);
+    if (!s0) return presetHours('weekday');
+    let ok = false;
+    s0.split(/;\s*/).forEach(seg => {
+      let m = seg.match(/^Setiap hari\s+(.+)$/i), days, rest;
+      if (m) { days = DAYS.map(d => d[0]); rest = m[1]; }
+      else {
+        m = seg.match(/^(Sen|Sel|Rab|Kam|Jum|Sab|Min)(?:\s*[–-]\s*(Sen|Sel|Rab|Kam|Jum|Sab|Min))?\s+(.+)$/);
+        if (!m) return;
+        const a = short.indexOf(m[1]), b = m[2] ? short.indexOf(m[2]) : a;
+        days = [];
+        for (let i = a; ; i = (i + 1) % 7) { days.push(DAYS[i][0]); if (i === b) break; }
+        rest = m[3];
+      }
+      if (/^24 jam$/i.test(rest)) { days.forEach(k => Object.assign(sp[k], { open: true, h24: true, ranges: [] })); ok = true; return; }
+      if (/^tutup$/i.test(rest)) { ok = true; return; }
+      const ranges = [...rest.matchAll(/(\d{1,2})[.:](\d{2})\s*[–-]\s*(\d{1,2})[.:](\d{2})/g)].map(r => ({ from: `${r[1].padStart(2, '0')}:${r[2]}`, to: `${r[3].padStart(2, '0')}:${r[4]}` }));
+      if (!ranges.length) return;
+      days.forEach(k => Object.assign(sp[k], { open: true, h24: false, ranges: ranges.map(r => ({ ...r })) }));
+      ok = true;
+    });
+    return ok ? sp : presetHours('weekday');
+  }
+  function formatHours(sp) {
+    const sig = k => (!sp[k].open ? 'X' : sp[k].h24 ? '24' : sp[k].ranges.map(r => `${r.from}-${r.to}`).join(','));
+    const txt = k => (sp[k].h24 ? '24 jam' : sp[k].ranges.map(r => `${r.from.replace(':', '.')}–${r.to.replace(':', '.')}`).join(', '));
+    if (sp.mon.open && DAYS.every(([k]) => sig(k) === sig('mon'))) return `Setiap hari ${txt('mon')}`;
+    const groups = [];
+    DAYS.forEach(([k, , sh]) => { const g = groups[groups.length - 1], sg = sig(k); if (g && g.sig === sg) g.end = sh; else groups.push({ sig: sg, start: sh, end: sh, k }); });
+    const parts = groups.filter(g => g.sig !== 'X').map(g => `${g.start}${g.end !== g.start ? '–' + g.end : ''} ${txt(g.k)}`);
+    return parts.length ? parts.join('; ') : 'Tutup';
+  }
+  function hoursError(sp) {
+    if (!DAYS.some(([k]) => sp[k].open)) return 'Jam operasional: aktifkan minimal satu hari buka.';
+    for (const [k, name] of DAYS) {
+      const d = sp[k];
+      if (!d.open || d.h24) continue;
+      if (!d.ranges.length) return `Jam operasional ${name}: isi jam buka atau pilih 24 jam.`;
+      const rs = [...d.ranges].sort((a, b) => a.from.localeCompare(b.from));
+      for (let i = 0; i < rs.length; i++) {
+        if (!rs[i].from || !rs[i].to) return `Jam operasional ${name}: lengkapi jam buka dan tutup.`;
+        if (rs[i].to <= rs[i].from) return `Jam operasional ${name}: jam tutup harus setelah jam buka.`;
+        if (i && rs[i].from < rs[i - 1].to) return `Jam operasional ${name}: rentang jam saling tumpang tindih.`;
+      }
+    }
+    return '';
+  }
+  let hoursDraft = null;
+  function hoursEditor() {
+    const sp = hoursDraft;
+    return `<div class="bs-hours" id="bsHours" role="group" aria-label="Jam operasional">
+      <div class="bs-hours-presets"><span>Preset:</span>${btn('Hari kerja 08.00–15.00', 'hours-preset', { id: 'weekday', variant: 'sm ghost' })}${btn('Sen–Sab 08.00–14.00', 'hours-preset', { id: 'mon-sat', variant: 'sm ghost' })}${btn('24 jam setiap hari', 'hours-preset', { id: '24', variant: 'sm ghost' })}</div>
+      ${DAYS.map(([k, name]) => {
+        const d = sp[k];
+        const ranges = !d.open ? '' : d.h24 ? `<span class="bs-hours-24">${ic('clock')}Buka 24 jam</span>` : d.ranges.map((r, i) => `<div class="bs-hours-range"><input type="time" value="${r.from}" step="300" data-hours-from="${k}:${i}" aria-label="${name} buka pukul"><span aria-hidden="true">–</span><input type="time" value="${r.to}" step="300" data-hours-to="${k}:${i}" aria-label="${name} tutup pukul">${d.ranges.length > 1 ? btn('', 'hours-del', { id: `${k}:${i}`, icon: 'x', variant: 'icon sm ghost', title: `Hapus rentang ${name}` }) : ''}</div>`).join('');
+        return `<div class="bs-hours-row${d.open ? '' : ' is-closed'}" data-day="${k}">
+          <span class="bs-hours-day">${name}</span>
+          <label class="bs-switch"><input type="checkbox" data-hours-open="${k}" ${d.open ? 'checked' : ''} aria-label="${name} buka"><span></span><em data-no-i18n>${d.open ? L2(['Buka', 'Open']) : L2(['Tutup', 'Closed'])}</em></label>
+          <div class="bs-hours-ranges">${ranges}${d.open ? `<div class="bs-hours-opts">${!d.h24 && d.ranges.length < 3 ? btn('Tambah jam', 'hours-add', { id: k, icon: 'plus', variant: 'sm ghost' }) : ''}<label class="bs-checkline"><input type="checkbox" data-hours-allday="${k}" ${d.h24 ? 'checked' : ''}><span>24 jam</span></label></div>` : ''}</div>
+        </div>`;
+      }).join('')}
+      <div class="bs-hours-foot">${btn('Terapkan Senin ke semua hari buka', 'hours-copy', { icon: 'copy', variant: 'sm' })}<span class="bs-hours-summary" data-no-i18n>${ic('clock')}<b id="bsHoursSummary">${esc(formatHours(sp))}</b></span></div>
+    </div>`;
+  }
+  function refreshHours(focusSel) {
+    const el = $('bsHours'); if (!el) return;
+    el.outerHTML = hoursEditor();
+    if (focusSel) modal.querySelector(focusSel)?.focus();
+  }
+  const updateHoursSummary = () => { const el = $('bsHoursSummary'); if (el) el.textContent = formatHours(hoursDraft); };
+
+  /* ---------- Peta pemilih titik lokasi ---------- */
+  let pickMap = null, pickMarker = null, pickSelf = null;
+  function destroyPicker() { if (pickMap) { pickMap.remove(); pickMap = null; pickMarker = null; } }
+  function pickerBlock(lat, lng) {
+    return `<div class="bs-picker">
+      <div class="bs-pick-map" id="bsPickMap" role="application" aria-label="Peta pemilihan titik lokasi"></div>
+      <div class="bs-picker-side">
+        ${field({ name: 'lat', label: 'Latitude', type: 'number', value: lat ?? '', hint: 'Contoh: -6.9175' })}
+        ${field({ name: 'lng', label: 'Longitude', type: 'number', value: lng ?? '', hint: 'Contoh: 107.6191' })}
+        <div class="bs-btn-row">${btn('Gunakan lokasi saya', 'pick-geo', { icon: 'locate', variant: 'sm' })}${btn('Pusatkan ke titik', 'pick-center', { icon: 'pin', variant: 'sm ghost' })}</div>
+        <p class="bs-pick-near" id="bsPickNear" role="status" aria-live="polite"></p>
+      </div></div>`;
+  }
+  function pickNearest(lat, lng) {
+    const out = $('bsPickNear'); if (!out) return;
+    if (!isFinite(lat) || !isFinite(lng)) { out.textContent = 'Klik peta untuk menandai titik lokasi.'; out.dataset.tone = ''; return; }
+    let best = null;
+    state.locations.forEach(l => { if (l === pickSelf) return; const d = distM(l, { lat, lng }); if (!best || d < best.d) best = { l, d }; });
+    if (!best) { out.textContent = ''; return; }
+    out.dataset.tone = best.d <= state.settings.dupRadius ? 'warn' : '';
+    out.textContent = `Unit terdekat: ${best.l.name} — ${fmtDist(best.d)}${best.d <= state.settings.dupRadius ? ' (kemungkinan duplikat)' : ''}`;
+  }
+  function setPickInputs(ll) {
+    const la = modal.querySelector('[name="lat"]'), ln = modal.querySelector('[name="lng"]');
+    if (la) la.value = ll.lat.toFixed(6);
+    if (ln) ln.value = ll.lng.toFixed(6);
+    pickNearest(ll.lat, ll.lng);
+  }
+  function placePin(ll, pan) {
+    if (!pickMap) return;
+    if (!pickMarker) {
+      pickMarker = L.marker(ll, { draggable: true, keyboard: true, title: 'Titik lokasi — geser untuk memindahkan', icon: L.divIcon({ className: 'bs-pin', html: '<span></span>', iconSize: [28, 38], iconAnchor: [14, 36] }) }).addTo(pickMap);
+      pickMarker.on('dragend', () => setPickInputs(pickMarker.getLatLng()));
+    } else pickMarker.setLatLng(ll);
+    if (pan) pickMap.setView(ll, Math.max(pickMap.getZoom(), 15));
+  }
+  function mountPicker(lat, lng, self) {
+    destroyPicker();
+    pickSelf = self || null;
+    const el = $('bsPickMap'); if (!el) return;
+    const has = isFinite(Number(lat)) && isFinite(Number(lng)) && lat !== '' && lat != null;
+    if (typeof L === 'undefined') { el.innerHTML = `<div class="bs-map-fallback">${ic('map')}<p>Peta tidak dapat dimuat. Isi koordinat secara manual.</p></div>`; pickNearest(Number(lat), Number(lng)); return; }
+    pickMap = L.map(el, { zoomControl: true }).setView(has ? [Number(lat), Number(lng)] : [-2.5, 118], has ? 16 : 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(pickMap);
+    state.locations.filter(l => l !== pickSelf).slice(0, 2000).forEach(l => L.circleMarker([l.lat, l.lng], { radius: 4, color: '#fff', weight: 1, fillColor: '#8a97a8', fillOpacity: 0.9 }).bindTooltip(l.name).addTo(pickMap));
+    if (has) placePin([Number(lat), Number(lng)]);
+    pickMap.on('click', e => { placePin(e.latlng); setPickInputs(e.latlng); });
+    pickNearest(Number(lat), Number(lng));
+    setTimeout(() => pickMap && pickMap.invalidateSize(), 120);
+  }
+  function syncPickerFromInputs() {
+    const lat = Number(modal.querySelector('[name="lat"]')?.value), lng = Number(modal.querySelector('[name="lng"]')?.value);
+    if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+    placePin([lat, lng], true);
+    pickNearest(lat, lng);
+  }
+
   function locationForm(code) {
     const l = code ? byCode().get(code) : null;
-    openModal(l ? `Edit ${l.name}` : 'Tambah unit kerja', formGrid([
-      { name: 'name', label: 'Nama unit', value: l?.name, full: true, hint: 'Contoh: KCP Bandung Dago' },
-      { name: 'type', label: 'Tipe', type: 'select', options: TYPES, value: l?.type || 'KCP' },
-      { name: 'status', label: 'Status operasional', type: 'select', options: STATUSES, value: l?.status || 'Belum Sync' },
-      { name: 'city', label: 'Kota', value: l?.city }, { name: 'province', label: 'Provinsi', value: l?.province },
-      { name: 'address', label: 'Alamat', value: l?.address, full: true },
-      { name: 'phone', label: 'Telepon', value: l?.phone, attrs: '' }, { name: 'hours', label: 'Jam operasional', value: l?.hours || HOURS[0], attrs: '' },
-      { name: 'lat', label: 'Latitude', type: 'number', value: l?.lat, hint: 'Contoh: -6.9175' }, { name: 'lng', label: 'Longitude', type: 'number', value: l?.lng, hint: 'Contoh: 107.6191' }
-    ]), {
-      wide: true, desc: l ? 'Perubahan dicatat di Riwayat beserta nilai sebelum dan sesudahnya.' : 'Unit baru berstatus “Belum Sync” sampai disinkronkan ke Google.',
+    hoursDraft = l?.hoursSpec ? JSON.parse(JSON.stringify(l.hoursSpec)) : parseHours(l?.hours || HOURS[0]);
+    openModal(l ? `Edit ${l.name}` : 'Tambah unit kerja',
+      `<h3 class="bs-form-section">Informasi dasar</h3>` + formGrid([
+        { name: 'name', label: 'Nama unit', value: l?.name, full: true, hint: 'Contoh: KCP Bandung Dago' },
+        { name: 'type', label: 'Tipe', type: 'select', options: TYPES, value: l?.type || 'KCP' },
+        { name: 'status', label: 'Status operasional', type: 'select', options: STATUSES, value: l?.status || 'Belum Sync' },
+        { name: 'city', label: 'Kota', value: l?.city }, { name: 'province', label: 'Provinsi', value: l?.province },
+        { name: 'address', label: 'Alamat', value: l?.address, full: true },
+        { name: 'phone', label: 'Telepon', value: l?.phone, attrs: '' }
+      ]) +
+      `<h3 class="bs-form-section">Titik lokasi</h3><p class="bs-form-help">Klik peta atau geser penanda untuk menandai titik. Koordinat juga dapat diketik.</p>` + pickerBlock(l?.lat, l?.lng) +
+      `<h3 class="bs-form-section">Jam operasional</h3><p class="bs-form-help">Atur jam buka setiap hari seperti di Google Business Profile.</p>` + hoursEditor(), {
+      wide: 'xl', desc: l ? 'Perubahan dicatat di Riwayat beserta nilai sebelum dan sesudahnya.' : 'Unit baru berstatus “Belum Sync” sampai disinkronkan ke Google.',
       submit: l ? 'Simpan perubahan' : 'Tambah unit',
       onSubmit: p => {
+        const herr = hoursError(hoursDraft);
+        if (herr) return herr;
+        p.hours = formatHours(hoursDraft);
         const e = validateLoc(p, l);
         if (Object.keys(e).length) return e;
         p.region = regionOf(p.province);
+        p.hoursSpec = JSON.parse(JSON.stringify(hoursDraft));
         if (l) {
           const changes = diff(l, p, ['name', 'type', 'status', 'city', 'province', 'address', 'phone', 'hours', 'lat', 'lng']);
           if (!changes.length) return 'Tidak ada perubahan untuk disimpan.';
@@ -1620,6 +1909,7 @@
         }
       }
     });
+    mountPicker(l?.lat, l?.lng, l);
   }
   function noteModal(title, label, onSave, value = '') {
     openModal(title, formGrid([{ name: 'text', label, type: 'textarea', value, full: true, attrs: 'required maxlength="500"' }]), {
@@ -1941,7 +2231,7 @@
    * Render
    * ------------------------------------------------------------------ */
   let renderedView = null;
-  const VIEWS = { dashboard: viewDashboard, map: viewMap, locations: viewLocations, discrepancies: viewDiscrepancies, duplicates: viewDuplicates, claims: viewClaims, approvals: viewApprovals, sync: viewSync, audit: viewAudit, sla: viewSla, access: viewAccess, integrations: viewIntegrations, settings: viewSettings, reviews: viewReviews, reports: viewReports };
+  const VIEWS = { dashboard: viewDashboard, map: viewMap, locations: viewLocations, discrepancies: viewDiscrepancies, duplicates: viewDuplicates, claims: viewClaims, approvals: viewApprovals, sync: viewSync, audit: viewAudit, sla: viewSla, access: viewAccess, integrations: viewIntegrations, settings: viewSettings, reviews: viewReviews, reports: viewReports, guide: viewGuide, scenarios: viewScenarios };
   function renderNav() {
     $('bsNav').innerHTML = NAV.map(g => `<p class="bs-nav-label">${g.group}</p>${g.items.map(n => { const c = n.count ? n.count() : 0; return `<button type="button" data-view="${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''} title="${esc(n.label)}">${ic(n.icon)}<span class="bs-nav-text">${n.label}</span>${c ? `<span class="bs-nav-count" aria-label="${c} perlu perhatian">${c > 99 ? '99+' : c}</span>` : ''}</button>`; }).join('')}`).join('');
   }
@@ -2143,21 +2433,27 @@
     });
   }
   function pointForm() {
-    openModal('Usulkan titik lokasi baru', formGrid([
-      { name: 'name', label: 'Nama unit', full: true }, { name: 'type', label: 'Tipe', type: 'select', options: TYPES, value: 'KCP' },
-      { name: 'phone', label: 'Telepon', attrs: '' }, { name: 'city', label: 'Kota' }, { name: 'province', label: 'Provinsi' },
-      { name: 'address', label: 'Alamat', full: true }, { name: 'hours', label: 'Jam operasional', value: HOURS[0], attrs: '', full: true },
-      { name: 'lat', label: 'Latitude', type: 'number' }, { name: 'lng', label: 'Longitude', type: 'number' },
-      { name: 'force', label: 'Tetap ajukan meskipun ada unit berdekatan', type: 'checkbox', full: true }
-    ]), {
-      wide: true, submit: 'Ajukan titik baru', desc: 'Sistem memeriksa kemungkinan duplikat sebelum pengajuan dikirim ke Google.',
+    hoursDraft = presetHours('weekday');
+    openModal('Usulkan titik lokasi baru',
+      `<h3 class="bs-form-section">Informasi dasar</h3>` + formGrid([
+        { name: 'name', label: 'Nama unit', full: true }, { name: 'type', label: 'Tipe', type: 'select', options: TYPES, value: 'KCP' },
+        { name: 'phone', label: 'Telepon', attrs: '' }, { name: 'city', label: 'Kota' }, { name: 'province', label: 'Provinsi' },
+        { name: 'address', label: 'Alamat', full: true }
+      ]) +
+      `<h3 class="bs-form-section">Titik lokasi</h3><p class="bs-form-help">Klik peta atau geser penanda untuk menandai titik. Koordinat juga dapat diketik.</p>` + pickerBlock('', '') +
+      `<h3 class="bs-form-section">Jam operasional</h3>` + hoursEditor() +
+      formGrid([{ name: 'force', label: 'Tetap ajukan meskipun ada unit berdekatan', type: 'checkbox', full: true }]), {
+      wide: 'xl', submit: 'Ajukan titik baru', desc: 'Sistem memeriksa kemungkinan duplikat sebelum pengajuan dikirim ke Google.',
       onSubmit: p => {
+        const herr = hoursError(hoursDraft);
+        if (herr) return herr;
+        p.hours = formatHours(hoursDraft);
         const e = validateLoc(p, null);
         if (Object.keys(e).length) return e;
         const near = state.locations.map(l => [l, distM(l, p)]).filter(([, d]) => d <= Math.max(state.settings.dupRadius, 200)).sort((a, b) => a[1] - b[1])[0];
         if (near && !p.force) return { lat: `Ada ${near[0].name} berjarak ${fmtDist(near[1])} — kemungkinan duplikat. Centang “Tetap ajukan” bila yakin.` };
         const id = `KL-${String(++state.seq.claim).padStart(3, '0')}`;
-        const proposal = { name: p.name, type: p.type, city: p.city, province: p.province, address: p.address, phone: p.phone, hours: p.hours || HOURS[0], lat: p.lat, lng: p.lng };
+        const proposal = { name: p.name, type: p.type, city: p.city, province: p.province, address: p.address, phone: p.phone, hours: p.hours, hoursSpec: JSON.parse(JSON.stringify(hoursDraft)), lat: p.lat, lng: p.lng };
         state.claims.unshift({ id, kind: 'Titik baru', proposal, submittedAt: Date.now(), processedAt: null, doneAt: null, status: 'Diajukan', note: near ? `Dekat ${near[0].name} (${fmtDist(near[1])})` : '' });
         log('Klaim & Titik Baru', 'Mengajukan titik baru', { target: id, detail: p.name });
         remote('POST', '/claims', { kind: 'Titik baru', proposal, note: near ? `Dekat ${near[0].name} (${fmtDist(near[1])})` : '' });
@@ -2165,6 +2461,7 @@
         toast(`${id} diajukan untuk ${p.name}.`, { tone: 'good', action: ui.view !== 'claims' ? { label: 'Lihat', run: () => navigate('claims') } : null });
       }
     });
+    mountPicker('', '', null);
   }
   function userForm(id) {
     const u = state.users.find(x => x.id === Number(id));
@@ -2297,6 +2594,36 @@
       case 'review-more': ui.reviews.limit += 20; render(); break;
       // Laporan
       case 'report-print': window.print(); break;
+      // Jam operasional & peta pemilih
+      case 'hours-preset': hoursDraft = presetHours(id); refreshHours(`[data-action="hours-preset"][data-id="${id}"]`); break;
+      case 'hours-add': { const d = hoursDraft[id]; const last = d.ranges[d.ranges.length - 1]; d.ranges.push(last ? { from: last.to, to: last.to < '20:00' ? `${String(Math.min(23, Number(last.to.slice(0, 2)) + 3)).padStart(2, '0')}:00` : '23:00' } : { from: '08:00', to: '15:00' }); refreshHours(`[data-hours-from="${id}:${d.ranges.length - 1}"]`); break; }
+      case 'hours-del': { const [k, i] = id.split(':'); hoursDraft[k].ranges.splice(Number(i), 1); refreshHours(`[data-hours-from="${k}:0"]`); break; }
+      case 'hours-copy': { const m = hoursDraft.mon; if (!m.open) { toast('Aktifkan hari Senin terlebih dahulu.', { tone: 'warn' }); break; } DAYS.slice(1).forEach(([k]) => { if (hoursDraft[k].open) hoursDraft[k] = JSON.parse(JSON.stringify(m)); }); refreshHours('[data-action="hours-copy"]'); toast('Jam Senin diterapkan ke semua hari buka.'); break; }
+      case 'pick-center': syncPickerFromInputs(); break;
+      case 'pick-geo':
+        if (!navigator.geolocation) { toast('Peramban tidak mendukung lokasi.', { tone: 'warn' }); break; }
+        navigator.geolocation.getCurrentPosition(pos => { const ll = { lat: pos.coords.latitude, lng: pos.coords.longitude }; placePin([ll.lat, ll.lng], true); setPickInputs(ll); toast('Lokasi Anda ditandai.', { tone: 'good' }); },
+          () => toast('Lokasi tidak dapat diambil. Izinkan akses lokasi atau tandai titik di peta.', { tone: 'warn' }), { enableHighAccuracy: true, timeout: 10000 });
+        break;
+      // Panduan
+      case 'guide-jump': { const sec = $(`guide-${id}`); if (sec) { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); sec.querySelector('h2')?.focus({ preventScroll: true }); } break; }
+      case 'guide-print': window.print(); break;
+      // Scenario Test
+      case 'scn-start': { const x = CONTENT.scenarios.find(y => y.no === Number(id)); if (x) scnStart(x); break; }
+      case 'scn-go': navigate(id); break;
+      case 'scn-act': { const [no, a] = id.split('|'); const x = CONTENT.scenarios.find(y => y.no === Number(no)); if (x) scnStart({ ...x, start: { view: { 'import-sample': 'locations', 'claim-new': 'claims', 'point-new': 'claims', 'simulate-google': 'discrepancies', 'simulate-edit': 'approvals' }[a] || x.start.view } }, a); break; }
+      case 'scn-auto': { const it = scnItem(Number(id)); it.evidence.push({ type: 'auto', text: autoEvidence(Number(id)), time: Date.now() }); it.updatedAt = Date.now(); saveScn(); render(); toast(L2(['Bukti otomatis ditambahkan.', 'Auto evidence added.']), { tone: 'good' }); break; }
+      case 'scn-ev-del': { const [no, i] = id.split(':'); const it = scnItem(Number(no)); it.evidence.splice(Number(i), 1); it.updatedAt = Date.now(); saveScn(); render(); break; }
+      case 'scn-ev-view': { const [no, i] = id.split(':'); const ev = scnPeek(Number(no)).evidence[Number(i)]; if (ev) openModal(`${L2(['Bukti skenario', 'Scenario evidence'])} ${no}`, `<img class="bs-scn-full" src="${ev.data}" alt="${esc(L2(['Foto bukti', 'Evidence photo']))}">`, { wide: true, footer: btn(L2(['Tutup', 'Close']), 'modal-close', { variant: 'primary' }) }); break; }
+      case 'scn-export': {
+        const rows = [['No', 'Kelompok', 'Skenario', 'Hasil yang diharapkan', 'Prioritas', 'Catatan dokumen', 'Hasil pengujian', 'Catatan penguji', 'Bukti dicentang', 'Bukti otomatis', 'Jumlah foto', 'Diperbarui', 'Penguji', 'Instansi', 'Mode']];
+        CONTENT.scenarios.forEach(x => { const it = scnPeek(x.no), res = SCN_RESULTS.find(y => y[0] === it.result); rows.push([x.no, (CONTENT.scenarioGroups.find(g => g.id === x.group) || {}).title?.[0] || x.group, x.title[0], x.expected[0], 'Mandatory', x.note[0], res ? res[1][0] : 'Belum diuji', it.notes || '', `${x.evidence.filter((_, i) => it.checks[i]).length}/${x.evidence.length}`, it.evidence.filter(e => e.type === 'auto').map(e => e.text).join('\n---\n'), it.evidence.filter(e => e.type === 'image').length, it.updatedAt ? fmtDate(it.updatedAt) : '', scn.tester, scn.org, isLive() ? 'Live' : 'Demo']); });
+        downloadCSV(`hasil-scenario-test-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+        toast(L2(['Laporan hasil Scenario Test diunduh.', 'Scenario Test results downloaded.']), { tone: 'good' });
+        break;
+      }
+      case 'scn-print': { const prev = new Set(ui.scn.open), prevGroup = ui.scn.group; ui.scn.group = ''; CONTENT.scenarios.forEach(x => ui.scn.open.add(x.no)); render(); setTimeout(() => { window.print(); ui.scn.open = prev; ui.scn.group = prevGroup; render(); }, 60); break; }
+      case 'scn-reset': confirmModal(L2(['Reset semua hasil Scenario Test?', 'Reset all Scenario Test results?']), L2(['Semua hasil, catatan, dan bukti pengujian di browser ini akan dihapus. Tindakan ini tidak bisa dibatalkan.', 'All results, notes, and evidence in this browser will be deleted. This cannot be undone.']), L2(['Reset hasil', 'Reset results']), () => { scn = { tester: scn.tester, org: scn.org, items: {} }; saveScn(); toast(L2(['Hasil Scenario Test direset.', 'Scenario Test results reset.'])); }); break;
       case 'report-reset': ui.report.region = ''; ui.report.account = ''; ui.report.type = ''; render(); break;
       case 'report-region': ui.report.region = ui.report.region === id ? '' : id; render(); $('bsMain').scrollTop = 0; break;
       case 'report-schedule': reportScheduleModal(); break;
@@ -2438,10 +2765,17 @@
     if (a.tagName === 'INPUT' && !['select', 'select-page'].includes(a.dataset.action)) return;
     act(a.dataset.action, a.dataset.id || '', a);
   });
-  shell.addEventListener('toggle', e => { if (e.target.matches?.('[data-filter-pop]')) ui.filterOpen = e.target.open; }, true);
+  shell.addEventListener('toggle', e => {
+    if (e.target.matches?.('[data-filter-pop]')) ui.filterOpen = e.target.open;
+    if (e.target.matches?.('details.bs-scn')) { const no = Number(e.target.dataset.scnNo); if (e.target.open) ui.scn.open.add(no); else ui.scn.open.delete(no); }
+  }, true);
+  let scnTimer = 0;
   let inputTimer = 0;
   shell.addEventListener('input', e => {
     const t = e.target, bind = t.dataset.bind;
+    if (t.dataset.scnNotes) { const it = scnItem(Number(t.dataset.scnNotes)); it.notes = t.value; it.updatedAt = Date.now(); clearTimeout(scnTimer); scnTimer = setTimeout(saveScn, 400); return; }
+    if (t.dataset.scnMeta) { scn[t.dataset.scnMeta] = t.value.slice(0, 80); clearTimeout(scnTimer); scnTimer = setTimeout(saveScn, 400); return; }
+    if (t.closest('#bsModal') && (t.name === 'lat' || t.name === 'lng')) { syncPickerFromInputs(); return; }
     if (t.dataset.draft) { ui.reviews.drafts[t.dataset.draft] = t.value; const c = $(`rv-count-${t.dataset.draft}`); if (c) c.textContent = `${t.value.length}/${fmtNum(REPLY_MAX)}`; return; }
     if (!bind || t.type === 'checkbox' || t.tagName === 'SELECT') return;
     clearTimeout(inputTimer);
@@ -2453,6 +2787,23 @@
       const reader = new FileReader();
       reader.onload = () => { importDraft = analyzeImport(String(reader.result)); importModal(String(reader.result)); };
       reader.readAsText(t.files[0]);
+      return;
+    }
+    if (t.dataset.hoursOpen) { const d = hoursDraft[t.dataset.hoursOpen]; d.open = t.checked; if (d.open && !d.h24 && !d.ranges.length) d.ranges = [{ from: '08:00', to: '15:00' }]; refreshHours(`[data-hours-open="${t.dataset.hoursOpen}"]`); return; }
+    if (t.dataset.hoursAllday) { const d = hoursDraft[t.dataset.hoursAllday]; d.h24 = t.checked; if (!d.h24 && !d.ranges.length) d.ranges = [{ from: '08:00', to: '15:00' }]; refreshHours(`[data-hours-allday="${t.dataset.hoursAllday}"]`); return; }
+    if (t.dataset.hoursFrom || t.dataset.hoursTo) { const [k, i] = (t.dataset.hoursFrom || t.dataset.hoursTo).split(':'); hoursDraft[k].ranges[Number(i)][t.dataset.hoursFrom ? 'from' : 'to'] = t.value; updateHoursSummary(); return; }
+    if (t.dataset.scnCheck) { const [no, i] = t.dataset.scnCheck.split(':'); const it = scnItem(Number(no)); it.checks[Number(i)] = t.checked; it.updatedAt = Date.now(); saveScn(); render(); return; }
+    if (t.dataset.scnResult) { const it = scnItem(Number(t.dataset.scnResult)); it.result = t.value; it.updatedAt = Date.now(); saveScn(); render(); toast(L2(['Hasil pengujian disimpan.', 'Test result saved.']), { tone: 'good' }); return; }
+    if (t.dataset.scnUpload && t.files.length) {
+      const no = Number(t.dataset.scnUpload), it = scnItem(no), files = [...t.files].slice(0, Math.max(0, 4 - it.evidence.filter(ev => ev.type === 'image').length));
+      if (!files.length) { toast(L2(['Maksimal 4 foto per skenario.', 'Maximum 4 photos per scenario.']), { tone: 'warn' }); return; }
+      Promise.all(files.map(compressImage)).then(datas => {
+        datas.forEach(d => it.evidence.push({ type: 'image', data: d, time: Date.now() }));
+        it.updatedAt = Date.now();
+        if (!saveScn()) datas.forEach(() => it.evidence.pop());
+        render();
+        toast(L2([`${datas.length} foto bukti ditambahkan.`, `${datas.length} evidence photo(s) added.`]), { tone: 'good' });
+      }).catch(err => toast(err.message, { tone: 'bad' }));
       return;
     }
     if (t.dataset.actionChange === 'review-template') {
@@ -2557,6 +2908,7 @@
     }
   });
   modal.addEventListener('close', () => {
+    destroyPicker();
     modalSubmit = null;
     const t = modalTrigger; modalTrigger = null;
     if (t && (!t.scope || $(t.scope)?.open)) restoreFocus(t);

@@ -54,7 +54,11 @@ setelah setiap perubahan, dan setiap 60 detik (agar edit eksternal & hasil sync 
   "locations": [{
     "code": "DM-001", "name": "KC Jakarta", "type": "Kantor Cabang",      // Kantor Cabang | KCP | Unit | ATM
     "city": "Jakarta", "province": "DKI Jakarta", "region": "Jawa",       // region opsional (diturunkan dari provinsi)
-    "address": "Jl. Sudirman No. 1", "phone": "(021) 1234567", "hours": "Sen–Jum 08.00–15.00",
+    "address": "Jl. Sudirman No. 1", "phone": "(021) 1234567", "hours": "Sen–Jum 08.00–15.00",   // ringkasan teks
+    "hoursSpec": {                       // opsional; jam operasional terstruktur per hari (format editor, setara regularHours GBP)
+      "mon": { "open": true, "h24": false, "ranges": [{ "from": "08:00", "to": "15:00" }] },
+      "sat": { "open": false, "h24": false, "ranges": [] }, "sun": { "open": true, "h24": true, "ranges": [] }   // dst. tue..fri
+    },
     "lat": -6.2088, "lng": 106.8456,
     "status": "Online",                 // Online | Offline | Belum Sync | Tidak Aktif
     "accountId": "gbp-jawa",            // akun Google Business Profile pengelola lokasi (merujuk accounts[].id)
@@ -109,7 +113,7 @@ setelahnya. **Server wajib mencatat setiap perubahan ke `audit`** (dengan nilai 
 
 | Fitur | Method & path | Body |
 |---|---|---|
-| Tambah unit | `POST /locations` | field unit (tanpa `code`; server membuat kode) |
+| Tambah unit | `POST /locations` | field unit termasuk `hoursSpec` (tanpa `code`; server membuat kode). Server memetakan `hoursSpec` ke `regularHours.periods` Google |
 | Ubah unit | `PATCH /locations/{code}` | field yang diubah |
 | Hapus unit | `DELETE /locations/{code}` | — |
 | Hapus massal | `POST /locations/bulk-delete` | `{ codes: [] }` |

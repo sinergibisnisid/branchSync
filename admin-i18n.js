@@ -270,7 +270,23 @@
     'Cari unit kerja, menu, atau aksi': 'Search locations, menus, or actions', 'Fokus ke kolom pencarian di halaman': 'Focus the page search field', 'Tambah unit kerja baru': 'Add a new location',
     'Tampilkan pintasan ini': 'Show these shortcuts', 'Tutup dialog atau panel': 'Close dialog or panel', 'Impor data CSV': 'Import CSV data', 'Sinkronkan semua unit': 'Sync all locations',
     'Ganti tema terang/gelap': 'Toggle light/dark theme',
-    'Hari': 'Day', 'Perubahan': 'Changes', 'Proses internal': 'Internal processing'
+    'Hari': 'Day', 'Perubahan': 'Changes', 'Proses internal': 'Internal processing',
+    // Bantuan
+    'Bantuan': 'Help', 'Panduan Pengguna': 'User Guide', 'Scenario Test': 'Scenario Test', 'Panduan pengguna': 'User guide',
+    'Cara memakai setiap fitur BranchSync, langkah demi langkah.': 'How to use every BranchSync feature, step by step.',
+    'Tutorial dan pencatatan hasil 13 skenario uji piloting Dashboard BranchSync.': 'Tutorial and result recording for the 13 BranchSync dashboard piloting test scenarios.',
+    // Form unit: peta & jam operasional
+    'Informasi dasar': 'Basic information', 'Titik lokasi': 'Location point', 'Klik peta atau geser penanda untuk menandai titik. Koordinat juga dapat diketik.': 'Click the map or drag the pin to mark the point. You can also type coordinates.',
+    'Atur jam buka setiap hari seperti di Google Business Profile.': 'Set opening hours for each day like on Google Business Profile.',
+    'Peta pemilihan titik lokasi': 'Location point picker map', 'Gunakan lokasi saya': 'Use my location', 'Pusatkan ke titik': 'Center on point',
+    'Klik peta untuk menandai titik lokasi.': 'Click the map to mark the location point.', 'Titik lokasi — geser untuk memindahkan': 'Location point — drag to move',
+    'Peta tidak dapat dimuat. Isi koordinat secara manual.': 'The map could not be loaded. Enter coordinates manually.',
+    'Lokasi Anda ditandai.': 'Your location has been marked.', 'Peramban tidak mendukung lokasi.': 'This browser does not support location.',
+    'Lokasi tidak dapat diambil. Izinkan akses lokasi atau tandai titik di peta.': 'Location unavailable. Allow location access or mark the point on the map.',
+    'Preset:': 'Presets:', 'Hari kerja 08.00–15.00': 'Weekdays 08:00–15:00', 'Sen–Sab 08.00–14.00': 'Mon–Sat 08:00–14:00', '24 jam setiap hari': '24 hours every day',
+    'Buka 24 jam': 'Open 24 hours', 'Tambah jam': 'Add hours', '24 jam': '24 hours', 'Sabtu': 'Saturday', 'Minggu': 'Sunday',
+    'Terapkan Senin ke semua hari buka': 'Apply Monday to all open days', 'Jam Senin diterapkan ke semua hari buka.': 'Monday hours applied to all open days.',
+    'Aktifkan hari Senin terlebih dahulu.': 'Turn Monday on first.', 'Jam operasional: aktifkan minimal satu hari buka.': 'Opening hours: turn on at least one open day.'
   };
   // Aksi di Riwayat (huruf besar & kecil di awal)
   const ACTIONS = {
@@ -341,6 +357,12 @@
     // Kalimat dinamis
     R('^Buka (.+)$', (m, a) => `Open ${tr(a) || a}`),
     R(`^Akun Google Business Profile \\(${N}\\)$`, 'Google Business Profile accounts ($1)'),
+    R('^(Senin|Selasa|Rabu|Kamis|Jumat|Sabtu|Minggu) buka$', (m, a) => `${T(a)} open`),
+    R('^(Senin|Selasa|Rabu|Kamis|Jumat|Sabtu|Minggu) buka pukul$', (m, a) => `${T(a)} opens at`),
+    R('^(Senin|Selasa|Rabu|Kamis|Jumat|Sabtu|Minggu) tutup pukul$', (m, a) => `${T(a)} closes at`),
+    R('^Hapus rentang (Senin|Selasa|Rabu|Kamis|Jumat|Sabtu|Minggu)$', (m, a) => `Remove ${T(a)} range`),
+    R('^Jam operasional (Senin|Selasa|Rabu|Kamis|Jumat|Sabtu|Minggu): (.+)$', (m, a, b) => `Opening hours ${T(a)}: ${{ 'isi jam buka atau pilih 24 jam.': 'enter opening hours or choose 24 hours.', 'lengkapi jam buka dan tutup.': 'complete the opening and closing times.', 'jam tutup harus setelah jam buka.': 'closing time must be after opening time.', 'rentang jam saling tumpang tindih.': 'time ranges overlap.' }[b] || b}`),
+    R('^Unit terdekat: (.+) — (.+?)( \\(kemungkinan duplikat\\))?$', (m, a, b, c) => `Nearest location: ${a} — ${b}${c ? ' (possible duplicate)' : ''}`),
     R(`^Buat ${N} unit$`, 'Create $1 locations'), R(`^Buat ${N} unit uji$`, 'Create $1 test locations'),
     R(`^Bulanan \\(tanggal ${N}\\)$`, 'Monthly (day $1)'), R(`^Coba lagi semua \\(${N}\\)$`, 'Retry all ($1)'), R('^Contoh: (.+)$', 'Example: $1'),
     R('^Email GBP tidak dikenal · (.+)$', 'Unknown GBP email · $1'), R('^Hapus filter (.+)$', (m, a) => `Remove filter ${tr(a) || terms(a)}`),
