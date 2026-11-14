@@ -28,9 +28,9 @@
 
 	handle {
 		root * /srv
-		# Aset ber-?v= boleh di-cache lama (versi dinaikkan tiap rilis); index.html selalu diperiksa ulang.
-		@versioned query v=*
-		header @versioned Cache-Control "public, max-age=31536000, immutable"
+		# Hasil build Vite di /assets/ bernama dengan hash isi → boleh di-cache selamanya; index.html selalu diperiksa ulang.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
 		@html path / /index.html
 		header @html Cache-Control "no-cache"
 		file_server
