@@ -325,10 +325,38 @@
     'Membuat data uji performa': 'Created performance test data', 'Menghubungkan GBP': 'Connected GBP', 'Memutuskan GBP': 'Disconnected GBP', 'Menguji koneksi': 'Tested connection',
     'Mereset kuota harian': 'Reset daily quota', 'Memperbarui konfigurasi Google API': 'Updated Google API configuration', 'Menghubungkan akun Google (simulasi)': 'Connected Google account (simulated)',
     'Mengaktifkan notifikasi edit eksternal': 'Enabled external edit notifications', 'Menonaktifkan notifikasi edit eksternal': 'Disabled external edit notifications',
-    'Menjadwalkan laporan': 'Scheduled report', 'Menghapus jadwal laporan': 'Deleted report schedule', 'Mengekspor laporan CSV': 'Exported CSV report'
+    'Menjadwalkan laporan': 'Scheduled report', 'Menghapus jadwal laporan': 'Deleted report schedule', 'Mengekspor laporan CSV': 'Exported CSV report',
+    'Mengekspor Excel': 'Exported Excel'
   };
   Object.entries(ACTIONS).forEach(([id, en]) => { DICT[id] = en; DICT[id.charAt(0).toLowerCase() + id.slice(1)] = en.charAt(0).toLowerCase() + en.slice(1); });
 
+  // Tahap 3 — impor/ekspor Excel dan status Mode Live
+  Object.assign(DICT, {
+    'Impor data': 'Import data', 'Impor dari Excel (.xlsx) atau CSV': 'Import from Excel (.xlsx) or CSV', 'Ekspor hasil filter': 'Export filtered results',
+    'Excel (.xlsx)': 'Excel (.xlsx)', 'Kolom rapi, koordinat tersimpan sebagai angka': 'Tidy columns, coordinates stored as numbers', 'Untuk Google Sheets dan sistem lain': 'For Google Sheets and other systems',
+    'Impor unit kerja': 'Import locations', 'Unggah atau tempel data': 'Upload or paste data', 'Petakan kolom': 'Map columns', 'Periksa hasil': 'Review results',
+    'Template Excel': 'Excel template', 'Template CSV': 'CSV template', 'Pilih file Excel / CSV': 'Choose Excel / CSV file', 'Atau tempel data CSV': 'Or paste CSV data',
+    'Lanjut: petakan kolom': 'Next: map columns', 'Data yang ditempel': 'Pasted data', 'Kembali': 'Back', 'Kembali ke pemetaan': 'Back to mapping', 'Unduh baris bermasalah': 'Download problem rows',
+    'Tempel data CSV atau pilih file Excel/CSV terlebih dahulu.': 'Paste CSV data or choose an Excel/CSV file first.',
+    'Format .xls (Excel 97–2003) tidak didukung. Simpan ulang sebagai .xlsx atau CSV.': 'The .xls format (Excel 97–2003) is not supported. Save it again as .xlsx or CSV.',
+    'Pustaka Excel gagal dimuat. Periksa koneksi internet, atau gunakan format CSV.': 'The Excel library failed to load. Check your internet connection, or use CSV.',
+    'Pustaka Excel tidak lengkap.': 'The Excel library is incomplete.',
+    'Data kosong. Sertakan baris judul kolom dan minimal satu baris data.': 'No data. Include a header row and at least one data row.',
+    'Pilih kolom file untuk setiap data BranchSync. Kolom yang namanya dikenali sudah dipilihkan otomatis — periksa kembali sebelum lanjut.': 'Choose a file column for each BranchSync field. Columns with recognised names are selected automatically — double-check before continuing.',
+    'Pemetaan kolom': 'Column mapping', 'Data BranchSync': 'BranchSync field', 'Kolom di file': 'File column', 'Contoh nilai': 'Sample values', 'Wajib': 'Required',
+    'Kode unit': 'Location code', 'Kota/Kabupaten': 'City/Regency', '— Tidak dipakai —': '— Not used —',
+    'KC, BRANCH, HQ → Kantor Cabang · SUB_BRANCH → KCP': 'KC, BRANCH, HQ → Branch Office · SUB_BRANCH → KCP', 'Kode yang ada = perbarui unit': 'Existing code = update location',
+    'Kode hanya boleh huruf, angka, titik, garis bawah, dan tanda hubung (maks. 40 karakter).': 'Codes may only contain letters, numbers, dots, underscores and hyphens (max. 40 characters).',
+    'Kode ganda di dalam file.': 'Duplicate code within the file.',
+    'Menyimpan…': 'Saving…', 'Tersimpan ke server': 'Saved to server', 'Tersimpan di browser': 'Saved in browser', 'Gagal menyimpan': 'Failed to save',
+    'Anda sedang offline': 'You are offline', 'Anda sedang offline.': 'You are offline.',
+    'Perangkat tidak terhubung ke internet. Data akan dimuat otomatis saat koneksi pulih.': 'This device is not connected to the internet. Data will load automatically when the connection is back.',
+    'Gagal memuat data terbaru dari server.': 'Could not load the latest data from the server.',
+    'Sesi Live berakhir — Anda kini di Mode Demo.': 'Live session ended — you are now in Demo mode.',
+    'Data Live tidak ditampilkan sampai Anda masuk lagi. Data Demo di browser ini tidak berubah.': 'Live data is hidden until you sign in again. Demo data in this browser is unchanged.',
+    '— unit': '— locations', 'Masuk lagi': 'Sign in again', 'Tutup pemberitahuan': 'Dismiss notice', 'Live — perangkat sedang offline.': 'Live — this device is offline.',
+    'Data Live diperbarui.': 'Live data refreshed.', 'Koneksi pulih — data Live diperbarui.': 'Connection restored — Live data refreshed.', 'sesi berakhir': 'session ended'
+  });
   const has = k => Object.prototype.hasOwnProperty.call(DICT, k);
   const T = s => (has(s) ? DICT[s] : s);
   // Ganti istilah yang dikenal di dalam kalimat gabungan (mis. label aria berisi daftar status).
@@ -443,6 +471,22 @@
     R('^Mengusulkan perubahan (.+)$', (m, a) => `Proposed ${T(a)} change`), R('^mengusulkan perubahan (.+)$', (m, a) => `proposed ${T(a)} change`),
     R('^Memindahkan (.+) ke “(.+)”$', (m, a, b) => `Moved ${a} to “${T(b)}”`), R('^memindahkan (.+) ke “(.+)”$', (m, a, b) => `moved ${a} to “${T(b)}”`),
     R('^Menolak (.+)$', 'Rejected $1'), R('^menolak (.+)$', 'rejected $1'), R('^Mengajukan (.+)$', (m, a) => `Submitted ${T(a)}`), R('^mengajukan (.+)$', (m, a) => `submitted ${T(a)}`),
+    // Tahap 3 — impor/ekspor & status Live
+    R(`^Ekspor ${N} unit terpilih$`, 'Export $1 selected locations'), R(`^${N} unit diekspor ke Excel\\.$`, '$1 locations exported to Excel.'),
+    R(`^Excel \\(\\.xlsx, sheet pertama yang berisi judul kolom\\) atau CSV dengan pemisah koma/titik koma\\. Maks\\. ${N} baris, 10 MB\\. Judul kolom boleh berbeda — Anda memetakannya di langkah berikutnya\\.$`,
+      'Excel (.xlsx, the first sheet with a header row) or CSV separated by commas/semicolons. Max. $1 rows, 10 MB. Column names may differ — you map them in the next step.'),
+    R('^Membaca (.+)…$', 'Reading $1…'), R('^Ukuran file (.+) MB — maksimal 10 MB\\.$', 'File size $1 MB — the maximum is 10 MB.'),
+    R(`^File berisi ${N} baris — maksimal ${N} baris per impor\\. Bagi file menjadi beberapa bagian\\.$`, 'The file has $1 rows — the maximum is $2 rows per import. Split the file into parts.'),
+    R('^File tidak dapat dibaca: (.+)$', (m, a) => `The file could not be read: ${tr(a) || a}`),
+    R(`^· (?:sheet “(.+)” · )?${N} baris data$`, (m, a, n) => `· ${a ? `sheet “${a}” · ` : ''}${n} data rows`),
+    R('^Kolom wajib belum dipetakan: (.+)\\.$', (m, a) => `Required fields not mapped yet: ${a.split(', ').map(x => T(x)).join(', ')}.`),
+    R('^Kolom “(.+)” dipakai untuk lebih dari satu data: (.+)\\.$', (m, a, b) => `Column “${a}” is used for more than one field: ${b.split(', ').map(x => T(x)).join(', ')}.`),
+    R('^Kolom file yang tidak diimpor: (.+)$', 'File columns not imported: $1'),
+    R(`^Menampilkan ${N} dari ${N} baris \\(baris bermasalah ditampilkan lebih dulu\\)\\.$`, 'Showing $1 of $2 rows (problem rows first).'),
+    R('^Memuat data dari (.+)…$', 'Loading data from $1…'),
+    R('^Menampilkan data terakhir(?: \\(dimuat (.+)\\))?\\. Perubahan belum dapat dikirim; data dimuat ulang otomatis saat koneksi pulih\\.$', (m, a) => `Showing the last loaded data${a ? ` (loaded ${a})` : ''}. Changes cannot be sent yet; data reloads automatically when the connection is back.`),
+    R('^(.*) Menampilkan data terakhir(?: \\(dimuat (.+)\\))?\\.$', (m, e, a) => `${tr(e) || e} Showing the last loaded data${a ? ` (loaded ${a})` : ''}.`),
+    R('^Masih gagal memuat data: (.+)$', (m, a) => `Still unable to load data: ${tr(a) || a}`),
     R('^(.+): (.+)$', (m, a, b) => { const x = tr(a), y = tr(b); return x == null && y == null ? m : `${x == null ? a : x}: ${y == null ? b : y}`; }),
     R('^(.+) ·$', (m, a) => { const x = tr(a); return x == null ? m : `${x} ·`; }),
     R('^(Online|Status operasional|Status Google Business Profile)\\b(.*)$', m => terms(m))

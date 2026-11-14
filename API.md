@@ -122,7 +122,7 @@ setelahnya. **Server wajib mencatat setiap perubahan ke `audit`** (dengan nilai 
 | Hapus unit | `DELETE /locations/{code}` | — |
 | Hapus massal | `POST /locations/bulk-delete` | `{ codes: [] }` |
 | Ubah status massal | `POST /locations/bulk-update` | `{ codes: [], patch: { status } }` |
-| Impor CSV | `POST /locations/import` | `{ items: [ { code\|null, name, type, city, province, region, address, phone, hours, lat, lng, status } ] }` — `code` terisi = perbarui unit yang ada |
+| Impor CSV / Excel | `POST /locations/import` | `{ items: [ { code\|null, exists, name, type, city, province, region, address, phone, hours, lat, lng, status } ] }` — `exists: true` = perbarui unit dengan `code` tersebut; `exists: false` + `code` terisi = buat unit baru memakai kode dari file (mis. store code GBP); `code: null` = server membuat kode. File Excel dibaca di browser — server selalu menerima JSON yang sama. |
 | Jalankan sinkronisasi | `POST /sync` | `{ codes: [] \| null, retry: bool, label }` → **kembalikan objek `run`** (lihat `runs`) agar ringkasan hasil bisa ditampilkan |
 | Tindak lanjut kegagalan | `POST /sync/failures/resolve` | `{ code, run, note }` |
 | Selesaikan ketidaksesuaian | `POST /discrepancies/resolve` | `{ code, field, source: "dashboard" \| "google" }` — `field`: name, phone, hours, address, coords |

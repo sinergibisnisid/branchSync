@@ -1183,3 +1183,84 @@ button.bs-rating-row:hover { background: var(--hover); }
   .bs-bulkbar { position: fixed; left: 10px; right: 10px; bottom: 44px; z-index: 35; margin: 0; box-shadow: var(--shadow-pop); background: var(--surface); border-color: var(--accent); }
   .bs-bulkbar .bs-spacer { display: none; }
 }
+
+/* ------------------------------------------------------------------ *
+ * Tahap 3 — status Live (skeleton, banner, indikator simpan) & impor/ekspor Excel
+ * ------------------------------------------------------------------ */
+.bs-save { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.bs-save:empty { display: none; }
+.bs-save .bs-ic { width: 15px; height: 15px; }
+.bs-save[data-state="saved"] .bs-ic { color: var(--good); }
+.bs-save[data-state="error"] { color: var(--bad); font-weight: 500; }
+.bs-spinner.sm { width: 14px; height: 14px; border-width: 2px; flex: none; }
+@media (max-width: 640px) { .bs-save .bs-save-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+
+.bs-banner-slot:empty { display: none; }
+.bs-banner-slot { max-width: 1440px; margin: 0 auto 16px; }
+.bs-banner { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius: var(--radius-ctl); background: var(--warn-soft); color: var(--text); font-size: 13px; }
+.bs-banner > .bs-ic { width: 20px; height: 20px; flex: none; color: var(--warn-ink); }
+.bs-banner[data-tone="bad"] { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
+.bs-banner[data-tone="bad"] > .bs-ic { color: var(--bad); }
+.bs-banner p { flex: 1; margin: 0; overflow-wrap: anywhere; }
+.bs-banner p strong { color: var(--heading); font-weight: 600; }
+.bs-banner-actions { display: flex; gap: 6px; flex: none; align-items: center; }
+@media (max-width: 640px) {
+  .bs-banner-slot { margin-bottom: 12px; }
+  .bs-banner { flex-wrap: wrap; align-items: flex-start; }
+  .bs-banner p { flex-basis: calc(100% - 40px); }
+  .bs-banner-actions { width: 100%; justify-content: flex-end; }
+}
+
+.bs-live-loading-msg { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 13px; margin: 0 0 14px; }
+.bs-skel-page { display: flex; flex-direction: column; gap: 12px; }
+.bs-skel { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--neutral-soft) 25%, color-mix(in srgb, var(--neutral-soft) 40%, var(--surface)) 50%, var(--neutral-soft) 75%); background-size: 200% 100%; animation: bs-shimmer 1.4s ease-in-out infinite; }
+.bs-skel.h28 { height: 28px; } .bs-skel.h32 { height: 32px; } .bs-skel.h160 { height: 160px; } .bs-skel.h360 { height: 360px; }
+.bs-skel.w15 { width: 15%; } .bs-skel.w20 { width: 20%; } .bs-skel.w25 { width: 25%; } .bs-skel.w30 { width: 30%; } .bs-skel.w40 { width: 40%; } .bs-skel.w50 { width: 50%; }
+.bs-skel.w60 { width: 60%; } .bs-skel.w70 { width: 70%; } .bs-skel.w80 { width: 80%; } .bs-skel.w90 { width: 90%; } .bs-skel.w100 { width: 100%; }
+.bs-skel-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius, 12px); background: var(--surface); }
+.bs-skel-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.bs-skel-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.bs-skel-row { display: flex; gap: 16px; padding: 6px 0; border-top: 1px solid var(--border); }
+@keyframes bs-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .bs-skel { animation: none; } }
+
+.bs-export-panel { right: 0; top: 42px; width: 300px; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.bs-export-panel .bs-pop-head { padding: 4px 8px 6px; }
+.bs-export-panel .bs-menu-item span { display: flex; flex-direction: column; gap: 2px; }
+.bs-export-panel .bs-menu-item small { color: var(--muted); font-size: 12px; white-space: normal; overflow: visible; text-overflow: clip; }
+.bs-import-table .bs-table td { white-space: normal; overflow-wrap: anywhere; }
+.bs-import-table .bs-table td:first-child { width: 56px; }
+.bs-bulkbar .bs-export { flex: none; }
+@media (max-width: 640px) {
+  .bs-page-actions .bs-export, .bs-bulkbar .bs-export { flex: none; }
+  .bs-page-actions .bs-export > summary, .bs-bulkbar .bs-export > summary { width: auto; }
+  .bs-export-panel { position: fixed; left: 12px; right: 12px; top: auto; bottom: 52px; width: auto; }
+  .bs-bulkbar .bs-export { position: static; } /* panel menempel di atas bilah aksi massal yang fixed */
+  .bs-bulkbar .bs-export-panel { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); }
+}
+
+.bs-import-source { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 13px; color: var(--text-2); }
+.bs-import-source .bs-ic { width: 18px; height: 18px; color: var(--accent); flex: none; }
+.bs-import-source strong { color: var(--heading); font-weight: 600; }
+.bs-import-map { max-height: min(52vh, 460px); overflow: auto; }
+.bs-import-map th[scope="row"] { font-weight: 500; text-align: left; vertical-align: top; white-space: normal; overflow-wrap: anywhere; }
+.bs-import-map th[scope="row"] .bs-field-hint { display: block; font-weight: 400; margin-top: 2px; }
+.bs-import-map table { table-layout: fixed; }
+.bs-import-map th:nth-child(1) { width: 36%; } .bs-import-map th:nth-child(2) { width: 30%; }
+.bs-import-map select { width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-ctl); background: var(--surface); color: var(--text); font-size: 13px; }
+.bs-import-map select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bs-samples { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.bs-import-map code { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; padding: 1px 6px; border-radius: 4px; background: var(--neutral-soft); font-size: 12px; }
+.bs-import-map tr.is-error th { color: var(--bad); }
+.bs-req-badge { display: inline-block; padding: 0 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 11px; font-weight: 600; vertical-align: 1px; }
+.bs-import-unused { font-size: 12px; margin-top: 8px; overflow-wrap: anywhere; }
+.bs-import-busy { display: flex; align-items: center; gap: 8px; min-height: 0; margin: 0; font-size: 13px; color: var(--text-2); }
+.bs-import-busy:empty { display: none; }
+.bs-form-error .bs-ic { width: 15px; height: 15px; vertical-align: -2px; margin-right: 4px; }
+.bs-gap-t { margin-top: 8px; }
+@media (max-width: 640px) {
+  .bs-import-map { max-height: none; overflow: visible; }
+  .bs-import-map table { table-layout: auto; }
+  .bs-import-map table.bs-cards th[scope="row"] { display: block; padding: 4px 0 6px; background: transparent; }
+}
+@media print { .bs-banner-slot, .bs-save { display: none !important; } }

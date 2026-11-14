@@ -162,6 +162,9 @@
     chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
     send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
     chevD: '<path d="m6 9 6 6 6-6"/>',
+    arrowL: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/>',
+    wifiOff: '<path d="m2 2 20 20M8.5 16.4a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 4.2-2.7M10.7 5.1A15 15 0 0 1 22 8.8M5 12.9a10 10 0 0 1 5.2-2.8M16.9 10.6a10 10 0 0 1 2.1 2.3M12 20h.01"/>',
     key: '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>'
   };
   const ic = (n, cls = '') => `<svg class="bs-ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[n] || ''}</svg>`;
@@ -482,14 +485,29 @@
     if (isLive() || storageMode === 'pending') return;
     demoState = state;
     clearTimeout(saveTimer);
+    setSave('saving');
     saveTimer = setTimeout(() => {
-      if (isLive()) return;
-      if (storageMode === 'idb') STORE.set('demoState', demoState).then(() => { saveWarned = false; }, saveFailed);
-      else { try { localStorage.setItem(STORE_KEY, JSON.stringify(demoState)); saveWarned = false; } catch (_) { saveFailed(); } }
+      if (isLive()) { setSave(''); return; }
+      const ok = () => { saveWarned = false; setSave('saved'); }, bad = () => { setSave('error'); saveFailed(); };
+      if (storageMode === 'idb') STORE.set('demoState', demoState).then(ok, bad);
+      else { try { localStorage.setItem(STORE_KEY, JSON.stringify(demoState)); ok(); } catch (_) { bad(); } }
     }, 400);
   };
   let cache = {};
   const touch = () => { cache = {}; persist(); };
+  // Indikator simpan di topbar (Menyimpan… / Tersimpan / Gagal), diumumkan pembaca layar lewat role="status".
+  let saveState = '', saveIdle = 0;
+  function setSave(st) {
+    const el = document.getElementById('bsSave');
+    if (!el || st === saveState) return;
+    saveState = st; clearTimeout(saveIdle);
+    const live = isLive();
+    const label = { saving: 'Menyimpan…', saved: live ? 'Tersimpan ke server' : 'Tersimpan di browser', error: 'Gagal menyimpan' }[st] || '';
+    el.dataset.state = st;
+    el.innerHTML = st ? `${st === 'saving' ? '<span class="bs-spinner sm" aria-hidden="true"></span>' : ic(st === 'saved' ? 'check' : 'alert')}<span class="bs-save-text">${label}</span>` : '';
+    el.title = label;
+    if (st === 'saved') saveIdle = setTimeout(() => setSave(''), 4000);
+  }
   const memo = (k, fn) => (k in cache ? cache[k] : (cache[k] = fn()));
   // Izin pengguna aktif: dari server (Live, bila dikirim) atau dari matriks peran.
   const myPerms = () => memo('perms', () => {
@@ -513,6 +531,7 @@
     sync: { tab: 'failures' }, audit: { q: '', module: '', actor: '', range: '30' }, access: { tab: 'users', q: '' },
     drawer: null,
     live: { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 },
+    sessionNotice: false,
     reviews: { account: '', location: '', rating: '', status: '', sort: 'newest', q: '', limit: 20, editing: null, drafts: {} },
     report: { period: '30', region: '', account: '', type: '' },
     guide: { q: '' },
@@ -523,6 +542,7 @@
    * Data turunan
    * ------------------------------------------------------------------ */
   const byCode = () => memo('byCode', () => new Map(state.locations.map(l => [l.code, l])));
+  const byName = () => memo('byName', () => { const m = new Map(); state.locations.forEach(l => { const k = String(l.name).toLowerCase(); (m.get(k) || m.set(k, []).get(k)).push(l); }); return m; });
   const locName = code => byCode().get(code)?.name || code;
   function issuesOf(l) {
     const g = l.google;
@@ -662,7 +682,7 @@
   }
   async function loadLive({ silent = false } = {}) {
     if (!isLive()) return false;
-    if (!silent) { ui.live.loading = true; ui.live.error = null; render(); }
+    if (!silent) { ui.live.loading = true; ui.live.error = null; render(); } else { ui.live.loading = true; updateChrome(); }
     try {
       const data = await MODE.request('GET', '/bootstrap');
       if (!isLive()) return false;
@@ -684,9 +704,10 @@
   // setelah selesai (berhasil/gagal) data dimuat ulang agar sama dengan server.
   async function remote(method, path, body) {
     if (!isLive()) return true;
-    ui.live.pending++; updateChrome();
-    try { const res = await MODE.request(method, path, body); ui.live.error = null; return res ?? true; }
+    ui.live.pending++; setSave('saving'); updateChrome();
+    try { const res = await MODE.request(method, path, body); ui.live.error = null; if (ui.live.pending <= 1) setSave('saved'); return res ?? true; }
     catch (e) {
+      setSave('error');
       if (e.code === 'unauthorized') { sessionExpired(); return false; }
       toast(`Gagal menyimpan ke server: ${e.message}`, { tone: 'bad', action: { label: 'Muat ulang', run: () => loadLive() } });
       return false;
@@ -700,6 +721,7 @@
   function sessionExpired(message = 'Sesi Live berakhir atau tidak valid. Silakan masuk kembali.') {
     MODE.clearSession();
     if (isLive()) {
+      ui.sessionNotice = true;
       MODE.setMode('demo'); ME = demoUser(); state = loadState();
       ui.live = { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 };
       renderedView = null; touch();
@@ -709,7 +731,7 @@
   }
   function switchToDemo() {
     if (!isLive()) { toast('Anda sudah berada di Mode Demo.'); return; }
-    MODE.setMode('demo');
+    MODE.setMode('demo'); setSave('');
     ME = demoUser();
     state = loadState();
     ui.live = { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 };
@@ -815,6 +837,7 @@
         <button type="button" class="bs-icon-btn bs-menu" data-action="nav-open" aria-label="Buka navigasi" aria-controls="bsSidebar" aria-expanded="false">${ic('menu')}</button>
         <nav class="bs-crumbs" aria-label="Lokasi halaman"><span>Workspace</span>${ic('chev')}<strong id="bsCrumb"></strong></nav>
         <div class="bs-top-end">
+          <span class="bs-save" id="bsSave" role="status" aria-live="polite"></span>
           <button type="button" class="bs-sync-pill" id="bsSyncPill" data-view="sync"></button>
           <button type="button" class="bs-role-chip" id="bsRoleChip" data-action="mode-menu" hidden></button><button type="button" class="bs-icon-btn bs-hide-sm" data-action="copy-link" aria-label="Salin tautan halaman ini" title="Salin tautan halaman ini">${ic('link')}</button><div class="bs-pop-wrap"><button type="button" class="bs-mode-btn" id="bsModeBtn" data-action="mode-menu" aria-haspopup="menu" aria-expanded="false" aria-controls="bsModeMenu"></button><div class="bs-popover bs-mode-menu" id="bsModeMenu" role="menu" aria-label="Mode aplikasi" hidden></div></div>
           <div class="bs-pop-wrap">
@@ -828,6 +851,7 @@
         </div>
       </header>
       <main class="bs-main" id="bsMain" tabindex="-1">
+        <div class="bs-banner-slot" id="bsBanner"></div>
         <div class="bs-page" id="bsPage"></div>
       </main>
       <footer class="bs-footer" aria-label="Status workspace"><span id="bsFooterInfo"></span><span id="bsFooterMode"></span></footer>
@@ -1028,6 +1052,11 @@
     const val = l => (k === 'issues' ? im.get(l.code)?.length || 0 : k === 'lastSync' ? l.lastSync || 0 : l[k] ?? '');
     return xs.sort((a, b) => { const va = val(a), vb = val(b); return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'id', { numeric: true })) * dir; });
   }
+  // Menu ekspor CSV / Excel — dipakai di kepala halaman Unit Kerja ('all') dan bilah aksi massal ('sel').
+  const exportMenu = scope => `<details class="bs-filter bs-export" data-pop="export-${scope}" ${ui.pop === `export-${scope}` ? 'open' : ''}><summary class="bs-btn${scope === 'sel' ? ' sm' : ''}">${ic('download')}<span>Ekspor</span>${ic('chevD')}</summary>
+    <div class="bs-popover bs-export-panel"><div class="bs-pop-head"><strong>${scope === 'sel' ? `Ekspor ${fmtNum(ui.loc.selected.size)} unit terpilih` : 'Ekspor hasil filter'}</strong></div>
+      <button type="button" class="bs-menu-item sm" data-action="export-xlsx" data-id="${scope}">${ic('file')}<span><strong>Excel (.xlsx)</strong><small>Kolom rapi, koordinat tersimpan sebagai angka</small></span></button>
+      <button type="button" class="bs-menu-item sm" data-action="export-csv" data-id="${scope}">${ic('file')}<span><strong>CSV</strong><small>Untuk Google Sheets dan sistem lain</small></span></button></div></details>`;
   function viewLocations() {
     const f = ui.loc, all = locFiltered(), size = Number(prefs.pageSize) || 10, U = up(), cols = visibleCols(), dense = U.density === 'compact';
     const pages = Math.max(1, Math.ceil(all.length / size));
@@ -1064,12 +1093,12 @@
       ${f.selected.size < all.length ? btn(`Pilih semua ${fmtNum(all.length)} hasil`, 'select-all', { variant: 'sm ghost' }) : ''}
       <span class="bs-spacer"></span>
       <label class="bs-inline-select"><span class="bs-sr">Ubah status</span><select data-action-change="bulk-status" ${can('locations.write') ? '' : `disabled title="${esc(deniedMsg('locations.write'))}"`}><option value="">Ubah status…</option>${opts(STATUSES)}</select></label>
-      ${btn('Sinkronkan', 'bulk-sync', { icon: 'refresh', variant: 'sm' })}${btn('Ekspor', 'bulk-export', { icon: 'download', variant: 'sm' })}${btn('Hapus', 'bulk-delete', { icon: 'trash', variant: 'sm danger' })}
+      ${btn('Sinkronkan', 'bulk-sync', { icon: 'refresh', variant: 'sm' })}${exportMenu('sel')}${btn('Hapus', 'bulk-delete', { icon: 'trash', variant: 'sm danger' })}
       ${btn('', 'clear-selection', { icon: 'x', variant: 'sm icon ghost', title: 'Batalkan pilihan' })}</div>` : '';
     const pageBtns = [];
     for (let p = 1; p <= pages; p++) if (p === 1 || p === pages || Math.abs(p - f.page) <= 1) pageBtns.push(p); else if (pageBtns[pageBtns.length - 1] !== '…') pageBtns.push('…');
     return head('Unit Kerja', navItem('locations').desc,
-      btn('Impor CSV', 'import', { icon: 'upload' }) + btn('Ekspor', 'export-locs', { icon: 'download' }) + btn('Tambah unit', 'add-loc', { icon: 'plus', variant: 'primary' })) +
+      btn('Impor data', 'import', { icon: 'upload', title: 'Impor dari Excel (.xlsx) atau CSV' }) + exportMenu('all') + btn('Tambah unit', 'add-loc', { icon: 'plus', variant: 'primary' })) +
       `<section class="bs-card bs-loc-card${f.selected.size ? ' has-bulk' : ''}"><div class="bs-card-body flush">
         <div class="bs-segment" role="tablist" aria-label="Tampilan cepat">${quickCounts.map(([v, l, n]) => `<button type="button" role="tab" aria-selected="${f.quick === v && !activeView}" data-action="quick" data-id="${v}">${l}<span>${fmtNum(n)}</span></button>`).join('')}${pinned.map(v => `<button type="button" role="tab" class="bs-seg-pinned" aria-selected="${activeView === v}" data-action="view-apply" data-id="${esc(v.id)}">${ic('pin')}${esc(v.name)}<span>${fmtNum(viewCount(v.filters))}</span></button>`).join('')}</div>
         <div class="bs-toolbar bs-loc-toolbar">${searchF('loc.q', 'Cari unit kerja', f.q, 'Nama, kode, kota, provinsi, atau alamat…  ( / )', 'bsLocQ')}${filterPanel}${viewsPanel}${colsPanel}
@@ -1867,7 +1896,7 @@
     if (String(p.lat).trim() === '' || !isFinite(lat)) e.lat = 'Isi angka latitude.';
     if (String(p.lng).trim() === '' || !isFinite(lng)) e.lng = 'Isi angka longitude.';
     if (!e.lat && !e.lng && !inIndonesia(lat, lng)) e.lat = 'Titik berada di luar wilayah Indonesia.';
-    if (!e.name && state.locations.some(x => x !== self && x.name.toLowerCase() === p.name.toLowerCase())) e.name = 'Nama ini sudah dipakai unit lain.';
+    if (!e.name && (byName().get(p.name.toLowerCase()) || []).some(x => x !== self)) e.name = 'Nama ini sudah dipakai unit lain.';
     p.lat = String(p.lat).trim() !== '' && isFinite(lat) ? +lat.toFixed(6) : NaN;
     p.lng = String(p.lng).trim() !== '' && isFinite(lng) ? +lng.toFixed(6) : NaN;
     return e;
@@ -2062,9 +2091,29 @@
     });
   }
 
-  /* Impor CSV */
-  const COLS = { kode: 'code', code: 'code', nama: 'name', name: 'name', tipe: 'type', type: 'type', kota: 'city', city: 'city', provinsi: 'province', province: 'province', alamat: 'address', address: 'address', telepon: 'phone', phone: 'phone', jam: 'hours', 'jam operasional': 'hours', hours: 'hours', lat: 'lat', latitude: 'lat', lng: 'lng', lon: 'lng', longitude: 'lng', status: 'status' };
+  /* Impor CSV / Excel (.xlsx) dengan pemetaan kolom */
+  const COLS = {
+    kode: 'code', code: 'code', 'kode unit': 'code', 'kode toko': 'code', storecode: 'code', 'store code': 'code',
+    nama: 'name', name: 'name', 'nama unit': 'name', 'nama lokasi': 'name', 'nama kantor': 'name', 'business name': 'name',
+    tipe: 'type', type: 'type', jenis: 'type', 'tipe unit': 'type', 'jenis unit': 'type', locationtype: 'type', 'location type': 'type',
+    kota: 'city', city: 'city', 'kab/kota': 'city', 'kabupaten/kota': 'city', kabupaten: 'city', locality: 'city',
+    provinsi: 'province', province: 'province', 'administrative area': 'province',
+    alamat: 'address', address: 'address', 'alamat lengkap': 'address', 'address line 1': 'address',
+    telepon: 'phone', phone: 'phone', telp: 'phone', 'no telepon': 'phone', 'no. telepon': 'phone', 'nomor telepon': 'phone', 'primary phone': 'phone',
+    jam: 'hours', 'jam operasional': 'hours', 'jam buka': 'hours', hours: 'hours', 'opening hours': 'hours',
+    lat: 'lat', latitude: 'lat', lintang: 'lat', lng: 'lng', lon: 'lng', long: 'lng', longitude: 'lng', bujur: 'lng',
+    status: 'status', 'status unit': 'status'
+  };
+  const normHead = h => String(h ?? '').toLowerCase().replace(/\(.*?\)/g, ' ').replace(/[*]/g, ' ').replace(/[_\s]+/g, ' ').trim();
+  // Nilai tipe dari sistem lain (mis. ekspor Google Business Profile) → tipe BranchSync.
+  const TYPE_ALIAS = { kc: 'Kantor Cabang', cabang: 'Kantor Cabang', branch: 'Kantor Cabang', hq: 'Kantor Cabang', 'head office': 'Kantor Cabang', kcp: 'KCP', 'kantor cabang pembantu': 'KCP', 'sub branch': 'KCP', subbranch: 'KCP', 'bri unit': 'Unit', teras: 'Unit', crm: 'ATM' };
+  const IMPORT_FIELDS = [
+    ['code', 'Kode unit', false], ['name', 'Nama unit', true], ['type', 'Tipe', true], ['city', 'Kota/Kabupaten', true], ['province', 'Provinsi', true],
+    ['address', 'Alamat', true], ['phone', 'Telepon', false], ['hours', 'Jam operasional', false], ['lat', 'Latitude', true], ['lng', 'Longitude', true], ['status', 'Status', false]
+  ];
   const TEMPLATE_HEAD = ['kode', 'nama', 'tipe', 'kota', 'provinsi', 'alamat', 'telepon', 'jam', 'lat', 'lng', 'status'];
+  const IMPORT_MAX_ROWS = 20000, IMPORT_MAX_BYTES = 10 * 1024 * 1024, IMPORT_PREVIEW = 200;
+  // importDraft: { stage: 'input' | 'map' | 'review', text, source: { name, kind }, header, rows: [{ line, cells }], map: { field: index }, items, error, busy }
   let importDraft = null;
   function sampleCSV(n = 25) {
     const r = rng(Date.now() % 100000), base = state.locations.filter(l => l.type === 'Kantor Cabang');
@@ -2077,47 +2126,163 @@
     }
     return lines.join('\n');
   }
-  function analyzeImport(text) {
-    const rows = parseCSV(text);
-    if (rows.length < 2) return { error: 'Data kosong. Sertakan baris judul kolom dan minimal satu baris data.' };
-    const headRow = rows[0].map(h => COLS[h.trim().toLowerCase()] || null);
-    if (!headRow.includes('name') || !headRow.includes('lat')) return { error: 'Kolom wajib “nama”, “lat”, dan “lng” tidak ditemukan. Gunakan template.' };
-    const seenNames = new Set();
-    const items = rows.slice(1).map((cols, i) => {
+  const cellText = v => v == null ? '' : v instanceof Date ? (isNaN(v) ? '' : v.toISOString().slice(0, 10)) : String(v).trim();
+  const decimalText = v => String(v ?? '').trim().replace(/^(-?\d+),(\d+)$/, '$1.$2'); // "−6,2" (desimal koma) → "-6.2"
+  function autoMap(header) {
+    const map = {};
+    header.forEach((h, j) => { const f = COLS[normHead(h)]; if (f && map[f] == null) map[f] = j; });
+    return map;
+  }
+  function startMapping(rows, source, text = '') {
+    const body = [];
+    rows.forEach((r, i) => { const cells = (r || []).map(cellText); if (cells.some(c => c !== '')) body.push({ line: i + 1, cells }); });
+    const fail = error => { importDraft = { stage: 'input', text, source, error }; importModal(); };
+    if (body.length < 2) return fail('Data kosong. Sertakan baris judul kolom dan minimal satu baris data.');
+    if (body.length - 1 > IMPORT_MAX_ROWS) return fail(`File berisi ${fmtNum(body.length - 1)} baris — maksimal ${fmtNum(IMPORT_MAX_ROWS)} baris per impor. Bagi file menjadi beberapa bagian.`);
+    const headRow = body.shift(), width = Math.max(headRow.cells.length, ...body.slice(0, 50).map(r => r.cells.length));
+    const header = Array.from({ length: width }, (_, j) => headRow.cells[j] || `Kolom ${j + 1}`);
+    importDraft = { stage: 'map', text, source, header, rows: body, map: autoMap(headRow.cells) };
+    importModal();
+  }
+  function mapIssues(d) {
+    const missing = IMPORT_FIELDS.filter(([k, , req]) => req && d.map[k] == null).map(([, l]) => l);
+    const byCol = {};
+    IMPORT_FIELDS.forEach(([k, l]) => { const j = d.map[k]; if (j != null) (byCol[j] = byCol[j] || []).push(l); });
+    const dupes = Object.entries(byCol).filter(([, ls]) => ls.length > 1).map(([j, ls]) => ({ col: d.header[j], fields: ls }));
+    const used = new Set(Object.values(d.map).filter(j => j != null).map(Number));
+    return { missing, dupes, unused: d.header.filter((_, j) => !used.has(j)) };
+  }
+  function analyzeRows(d) {
+    const seenNames = new Set(), seenCodes = new Set();
+    const items = d.rows.map(({ line, cells }) => {
       const p = {};
-      headRow.forEach((k, j) => { if (k) p[k] = String(cols[j] ?? '').trim(); });
-      p.type = TYPES.find(t => t.toLowerCase() === String(p.type || '').toLowerCase()) || p.type || 'Unit';
-      p.status = STATUSES.find(t => t.toLowerCase() === String(p.status || '').toLowerCase()) || (p.status ? p.status : 'Belum Sync');
+      IMPORT_FIELDS.forEach(([k]) => { const j = d.map[k]; p[k] = j == null ? '' : String(cells[j] ?? '').trim(); });
+      p.lat = decimalText(p.lat); p.lng = decimalText(p.lng);
+      const tv = p.type.toLowerCase().replace(/[_-]+/g, ' ').trim();
+      p.type = TYPES.find(t => t.toLowerCase() === tv) || TYPE_ALIAS[tv] || p.type;
+      p.status = STATUSES.find(t => t.toLowerCase() === p.status.toLowerCase()) || p.status || 'Belum Sync';
       const existing = p.code ? byCode().get(p.code) : null;
       const e = validateLoc(p, existing);
+      if (p.code && !existing && !/^[A-Za-z0-9._-]{1,40}$/.test(p.code)) e.code = 'Kode hanya boleh huruf, angka, titik, garis bawah, dan tanda hubung (maks. 40 karakter).';
+      if (p.code && seenCodes.has(p.code)) e.code = 'Kode ganda di dalam file.';
+      if (p.code) seenCodes.add(p.code);
       const key = String(p.name).toLowerCase();
       if (!e.name && seenNames.has(key)) e.name = 'Nama ganda di dalam file.';
       seenNames.add(key);
-      return { line: i + 2, p, existing, errors: Object.values(e) };
+      return { line, p, existing, errors: Object.values(e) };
     });
     items.sort((a, b) => (b.errors.length ? 1 : 0) - (a.errors.length ? 1 : 0) || a.line - b.line); // baris bermasalah di atas
-    return { items };
+    return items;
   }
-  function importModal(text = '') {
+  // Pustaka Excel dimuat hanya saat dibutuhkan, dengan versi terkunci + Subresource Integrity.
+  const LIBS = {
+    readXlsx: { url: 'https://cdn.jsdelivr.net/npm/read-excel-file@9.3.12/bundle/read-excel-file.min.js', sri: 'sha384-yfXfzfpiOwy96Yoz4xMnb3z0AXgn4IPyMQGQzh+rI0zcS+3Td3wbGbWEi06HHoY/', global: 'readXlsxFile' },
+    writeXlsx: { url: 'https://cdn.jsdelivr.net/npm/write-excel-file@4.1.1/bundle/write-excel-file.min.js', sri: 'sha384-PqyMI+TlxmsEGcLLga739J/rsLoCKr/R2q8RkIuchh3vRaDL7hvRkWpMG6YZbChH', global: 'writeXlsxFile' }
+  };
+  const libJobs = {};
+  function loadLib(key) {
+    const L = LIBS[key], fn = () => { const g = window[L.global]; return typeof g === 'function' ? g : g && g.default; };
+    if (fn()) return Promise.resolve(fn());
+    return libJobs[key] || (libJobs[key] = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = L.url; s.integrity = L.sri; s.crossOrigin = 'anonymous'; s.referrerPolicy = 'no-referrer'; s.async = true;
+      s.onload = () => fn() ? resolve(fn()) : reject(new Error('Pustaka Excel tidak lengkap.'));
+      s.onerror = () => { delete libJobs[key]; s.remove(); reject(new Error('Pustaka Excel gagal dimuat. Periksa koneksi internet, atau gunakan format CSV.')); };
+      document.head.append(s);
+    }));
+  }
+  // Teks yang diawali = + - @ diberi apostrof agar tidak dijalankan sebagai rumus (sama dengan CSV).
+  const safeCell = v => { const s = String(v ?? ''); return /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s) ? "'" + s : s; };
+  async function downloadXlsx(name, sheets) {
+    const write = await loadLib('writeXlsx');
+    const data = sheets.map(sh => ({
+      sheet: sh.name, columns: sh.widths ? sh.widths.map(width => ({ width })) : undefined,
+      data: sh.rows.map((r, i) => r.map(v => i === 0 && sh.head !== false ? { value: String(v), type: String, fontWeight: 'bold', backgroundColor: '#00529C', color: '#FFFFFF' }
+        : typeof v === 'number' && isFinite(v) ? { value: v, type: Number } : v == null || v === '' ? null : { value: safeCell(v), type: String }))
+    }));
+    const blob = await write(data.length === 1 ? data[0].data : data, data.length === 1 ? { sheet: data[0].sheet, columns: data[0].columns } : undefined).toBlob();
+    download(name, blob, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  }
+  async function xlsxTemplate() {
+    const rows = parseCSV(sampleCSV(3)).map((r, i) => i ? r.map((v, j) => ['lat', 'lng'].includes(TEMPLATE_HEAD[j]) && v !== '' ? Number(v) : v) : r);
+    const guide = [
+      ['Petunjuk impor BranchSync', 'BranchSync import guide'],
+      ['Isi sheet “Data” mulai baris 2. Judul kolom boleh berbeda — Anda dapat memetakannya saat impor.', 'Fill in the “Data” sheet from row 2. Column names may differ — you can map them during import.'],
+      ['Kolom wajib: nama, tipe, kota, provinsi, alamat, lat, lng.', 'Required columns: nama (name), tipe (type), kota (city), provinsi (province), alamat (address), lat, lng.'],
+      [`Tipe: ${TYPES.join(', ')} (juga dikenali: KC, BRANCH, HQ, SUB_BRANCH).`, `Type: ${TYPES.join(', ')} (also recognised: KC, BRANCH, HQ, SUB_BRANCH).`],
+      [`Status (opsional): ${STATUSES.join(', ')}. Kosong = Belum Sync.`, `Status (optional): ${STATUSES.join(', ')}. Empty = Belum Sync (not synced).`],
+      ['Kode (opsional): isi kode unit yang ada untuk memperbarui datanya, atau kode toko baru untuk unit baru.', 'Code (optional): an existing location code updates that location; a new store code is used for the new location.'],
+      ['Koordinat memakai titik desimal, contoh: -6.2146 dan 106.8451.', 'Coordinates use a decimal point, e.g. -6.2146 and 106.8451.']
+    ].map(x => [L2(x)]);
+    await downloadXlsx('template-impor-unit-kerja.xlsx', [
+      { name: 'Data', rows, widths: [12, 34, 14, 18, 20, 36, 18, 24, 12, 12, 14] },
+      { name: L2(['Petunjuk', 'Guide']), rows: guide, widths: [100], head: true }
+    ]);
+  }
+  async function readImportFile(file) {
+    const fail = error => { importDraft = { stage: 'input', text: '', error }; importModal(); };
+    if (/\.xls$/i.test(file.name)) return fail('Format .xls (Excel 97–2003) tidak didukung. Simpan ulang sebagai .xlsx atau CSV.');
+    if (file.size > IMPORT_MAX_BYTES) return fail(`Ukuran file ${(file.size / 1048576).toFixed(1)} MB — maksimal 10 MB.`);
+    const xlsx = /\.xlsx$/i.test(file.name) || file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    importDraft = { stage: 'input', text: '', busy: `Membaca ${file.name}…` }; importModal();
+    try {
+      let rows, text = '', sheet = '';
+      if (xlsx) {
+        const read = await loadLib('readXlsx'), out = await read(file);
+        if (Array.isArray(out) && out.length && Array.isArray(out[0])) rows = out; // format lama: langsung baris
+        else {
+          const sheets = (out || []).filter(s => s && Array.isArray(s.data) && s.data.length);
+          const pickS = sheets.find(s => Object.keys(autoMap(s.data[0] || [])).length >= 2) || sheets[0];
+          rows = pickS ? pickS.data : []; sheet = pickS ? pickS.sheet : '';
+        }
+      } else { text = await file.text(); rows = parseCSV(text); }
+      if (!modal.open || !importDraft || !importDraft.busy) return; // dialog sudah ditutup
+      startMapping(rows, { name: file.name, kind: xlsx ? 'xlsx' : 'csv', sheet }, text.length <= 200000 ? text : '');
+    } catch (e) { if (modal.open) fail(`File tidak dapat dibaca: ${e.message}`); }
+  }
+  function importModal() {
     if (!guard('locations.import')) return;
-    const d = importDraft;
-    const preview = d && d.items ? (() => {
-      const ok = d.items.filter(x => !x.errors.length), upd = ok.filter(x => x.existing).length;
-      return `<div class="bs-import-summary"><span>${badge('Berhasil', `${ok.length} valid`)}</span><span>${d.items.length - ok.length ? badge('Gagal', `${d.items.length - ok.length} perlu diperbaiki`) : ''}</span><span>${upd ? badge('Belum Sync', `${upd} memperbarui unit yang ada`) : ''}</span></div>
-        <div class="bs-table-wrap bs-import-table" tabindex="0" role="region" aria-label="Pratinjau impor"><table class="bs-table"><thead><tr><th>Baris</th><th>Nama</th><th>Tipe</th><th>Kota</th><th>Koordinat</th><th>Hasil</th></tr></thead><tbody>${d.items.map(x => `<tr class="${x.errors.length ? 'is-error' : ''}"><td>${x.line}</td><td>${esc(x.p.name)}</td><td>${esc(x.p.type)}</td><td>${esc(x.p.city)}</td><td>${isFinite(x.p.lat) ? `${x.p.lat}, ${x.p.lng}` : '—'}</td><td class="bs-td-wrap">${x.errors.length ? `<span class="bs-err">${ic('alert')}${esc(x.errors.join(' '))}</span>` : `<span class="bs-ok">${ic('check')}${x.existing ? 'Perbarui' : 'Baru'}</span>`}</td></tr>`).join('')}</tbody></table></div>`;
-    })() : '';
-    openModal('Impor unit kerja', `
-      <ol class="bs-import-steps"><li class="${d?.items ? 'is-done' : 'is-current'}">Tempel atau unggah CSV</li><li class="${d?.items ? 'is-current' : ''}">Periksa hasil validasi</li><li>Impor</li></ol>
-      <div class="bs-import-input">
-        <div class="bs-btn-row">${btn('Unduh template', 'import-template', { icon: 'download', variant: 'sm' })}${btn('Isi contoh 25 unit baru', 'import-sample', { icon: 'zap', variant: 'sm ghost' })}
-          <label class="bs-btn sm ghost bs-file">${ic('upload')}<span>Pilih file CSV</span><input type="file" id="bsImportFile" accept=".csv,text/csv" class="bs-sr"></label></div>
-        <div class="bs-field full"><label for="bsImportText">Data CSV</label><textarea id="bsImportText" name="csv" rows="${d?.items ? 4 : 8}" spellcheck="false" placeholder="${TEMPLATE_HEAD.join(',')}">${esc(text)}</textarea><small class="bs-field-hint">Kolom wajib: nama, tipe, kota, provinsi, alamat, lat, lng. Isi “kode” untuk memperbarui unit yang ada. Pemisah koma atau titik koma.</small></div>
-        ${d?.error ? `<p class="bs-form-error">${esc(d.error)}</p>` : ''}
-      </div>${preview}`, {
-      wide: true,
-      footer: btn('Batal', 'modal-close', { variant: 'ghost' }) + btn('Periksa data', 'import-parse', { icon: 'check', variant: d?.items ? '' : 'primary' }) +
-        (d?.items ? btn(`Impor ${d.items.filter(x => !x.errors.length).length} baris valid`, 'import-commit', { icon: 'upload', variant: 'primary', attrs: d.items.some(x => !x.errors.length) ? '' : 'disabled' }) : '')
-    });
+    const d = importDraft || (importDraft = { stage: 'input', text: '' });
+    const order = ['input', 'map', 'review'], at = order.indexOf(d.stage);
+    const steps = ['Unggah atau tempel data', 'Petakan kolom', 'Periksa hasil', 'Impor'].map((s, i) => `<li class="${i < at ? 'is-done' : i === at ? 'is-current' : ''}"${i === at ? ' aria-current="step"' : ''}>${s}</li>`).join('');
+    const src = d.source ? `<p class="bs-import-source">${ic(d.source.kind === 'xlsx' ? 'file' : 'clipboard')}<span><strong>${esc(d.source.name)}</strong>${d.source.sheet ? ` · sheet “${esc(d.source.sheet)}”` : ''} · ${fmtNum(d.rows ? d.rows.length : 0)} baris data</span></p>` : '';
+    let body = '', footer = '';
+    if (d.stage === 'input') {
+      body = `<div class="bs-import-input">
+        <div class="bs-btn-row">${btn('Template Excel', 'import-template-xlsx', { icon: 'download', variant: 'sm' })}${btn('Template CSV', 'import-template', { icon: 'download', variant: 'sm ghost' })}${btn('Isi contoh 25 unit baru', 'import-sample', { icon: 'zap', variant: 'sm ghost' })}
+          <label class="bs-btn sm primary bs-file">${ic('upload')}<span>Pilih file Excel / CSV</span><input type="file" id="bsImportFile" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="bs-sr"></label></div>
+        <div class="bs-field full"><label for="bsImportText">Atau tempel data CSV</label><textarea id="bsImportText" name="csv" rows="8" spellcheck="false" placeholder="${TEMPLATE_HEAD.join(',')}">${esc(d.text || '')}</textarea><small class="bs-field-hint">Excel (.xlsx, sheet pertama yang berisi judul kolom) atau CSV dengan pemisah koma/titik koma. Maks. ${fmtNum(IMPORT_MAX_ROWS)} baris, 10 MB. Judul kolom boleh berbeda — Anda memetakannya di langkah berikutnya.</small></div>
+        <p class="bs-import-busy" role="status" aria-live="polite">${d.busy ? `<span class="bs-spinner sm" aria-hidden="true"></span>${esc(d.busy)}` : ''}</p>
+        ${d.error ? `<p class="bs-form-error" role="alert">${esc(d.error)}</p>` : ''}
+      </div>`;
+      footer = btn('Batal', 'modal-close', { variant: 'ghost' }) + btn('Lanjut: petakan kolom', 'import-parse', { icon: 'arrowR', variant: 'primary', attrs: d.busy ? 'disabled' : '' });
+    } else if (d.stage === 'map') {
+      const iss = mapIssues(d);
+      const sample = j => { if (j == null) return '<span class="bs-muted">—</span>'; const v = d.rows.slice(0, 20).map(r => r.cells[j]).filter(Boolean).slice(0, 2); return v.length ? `<span class="bs-samples">${v.map(x => `<code title="${esc(String(x).slice(0, 200))}">${esc(String(x).slice(0, 60))}</code>`).join('')}</span>` : '<span class="bs-muted">kosong</span>'; };
+      body = `${src}<p class="bs-muted bs-gap-b">Pilih kolom file untuk setiap data BranchSync. Kolom yang namanya dikenali sudah dipilihkan otomatis — periksa kembali sebelum lanjut.</p>
+        <div class="bs-table-wrap bs-import-map" role="region" aria-label="Pemetaan kolom" tabindex="0"><table class="bs-table bs-cards"><thead><tr><th scope="col">Data BranchSync</th><th scope="col">Kolom di file</th><th scope="col">Contoh nilai</th></tr></thead><tbody>
+        ${IMPORT_FIELDS.map(([k, l, req]) => { const j = d.map[k]; return `<tr class="${req && j == null ? 'is-error' : ''}"><th scope="row" data-label="Data BranchSync"><label for="bsMap-${k}">${l}</label>${req ? ' <span class="bs-req-badge">Wajib</span>' : ''}${k === 'type' ? '<small class="bs-field-hint">KC, BRANCH, HQ → Kantor Cabang · SUB_BRANCH → KCP</small>' : k === 'code' ? '<small class="bs-field-hint">Kode yang ada = perbarui unit</small>' : ''}</th>
+          <td data-label="Kolom di file"><select id="bsMap-${k}" data-import-map="${k}"${req ? ' aria-required="true"' : ''}><option value="">— Tidak dipakai —</option>${d.header.map((h, i) => `<option value="${i}"${i === j ? ' selected' : ''}>${esc(h)}</option>`).join('')}</select></td>
+          <td data-label="Contoh nilai" class="bs-td-wrap">${sample(j)}</td></tr>`; }).join('')}
+        </tbody></table></div>
+        <div aria-live="polite">${iss.missing.length ? `<p class="bs-form-error">${ic('alert')}Kolom wajib belum dipetakan: ${esc(iss.missing.join(', '))}.</p>` : ''}
+        ${iss.dupes.map(x => `<p class="bs-form-error">${ic('alert')}Kolom “${esc(x.col)}” dipakai untuk lebih dari satu data: ${esc(x.fields.join(', '))}.</p>`).join('')}</div>
+        ${iss.unused.length ? `<p class="bs-muted bs-import-unused">Kolom file yang tidak diimpor: ${esc(iss.unused.join(', '))}</p>` : ''}`;
+      const blocked = iss.missing.length || iss.dupes.length;
+      footer = btn('Kembali', 'import-back', { icon: 'arrowL', variant: 'ghost' }) + btn('Batal', 'modal-close', { variant: 'ghost' }) + btn('Periksa data', 'import-check', { icon: 'check', variant: 'primary', attrs: blocked ? 'disabled' : '' });
+    } else {
+      const ok = d.items.filter(x => !x.errors.length), bad = d.items.length - ok.length, upd = ok.filter(x => x.existing).length, shown = d.items.slice(0, IMPORT_PREVIEW);
+      body = `${src}<div class="bs-import-summary" role="status"><span>${badge('Berhasil', `${fmtNum(ok.length)} valid`)}</span><span>${bad ? badge('Gagal', `${fmtNum(bad)} perlu diperbaiki`) : ''}</span><span>${upd ? badge('Belum Sync', `${fmtNum(upd)} memperbarui unit yang ada`) : ''}</span></div>
+        <div class="bs-table-wrap bs-import-table" tabindex="0" role="region" aria-label="Pratinjau impor"><table class="bs-table bs-cards"><thead><tr><th scope="col">Baris</th><th scope="col">Nama</th><th scope="col">Tipe</th><th scope="col">Kota</th><th scope="col">Koordinat</th><th scope="col">Hasil</th></tr></thead><tbody>${shown.map(x => `<tr class="${x.errors.length ? 'is-error' : ''}"><td data-label="Baris">${x.line}</td><td data-label="Nama">${esc(x.p.name)}</td><td data-label="Tipe">${esc(x.p.type)}</td><td data-label="Kota">${esc(x.p.city)}</td><td data-label="Koordinat">${isFinite(x.p.lat) ? `${x.p.lat}, ${x.p.lng}` : '—'}</td><td data-label="Hasil" class="bs-td-wrap">${x.errors.length ? `<span class="bs-err">${ic('alert')}${esc(x.errors.join(' '))}</span>` : `<span class="bs-ok">${ic('check')}${x.existing ? 'Perbarui' : 'Baru'}</span>`}</td></tr>`).join('')}</tbody></table></div>
+        ${d.items.length > shown.length ? `<p class="bs-muted bs-gap-t">Menampilkan ${fmtNum(shown.length)} dari ${fmtNum(d.items.length)} baris (baris bermasalah ditampilkan lebih dulu).</p>` : ''}`;
+      footer = btn('Kembali ke pemetaan', 'import-back', { icon: 'arrowL', variant: 'ghost' }) + (bad ? btn('Unduh baris bermasalah', 'import-errors', { icon: 'download' }) : '') +
+        btn(`Impor ${fmtNum(ok.length)} baris valid`, 'import-commit', { icon: 'upload', variant: 'primary', attrs: ok.length ? '' : 'disabled' });
+    }
+    openModal('Impor unit kerja', `<ol class="bs-import-steps">${steps}</ol>${body}`, { wide: true, footer });
+  }
+  function importErrorsCSV() {
+    const bad = importDraft.items.filter(x => x.errors.length);
+    downloadCSV('baris-bermasalah-impor.csv', [['baris', ...TEMPLATE_HEAD, 'kesalahan'], ...bad.map(x => [x.line, ...IMPORT_FIELDS.map(([k]) => isNaN(x.p[k]) && (k === 'lat' || k === 'lng') ? '' : x.p[k]), x.errors.join(' ')])]);
   }
   function commitImport() {
     const ok = importDraft.items.filter(x => !x.errors.length);
@@ -2127,12 +2292,13 @@
     ok.forEach(({ p, existing }) => {
       p.region = regionOf(p.province);
       const clean = { name: p.name, type: p.type, city: p.city, province: p.province, region: p.region, address: p.address, phone: p.phone, hours: p.hours || HOURS[0], lat: p.lat, lng: p.lng, status: p.status };
-      payload.push({ ...clean, code: existing ? existing.code : null });
+      const own = !existing && p.code && !byCode().has(p.code) ? p.code : null; // kode toko dari file dipakai untuk unit baru
+      payload.push({ ...clean, code: existing ? existing.code : own, exists: !!existing });
       if (existing) {
         const changes = diff(existing, clean, Object.keys(clean));
         if (changes.length) { Object.assign(existing, clean, { updatedAt: Date.now(), updatedBy: ME.name }); log('Unit Kerja', 'Memperbarui unit via impor', { target: existing.code, changes }); updated++; }
       } else {
-        const code = `DM-${String(++state.seq.loc).padStart(3, '0')}`;
+        const code = own || `DM-${String(++state.seq.loc).padStart(3, '0')}`;
         state.locations.unshift({ ...clean, code, gbp: 'Belum Diklaim', google: null, updatedAt: Date.now(), updatedBy: ME.name, lastSync: null });
         added++;
       }
@@ -2192,11 +2358,36 @@
   });
   palette.addEventListener('click', e => { const it = e.target.closest('[data-pal]'); if (it) runPalette(Number(it.dataset.pal)); else if (e.target === palette) palette.close(); });
 
+  // Kerangka (skeleton) mengikuti bentuk halaman yang sedang dimuat agar tata letak tidak melompat.
+  function skeleton(view) {
+    const bar = cls => `<span class="bs-skel ${cls}"></span>`;
+    const tiles = n => `<div class="bs-skel-tiles">${Array.from({ length: n }, () => `<div class="bs-skel-card">${bar('w40')}${bar('h28 w60')}${bar('w80')}</div>`).join('')}</div>`;
+    const rows = n => `<div class="bs-skel-card bs-skel-table">${bar('h32 w100')}${Array.from({ length: n }, (_, i) => `<div class="bs-skel-row">${bar('w30')}${bar(i % 2 ? 'w20' : 'w25')}${bar('w15')}${bar('w20')}</div>`).join('')}</div>`;
+    const kind = ['dashboard', 'reports', 'sla'].includes(view) ? 'tiles' : view === 'map' ? 'map' : ['guide', 'scenarios', 'settings', 'integrations'].includes(view) ? 'doc' : 'table';
+    return `<div class="bs-skel-page" data-kind="${kind}">${bar('h28 w30')}${bar('w50')}
+      ${kind === 'tiles' ? tiles(4) + `<div class="bs-skel-split"><div class="bs-skel-card">${bar('h160 w100')}</div><div class="bs-skel-card">${bar('h160 w100')}</div></div>`
+      : kind === 'map' ? `<div class="bs-skel-card">${bar('h32 w100')}</div><div class="bs-skel-card">${bar('h360 w100')}</div>`
+      : kind === 'doc' ? `<div class="bs-skel-card">${bar('w60')}${bar('w90')}${bar('w80')}${bar('w70')}</div><div class="bs-skel-card">${bar('w50')}${bar('w90')}${bar('w60')}</div>`
+      : `<div class="bs-skel-card">${bar('h32 w100')}</div>${rows(8)}`}</div>`;
+  }
   function viewLiveState() {
     const e = ui.live.error, url = MODE.getBaseUrl();
-    if (!e) return `<div class="bs-live-state" aria-busy="true"><span class="bs-spinner" aria-hidden="true"></span><h1 id="bsTitle" tabindex="-1">Memuat data dari server…</h1><p>${esc(url)}</p></div>`;
-    return `<div class="bs-live-state is-error">${ic('alert')}<h1 id="bsTitle" tabindex="-1">Data Live tidak dapat dimuat</h1><p>${esc(e.message)}</p><p class="bs-muted">Server: ${esc(url || 'belum diatur')}</p>
+    if (!e) return `<div class="bs-live-loading" aria-busy="true"><h1 id="bsTitle" class="bs-sr" tabindex="-1">Memuat data dari server…</h1><p class="bs-live-loading-msg" role="status"><span class="bs-spinner sm" aria-hidden="true"></span>Memuat data dari ${esc(MODE.host() || 'server')}…</p>${skeleton(ui.view)}</div>`;
+    const off = !navigator.onLine;
+    return `<div class="bs-live-state is-error">${ic(off ? 'wifiOff' : 'alert')}<h1 id="bsTitle" tabindex="-1">${off ? 'Anda sedang offline' : 'Data Live tidak dapat dimuat'}</h1><p>${off ? 'Perangkat tidak terhubung ke internet. Data akan dimuat otomatis saat koneksi pulih.' : esc(e.message)}</p><p class="bs-muted">Server: ${esc(url || 'belum diatur')}</p>
       <div class="bs-btn-row">${btn('Coba lagi', 'live-retry', { icon: 'refresh', variant: 'primary' })}${btn('Ubah server / masuk ulang', 'live-relogin', { icon: 'plug' })}${btn('Beralih ke Mode Demo', 'mode-demo', { icon: 'zap', variant: 'ghost' })}</div></div>`;
+  }
+  // Banner status di atas halaman: offline, gagal memuat ulang (data terakhir tetap tampil), atau sesi Live berakhir.
+  let bannerHtml = null;
+  function renderBanner() {
+    const live = isLive(), loaded = ui.live.syncedAt ? ` (dimuat ${fmtRel(ui.live.syncedAt)})` : '';
+    let b = null;
+    if (live && ui.live.ready && !navigator.onLine) b = { tone: 'warn', icon: 'wifiOff', title: 'Anda sedang offline.', text: `Menampilkan data terakhir${loaded}. Perubahan belum dapat dikirim; data dimuat ulang otomatis saat koneksi pulih.`, actions: btn('Coba lagi', 'live-retry', { icon: 'refresh', variant: 'sm' }) };
+    else if (live && ui.live.ready && ui.live.error) b = { tone: 'bad', icon: 'alert', title: 'Gagal memuat data terbaru dari server.', text: `${ui.live.error.message} Menampilkan data terakhir${loaded}.`, actions: btn('Coba lagi', 'live-retry', { icon: 'refresh', variant: 'sm' }) };
+    else if (!live && ui.sessionNotice) b = { tone: 'warn', icon: 'plug', title: 'Sesi Live berakhir — Anda kini di Mode Demo.', text: 'Data Live tidak ditampilkan sampai Anda masuk lagi. Data Demo di browser ini tidak berubah.', actions: btn('Masuk lagi', 'live-relogin', { icon: 'plug', variant: 'sm primary' }) + btn('', 'banner-dismiss', { icon: 'x', variant: 'icon sm ghost', title: 'Tutup pemberitahuan' }) };
+    const html = b ? `<div class="bs-banner" data-tone="${b.tone}" role="${b.tone === 'bad' ? 'alert' : 'status'}">${ic(b.icon)}<p><strong>${b.title}</strong> <span>${esc(b.text)}</span></p><div class="bs-banner-actions">${b.actions}</div></div>` : '';
+    if (html === bannerHtml) return;
+    bannerHtml = html; $('bsBanner').innerHTML = html;
   }
   function toggleModeMenu(force) {
     const pop = $('bsModeMenu'), open = force ?? pop.hidden;
@@ -2217,10 +2408,11 @@
   }
   const resetReviewUi = () => { ui.reviews = { account: '', location: '', rating: '', status: '', sort: 'newest', q: '', limit: 20, editing: null, drafts: {} }; };
   function activateLive() {
-    resetReviewUi();
+    resetReviewUi(); setSave('');
     MODE.setMode('live');
     ME = userFromSession();
     ui.live = { ready: false, loading: true, error: null, syncedAt: 0, pending: 0 };
+    ui.sessionNotice = false;
     ui.loc.selected.clear(); ui.reviews.editing = null; renderedView = null;
     navigate(ui.view);
     loadLive().then(ok => ok && toast(`Terhubung ke ${MODE.host()}. Selamat datang, ${ME.name}!`, { tone: 'good' }));
@@ -2386,14 +2578,14 @@
   function updateChrome() {
     const last = state.runs[0];
     const live = isLive(), host = MODE ? MODE.host() : '';
-    const mstate = !live ? 'demo' : ui.live.error ? 'offline' : (ui.live.pending || ui.live.loading) ? 'busy' : ui.live.ready ? 'online' : 'busy';
+    const mstate = !live ? 'demo' : (ui.live.error || !navigator.onLine) ? 'offline' : (ui.live.pending || ui.live.loading) ? 'busy' : ui.live.ready ? 'online' : 'busy';
     const mb = $('bsModeBtn');
     mb.dataset.state = mstate;
     mb.innerHTML = (live ? `<span class="bs-dot"></span><span>Live</span>${host ? `<small>${esc(host)}</small>` : ''}` : `${ic('zap')}<span>Mode Demo</span>`) + ic('chevD', 'bs-caret');
     const mlabel = live ? `Mode Live — ${{ online: 'terhubung', offline: 'terputus', busy: 'menghubungkan' }[mstate]}${host ? ' ke ' + host : ''}` : 'Mode Demo — data simulasi';
     mb.title = mlabel; mb.setAttribute('aria-label', `${mlabel}. Pilih mode`);
     $('bsFooterMode').textContent = live
-      ? (mstate === 'offline' ? `Live — tidak dapat terhubung ke ${host || 'server'}.` : mstate === 'busy' && !ui.live.ready ? `Live — menghubungkan ke ${host || 'server'}…` : `Live — terhubung ke ${host || 'server'}. Perubahan dikirim ke server${ui.live.syncedAt ? ` · data dimuat ${fmtRel(ui.live.syncedAt)}` : ''}.`)
+      ? (mstate === 'offline' ? (navigator.onLine ? `Live — tidak dapat terhubung ke ${host || 'server'}.` : 'Live — perangkat sedang offline.') : mstate === 'busy' && !ui.live.ready ? `Live — menghubungkan ke ${host || 'server'}…` : `Live — terhubung ke ${host || 'server'}. Perubahan dikirim ke server${ui.live.syncedAt ? ` · data dimuat ${fmtRel(ui.live.syncedAt)}` : ''}.`)
       : 'Mode Demo — perubahan disimpan di browser ini dan tidak dikirim ke Google atau server.';
     const rc = $('bsRoleChip'); rc.hidden = ME.role === 'Administrator'; rc.textContent = `Peran: ${ME.role}`; rc.title = isLive() ? 'Peran dari akun server' : 'Lihat sebagai (Demo) — klik untuk mengganti';
     $('bsAccName').textContent = ME.name; $('bsAccRole').textContent = ME.role || 'Pengguna'; $('bsAccAvatar').textContent = initials(ME.name);
@@ -2407,7 +2599,8 @@
     $('bsThemeBtn').innerHTML = ic(shell.dataset.theme === 'dark' ? 'sun' : 'moon');
     $('bsThemeBtn').title = shell.dataset.theme === 'dark' ? 'Mode terang' : 'Mode gelap';
     shell.querySelectorAll('#bsLang [data-action="lang"]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.id === 'en') === isEn())));
-    $('bsFooterInfo').textContent = `${fmtNum(state.locations.length)} unit · render ${ui.renderMs} ms`;
+    $('bsFooterInfo').textContent = live && !ui.live.ready ? '— unit' : `${fmtNum(state.locations.length)} unit · render ${ui.renderMs} ms`;
+    renderBanner();
     const prog = shell.querySelector('.bs-progress');
     if (prog && ui.running && !ui.running.indeterminate) { prog.firstElementChild.style.width = pct(ui.running.done, ui.running.total) + '%'; prog.setAttribute('aria-valuenow', ui.running.done); }
   }
@@ -2513,6 +2706,15 @@
     return { view, unit: g('unit').slice(0, 40), panel: one('panel', DRAWER_TABS, 'overview') };
   }
   function openRouteUnit(res) { if (res && res.unit && byCode().has(res.unit)) openDrawer(res.unit, res.panel); }
+  // Status jaringan: tampilkan banner offline dan muat ulang data Live otomatis saat koneksi pulih.
+  window.addEventListener('offline', () => { if (!shell.hidden) updateChrome(); });
+  window.addEventListener('online', () => {
+    if (shell.hidden) return;
+    updateChrome();
+    if (!isLive()) return;
+    if (!ui.live.ready) { loadLive(); return; }
+    loadLive({ silent: true }).then(ok => ok && toast('Koneksi pulih — data Live diperbarui.', { tone: 'good' }));
+  });
   window.addEventListener('popstate', () => {
     if (shell.hidden) return;
     const r = parseRoute(location.hash);
@@ -2739,11 +2941,15 @@
       }
     });
   }
-  function exportLocations(xs, name = 'branchsync-unit-kerja.csv') {
+  async function exportLocations(xs, base = 'branchsync-unit-kerja', fmt = 'csv') {
     const keys = ['code', 'name', 'type', 'status', 'gbp', 'city', 'province', 'region', 'address', 'phone', 'hours', 'lat', 'lng'];
-    downloadCSV(name, [keys, ...xs.map(l => keys.map(k => l[k]))]);
-    log('Unit Kerja', 'Mengekspor CSV', { detail: `${xs.length} unit` });
-    toast(`${fmtNum(xs.length)} unit diekspor ke CSV.`, { tone: 'good' });
+    const rows = [keys, ...xs.map(l => keys.map(k => l[k]))];
+    if (fmt === 'xlsx') {
+      try { await downloadXlsx(`${base}.xlsx`, [{ name: 'Unit Kerja', rows, widths: [12, 36, 14, 12, 16, 20, 22, 12, 40, 18, 24, 12, 12] }]); }
+      catch (e) { toast(e.message, { tone: 'bad' }); return; }
+    } else downloadCSV(`${base}.csv`, rows);
+    log('Unit Kerja', fmt === 'xlsx' ? 'Mengekspor Excel' : 'Mengekspor CSV', { detail: `${xs.length} unit` });
+    toast(`${fmtNum(xs.length)} unit diekspor ke ${fmt === 'xlsx' ? 'Excel' : 'CSV'}.`, { tone: 'good' });
   }
   function generateUnits(n) {
     const t0 = performance.now(), r = rng(Date.now() % 1e6), base = state.locations.filter(l => l.type === 'Kantor Cabang');
@@ -2808,8 +3014,14 @@
       case 'cols-reset': { const U = up(); U.cols = null; U.density = 'comfortable'; saveUP(); render(); break; }
       case 'mode-demo': toggleModeMenu(false); closeModal(); switchToDemo(); break;
       case 'mode-live': toggleModeMenu(false); closeModal(); switchToLive(); break;
-      case 'live-retry': toggleModeMenu(false); closeModal(); loadLive(); break;
+      case 'live-retry': {
+        toggleModeMenu(false); closeModal();
+        if (!ui.live.ready) { loadLive(); break; }
+        loadLive({ silent: true }).then(ok => toast(ok ? 'Data Live diperbarui.' : `Masih gagal memuat data: ${ui.live.error ? ui.live.error.message : 'sesi berakhir'}`, { tone: ok ? 'good' : 'bad' }));
+        break;
+      }
       case 'live-relogin': liveConnectModal(); break;
+      case 'banner-dismiss': ui.sessionNotice = false; updateChrome(); $('bsMain').focus(); break;
       case 'live-google': {
         let url = '';
         try { url = MODE.normalizeUrl(modal.querySelector('[name="url"]')?.value || MODE.getBaseUrl()); } catch (err) { showErrors({ url: err.message }); break; }
@@ -2942,13 +3154,29 @@
       case 'select-all': locFiltered().forEach(r => ui.loc.selected.add(r.code)); render(); break;
       case 'clear-selection': ui.loc.selected.clear(); render(); break;
       case 'bulk-sync': runSync([...ui.loc.selected], { label: `${ui.loc.selected.size} unit terpilih` }); break;
-      case 'bulk-export': exportLocations(state.locations.filter(x => ui.loc.selected.has(x.code)), 'branchsync-unit-terpilih.csv'); break;
+      case 'bulk-export': exportLocations(state.locations.filter(x => ui.loc.selected.has(x.code)), 'branchsync-unit-terpilih'); break;
+      case 'export-csv': case 'export-xlsx': {
+        const sel = id === 'sel', fmt = action === 'export-xlsx' ? 'xlsx' : 'csv';
+        ui.pop = ''; shell.querySelector('[data-pop^="export-"][open]')?.removeAttribute('open');
+        exportLocations(sel ? state.locations.filter(x => ui.loc.selected.has(x.code)) : locFiltered(), sel ? 'branchsync-unit-terpilih' : 'branchsync-unit-kerja', fmt);
+        break;
+      }
       case 'bulk-delete': { const n = ui.loc.selected.size; confirmModal(`Hapus ${n} unit?`, `${n} unit kerja terpilih akan dihapus dari Dashboard. Anda bisa mengurungkannya dari notifikasi.`, `Hapus ${n} unit`, () => { const snap = snapshot(), codes = [...ui.loc.selected]; remote('POST', '/locations/bulk-delete', { codes }); state.locations = state.locations.filter(x => !ui.loc.selected.has(x.code)); log('Unit Kerja', 'Menghapus unit massal', { detail: `${n} unit` }); ui.loc.selected.clear(); touch(); toast(`${n} unit dihapus.`, { undo: snap }); }); break; }
       case 'export-locs': exportLocations(locFiltered()); break;
       case 'import': importDraft = null; importModal(); break;
-      case 'import-template': download('template-impor-unit-kerja.csv', '﻿' + sampleCSV(3), 'text/csv;charset=utf-8'); break;
-      case 'import-sample': importDraft = null; importModal(sampleCSV(25)); break;
-      case 'import-parse': { const text = $('bsImportText').value; importDraft = analyzeImport(text); importModal(text); modal.querySelector('.bs-import-summary, .bs-form-error')?.scrollIntoView({ block: 'nearest' }); break; }
+      case 'import-template': download('template-impor-unit-kerja.csv', '\ufeff' + sampleCSV(3), 'text/csv;charset=utf-8'); break;
+      case 'import-template-xlsx': xlsxTemplate().catch(e => toast(e.message, { tone: 'bad' })); break;
+      case 'import-sample': importDraft = { stage: 'input', text: sampleCSV(25) }; importModal(); break;
+      case 'import-parse': {
+        const text = $('bsImportText').value;
+        if (!text.trim()) { importDraft = { stage: 'input', text, error: 'Tempel data CSV atau pilih file Excel/CSV terlebih dahulu.' }; importModal(); $('bsImportText')?.focus(); break; }
+        startMapping(parseCSV(text), { name: 'Data yang ditempel', kind: 'paste' }, text);
+        modal.querySelector('select[data-import-map], .bs-form-error')?.focus();
+        break;
+      }
+      case 'import-check': importDraft.items = analyzeRows(importDraft); importDraft.stage = 'review'; importModal(); modal.querySelector('.bs-import-summary')?.scrollIntoView({ block: 'nearest' }); break;
+      case 'import-back': importDraft.stage = importDraft.stage === 'review' ? 'map' : 'input'; importModal(); break;
+      case 'import-errors': importErrorsCSV(); break;
       case 'import-commit': commitImport(); break;
       // Peta
       case 'map-focus': if (l && mapObj) { mapObj.flyTo([l.lat, l.lng], 15, { duration: 0.6 }); mapMarkers.get(id)?.openPopup(); } else if (l) openDrawer(id); break;
@@ -3044,10 +3272,11 @@
   });
   shell.addEventListener('change', e => {
     const t = e.target;
-    if (t.id === 'bsImportFile' && t.files[0]) {
-      const reader = new FileReader();
-      reader.onload = () => { importDraft = analyzeImport(String(reader.result)); importModal(String(reader.result)); };
-      reader.readAsText(t.files[0]);
+    if (t.id === 'bsImportFile' && t.files[0]) { readImportFile(t.files[0]); return; }
+    if (t.dataset.importMap && importDraft) {
+      const k = t.dataset.importMap;
+      if (t.value === '') delete importDraft.map[k]; else importDraft.map[k] = Number(t.value);
+      importModal(); $(`bsMap-${k}`)?.focus();
       return;
     }
     if (t.dataset.hoursOpen) { const d = hoursDraft[t.dataset.hoursOpen]; d.open = t.checked; if (d.open && !d.h24 && !d.ranges.length) d.ranges = [{ from: '08:00', to: '15:00' }]; refreshHours(`[data-hours-open="${t.dataset.hoursOpen}"]`); return; }
@@ -3225,6 +3454,7 @@
   function logout() {
     if (isLive() && MODE.hasSession()) { MODE.request('POST', '/auth/logout').catch(() => {}); MODE.clearSession(); }
     ui.live = { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 };
+    ui.sessionNotice = false;
     if (sheet.open) sheet.close();
     closeModal();
     if (mapObj) { mapObj.remove(); mapObj = null; renderedView = null; }

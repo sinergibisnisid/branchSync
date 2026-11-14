@@ -60,15 +60,22 @@ window.BranchAdminContent = {
       links: [['locations', ['Buka Unit Kerja', 'Open Locations']], ['act:add-loc', ['Tambah unit', 'Add location']]]
     },
     {
-      id: 'import', icon: 'upload', title: ['Impor data massal (CSV)', 'Bulk import (CSV)'],
-      summary: ['Memasukkan banyak unit sekaligus dengan validasi per baris.', 'Add many locations at once with per-row validation.'],
+      id: 'import', icon: 'upload', title: ['Impor & ekspor data (Excel/CSV)', 'Import & export data (Excel/CSV)'],
+      summary: ['Memasukkan banyak unit sekaligus dari Excel atau CSV, memetakan kolom, dan memvalidasi setiap baris.', 'Add many locations at once from Excel or CSV, map the columns, and validate every row.'],
       steps: [
-        ['Di Unit Kerja, klik “Impor CSV”, lalu “Unduh template” untuk melihat format kolom.', 'In Locations, click “Import CSV”, then “Download template” to see the column format.'],
-        ['Tempel isi CSV atau pilih file. Isi kolom “kode” bila ingin memperbarui unit yang sudah ada.', 'Paste the CSV or choose a file. Fill in “code” to update an existing location.'],
-        ['Klik “Periksa data”. Baris bermasalah ditampilkan paling atas beserta alasannya.', 'Click “Check data”. Problem rows are listed first with the reason.'],
-        ['Klik “Impor … baris valid”. Unit baru berstatus “Belum Sync” sampai disinkronkan.', 'Click “Import … valid rows”. New locations are “Not synced” until synced.']
+        ['Di Unit Kerja, klik “Impor data”. Unduh “Template Excel” (berisi sheet Petunjuk) atau “Template CSV” bila perlu contoh format.', 'In Locations, click “Import data”. Download the “Excel template” (with a Guide sheet) or the “CSV template” if you need a format example.'],
+        ['Pilih file .xlsx atau .csv (maks. 20.000 baris, 10 MB), atau tempel data CSV lalu klik “Lanjut: petakan kolom”.', 'Choose an .xlsx or .csv file (max. 20,000 rows, 10 MB), or paste CSV data and click “Next: map columns”.'],
+        ['Di langkah “Petakan kolom”, cocokkan setiap data BranchSync dengan kolom di file. Kolom yang dikenali (mis. storeCode, locationType, latitude) dipilih otomatis; kolom bertanda “Wajib” harus terisi.', 'In “Map columns”, match each BranchSync field to a file column. Recognised columns (e.g. storeCode, locationType, latitude) are pre-selected; fields marked “Required” must be mapped.'],
+        ['Klik “Periksa data”. Baris bermasalah tampil paling atas beserta alasannya; klik “Unduh baris bermasalah” untuk memperbaikinya di Excel.', 'Click “Check data”. Problem rows are listed first with the reason; click “Download problem rows” to fix them in Excel.'],
+        ['Klik “Impor … baris valid”. Unit baru berstatus “Belum Sync” sampai disinkronkan; kode di file dipakai sebagai kode unit baru.', 'Click “Import … valid rows”. New locations are “Not synced” until synced; codes in the file become the new location codes.'],
+        ['Untuk ekspor, klik “Ekspor” di kepala halaman (hasil filter) atau di bilah aksi massal (unit terpilih), lalu pilih Excel (.xlsx) atau CSV.', 'To export, click “Export” in the page header (filtered results) or in the bulk action bar (selected locations), then choose Excel (.xlsx) or CSV.']
       ],
-      tips: [['Gunakan “Isi contoh 25 unit baru” untuk mencoba alur impor.', 'Use “Fill sample of 25 new locations” to try the import flow.']],
+      tips: [
+        ['Gunakan “Isi contoh 25 unit baru” untuk mencoba alur impor.', 'Use “Fill sample of 25 new locations” to try the import flow.'],
+        ['Tipe dari sistem lain dikenali otomatis: KC/BRANCH/HQ → Kantor Cabang, SUB_BRANCH → KCP. Desimal koma (-6,2) juga diterima.', 'Types from other systems are recognised: KC/BRANCH/HQ → Branch Office, SUB_BRANCH → KCP. Decimal commas (-6,2) are accepted too.'],
+        ['Teks yang diawali =, +, - atau @ diberi apostrof saat diekspor agar tidak dijalankan sebagai rumus di Excel.', 'Text starting with =, +, - or @ gets an apostrophe on export so Excel does not run it as a formula.'],
+        ['Pustaka Excel dimuat dari internet saat pertama dipakai. Bila offline, gunakan CSV.', 'The Excel library loads from the internet the first time it is used. When offline, use CSV.']
+      ],
       links: [['act:import', ['Buka impor', 'Open import']]]
     },
     {
@@ -203,7 +210,11 @@ window.BranchAdminContent = {
         ['Pilih “Live” di menu mode header dan masuk dengan akun BranchSync.', 'Choose “Live” in the header mode menu and sign in with your BranchSync account.'],
         ['Atur target SLA internal, acuan verifikasi Google, radius duplikat, dan toleransi koordinat.', 'Set the internal SLA target, Google verification benchmark, duplicate radius, and coordinate tolerance.']
       ],
-      tips: [['Di mode Live, fitur simulasi dan reset data demo disembunyikan.', 'In Live mode, simulation and demo reset tools are hidden.']],
+      tips: [
+        ['Di mode Live, fitur simulasi dan reset data demo disembunyikan.', 'In Live mode, simulation and demo reset tools are hidden.'],
+        ['Saat data Live dimuat, halaman menampilkan kerangka abu-abu sesuai bentuk halaman. Indikator di header menunjukkan “Menyimpan…”, “Tersimpan”, atau “Gagal menyimpan”.', 'While Live data loads, the page shows a grey skeleton matching its layout. The header indicator shows “Saving…”, “Saved”, or “Failed to save”.'],
+        ['Bila koneksi terputus atau server gagal merespons, banner di atas halaman menjelaskan kondisinya dan data terakhir tetap tampil. Klik “Coba lagi”; saat internet kembali, data dimuat ulang otomatis.', 'If the connection drops or the server fails, a banner at the top explains the situation and the last data stays visible. Click “Try again”; when the internet is back, data reloads automatically.']
+      ],
       links: [['settings', ['Buka Pengaturan', 'Open Settings']]]
     },
     {
@@ -212,7 +223,9 @@ window.BranchAdminContent = {
       steps: [
         ['Data Mode Demo hilang? Data demo disimpan di browser ini; membersihkan data situs atau memakai browser lain akan memulai data baru.', 'Demo data gone? Demo data lives in this browser; clearing site data or using another browser starts fresh.'],
         ['Tidak bisa terhubung ke Live? Periksa URL server, koneksi internet, dan pastikan server mengizinkan CORS.', 'Cannot connect to Live? Check the server URL, internet connection, and that the server allows CORS.'],
-        ['Sesi Live berakhir? Aplikasi kembali ke Mode Demo dan meminta Anda masuk lagi.', 'Live session expired? The app returns to Demo mode and asks you to sign in again.'],
+        ['Sesi Live berakhir? Aplikasi kembali ke Mode Demo, menampilkan banner “Sesi Live berakhir”, dan meminta Anda masuk lagi.', 'Live session expired? The app returns to Demo mode, shows a “Live session ended” banner, and asks you to sign in again.'],
+        ['Muncul banner “Anda sedang offline”? Periksa internet. Perubahan tidak dapat dikirim sampai koneksi pulih; data dimuat ulang otomatis setelahnya.', 'Seeing the “You are offline” banner? Check your internet. Changes cannot be sent until the connection is back; data reloads automatically afterwards.'],
+        ['File Excel tidak terbaca? Pastikan format .xlsx (bukan .xls), ukuran maks. 10 MB, dan baris pertama berisi judul kolom.', 'Excel file not readable? Make sure it is .xlsx (not .xls), at most 10 MB, with column names in the first row.'],
         ['Peta tidak muncul? Peta membutuhkan internet untuk memuat ubin OpenStreetMap.', 'Map not showing? The map needs internet to load OpenStreetMap tiles.']
       ],
       tips: [],
@@ -234,8 +247,8 @@ window.BranchAdminContent = {
       note: ['Check data 20 - 30 data lokasi kerja yang baru untuk dicoba', 'Check 20–30 new work-location records for the trial'],
       steps: [
         { t: ['Buka Unit Kerja dan catat jumlah unit saat ini (tampilan “Semua”).', 'Open Locations and note the current count (“All” view).'], go: 'locations' },
-        { t: ['Klik “Impor CSV”, lalu unggah file berisi 20–30 unit baru, atau klik “Isi contoh 25 unit baru”.', 'Click “Import CSV”, then upload a file with 20–30 new locations, or click “Fill sample of 25 new locations”.'], act: 'import-sample' },
-        { t: ['Klik “Periksa data” dan pastikan baris yang salah ditandai beserta alasannya.', 'Click “Check data” and make sure wrong rows are flagged with a reason.'] },
+        { t: ['Klik “Impor data”, lalu unggah file Excel/CSV berisi 20–30 unit baru, atau klik “Isi contoh 25 unit baru”.', 'Click “Import data”, then upload an Excel/CSV file with 20–30 new locations, or click “Fill sample of 25 new locations”.'], act: 'import-sample' },
+        { t: ['Klik “Lanjut: petakan kolom”, periksa pemetaan (kolom wajib harus terisi), lalu klik “Periksa data” dan pastikan baris yang salah ditandai beserta alasannya.', 'Click “Next: map columns”, review the mapping (required fields must be mapped), then click “Check data” and make sure wrong rows are flagged with a reason.'] },
         { t: ['Klik “Impor … baris valid”. Pastikan jumlah unit bertambah sesuai jumlah baris valid.', 'Click “Import … valid rows”. Confirm the count grows by the number of valid rows.'] },
         { t: ['Jalankan “Sinkronkan semua” di Sync Monitor agar unit baru dikirim ke Google.', 'Run “Sync all” in Sync Monitor so new locations are sent to Google.'], go: 'sync' },
         { t: ['Pastikan kolom “Data Google” unit baru menjadi “Sesuai” dan titiknya tampil di Peta Unit Kerja.', 'Confirm the new locations show “Match” under “Google data” and appear on the Location Map.'], go: 'map' }
@@ -381,7 +394,7 @@ window.BranchAdminContent = {
       expected: ['Kegagalan dapat diidentifikasi, diberi keterangan, dan ditindaklanjuti', 'Failures can be identified, annotated, and followed up'],
       note: ['Apakah ada system error atau tidak', 'Whether there is a system error or not'],
       steps: [
-        { t: ['Impor CSV berisi baris yang salah (contoh 25 unit berisi 2 baris error) dan pastikan baris ditandai beserta alasannya.', 'Import a CSV with wrong rows (the 25-location sample contains 2 error rows) and confirm the rows are flagged with a reason.'], act: 'import-sample' },
+        { t: ['Impor data berisi baris yang salah (contoh 25 unit berisi 2 baris error) dan pastikan baris ditandai beserta alasannya. Klik “Unduh baris bermasalah” untuk bukti.', 'Import data with wrong rows (the 25-location sample contains 2 error rows) and confirm the rows are flagged with a reason. Click “Download problem rows” as evidence.'], act: 'import-sample' },
         { t: ['Jalankan sinkronisasi, lalu buka Sync Monitor → tab Kegagalan untuk melihat penyebabnya.', 'Run a sync, then open Sync Monitor → Failures tab to see the causes.'], go: 'sync' },
         { t: ['Klik “Coba lagi” untuk kegagalan sementara, atau “Tindak lanjut” untuk mencatat keterangan penanganan.', 'Click “Retry” for transient failures, or “Follow up” to record handling notes.'] },
         { t: ['Pastikan tidak ada pesan error sistem; cek tab Riwayat job.', 'Make sure there are no system error messages; check the Job history tab.'] }
