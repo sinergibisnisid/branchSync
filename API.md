@@ -1,23 +1,18 @@
-# BranchSync — Kontrak REST API (Mode Live)
+# BranchSync — Kontrak REST API
 
-Dokumen ini menjelaskan endpoint yang dipanggil frontend saat **mode Live** aktif.
-Pada **Mode Demo**, tidak ada panggilan jaringan; semua data disimulasikan di browser.
+Dokumen ini menjelaskan endpoint yang dipanggil frontend React (`frontend/`). Semua data workspace berasal dari
+server ini (Go + PostgreSQL); frontend tidak menyimpan data workspace di browser.
 
-- Dialog **Masuk** di halaman depan langsung login ke server (kata sandi, OTP email, atau Google) dan membuka
-  workspace dalam mode Live. Tombol *Coba Mode Demo* di dialog yang sama masuk tanpa akun.
-  Dari dalam workspace, menu mode di header tetap bisa beralih Demo ⇄ Live (dialog *Sambungkan ke Live*).
-- Base URL diambil dari (urutan prioritas): URL terakhir yang dipakai di browser ini, lalu `apiBaseUrl` di
-  **`config.js`** (diisi saat deploy), lalu isian *URL server* di dialog Masuk. Bisa juga diubah di
-  **Pengaturan › Mode & koneksi server** (contoh `https://api.branchsync.co.id/v1`).
+- Dialog **Masuk** di halaman depan login ke server (kata sandi, OTP email, atau Google) lalu membuka workspace.
+- Base URL diambil dari (urutan prioritas): URL yang disimpan lewat **Pengaturan › Koneksi server** di browser ini,
+  lalu `apiBaseUrl` di **`/config.js`** (dibuat saat deploy; lihat `deploy/`), contoh `https://api.branchsync.co.id/v1`.
+  Dialog Masuk tidak menampilkan kolom URL server.
   Semua path di bawah relatif terhadap base URL.
 - Semua body request dan response memakai JSON (`Content-Type: application/json`).
 - Waktu boleh dikirim sebagai **epoch milidetik** atau **string ISO 8601**.
-- Frontend dimuat dari origin lain (atau `file://`), jadi server **wajib mengaktifkan CORS**:
+- Frontend dimuat dari origin lain, jadi server **wajib mengaktifkan CORS**:
   izinkan origin aplikasi, method `GET, POST, PATCH, PUT, DELETE, OPTIONS`, dan header
   `Authorization, Content-Type`. Frontend tidak mengirim cookie (`credentials: omit`).
-- Login dengan kata sandi berfungsi meski frontend dibuka dari `file://` (origin `null`). Login Google dan
-  *Hubungkan akun Google* membutuhkan frontend yang dilayani lewat `http(s)`, karena browser memblokir
-  redirect dari server ke halaman `file://`.
 
 ## Autentikasi
 
@@ -159,14 +154,13 @@ Server referensi (`server/`, Go + PostgreSQL) menerima notifikasi Pub/Sub lewat 
 `POST {base}/integrations/google/pubsub?token=<BS_PUBSUB_TOKEN>` (tanpa header Authorization). Respons
 `POST /locations/import` di server referensi: `{ added, updated }`. Kode unit baru berformat `BS-00001`.
 
-## Fitur yang hanya ada di Mode Demo
+## Data yang hanya disimpan di browser
 
-*Simulasikan perubahan di Google*, *Simulasikan edit masuk*, *Simulasikan ulasan baru*, *Buat 1.000 unit uji*, *Reset data demo*,
-*Reset kuota harian*, dan tombol **Urungkan** pada notifikasi. Di mode Live, edit eksternal dan perubahan
-Google datang dari server (webhook/polling di sisi backend).
-
+Preferensi pribadi tidak dikirim ke server: bahasa, tema, sidebar diciutkan, jumlah baris, tampilan tersimpan &
+kolom di Unit Kerja, serta catatan/foto bukti Scenario Test. Edit eksternal dan perubahan Google datang dari server
+(Pub/Sub / sinkronisasi berkala).
 
 ## Tautan dalam aplikasi (frontend)
 
-Halaman admin memakai routing hash, misalnya `index.html#/unit-kerja?status=Offline&region=Jawa&unit=DM-007`.
+Halaman admin memakai routing hash, misalnya `/#/unit-kerja?status=Offline&region=Jawa&unit=DM-007`.
 Rute ini murni di browser (tidak memanggil server) dan bisa dibagikan; penerima perlu masuk lebih dulu.

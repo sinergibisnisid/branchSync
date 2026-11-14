@@ -1,5 +1,7 @@
 .git
 .DS_Store
 server
+frontend/node_modules
+frontend/dist
 deploy/.env
 deploy/backups

@@ -24,7 +24,7 @@ Hanya port 80 dan 443 yang dibuka ke internet. Database dan server API tidak bis
 
 ```bash
 sudo mkdir -p /opt/branchsync && sudo chown "$USER" /opt/branchsync
-git clone -b feat/bri-admin-landing-redesign https://github.com/sinergibisnisid/branchSync.git /opt/branchsync
+git clone https://github.com/sinergibisnisid/branchSync.git /opt/branchsync
 cd /opt/branchsync/deploy
 cp .env.example .env
 chmod 600 .env
@@ -91,7 +91,7 @@ cd /opt/branchsync && git pull
 cd deploy && ./backup.sh && docker compose up -d --build
 ```
 
-Migrasi database berjalan otomatis saat `api` start. Frontend memakai `?v=` pada nama file, jadi browser
+Migrasi database berjalan otomatis saat `api` start. Frontend React di-build ulang di dalam image; nama file aset berisi hash, jadi browser
 pengguna langsung memuat versi baru.
 
 ## 7. Pemeriksaan & masalah umum
@@ -114,4 +114,4 @@ docker compose logs --tail 100 api
 - `api` hanya mempercayai header `X-Forwarded-For` dari `caddy` (`BS_TRUSTED_PROXIES` = `CADDY_IP`), sehingga
   pembatasan percobaan login tetap per pengguna dan tidak bisa dipalsukan klien.
 - CORS hanya mengizinkan `https://WEB_DOMAIN`.
-- Image frontend hanya berisi file HTML/CSS/JS aplikasi. Kode server, dokumen, dan `.env` tidak ikut tersaji.
+- Image frontend hanya berisi hasil build React (HTML/CSS/JS). Kode sumber, server, dokumen, dan `.env` tidak ikut tersaji.
