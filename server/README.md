@@ -21,9 +21,11 @@ go run ./cmd/branchsync serve                         # migrasi skema berjalan o
 ```
 
 Layani frontend lewat HTTP (wajib untuk login Google & menghubungkan GBP), mis.
-`cd .. && python3 -m http.server 5500`, lalu buka `http://localhost:5500/index.html` → masuk → menu mode
-di header → **Live** → isi URL server
+`cd .. && python3 -m http.server 5500`, lalu buka `http://localhost:5500/index.html` → **Masuk** → isi URL server
 (mis. `http://localhost:8080/v1` bila `BS_PUBLIC_URL=http://localhost:8080/v1`) dan akun administrator.
+
+Saat deploy, isi `apiBaseUrl` di [`../config.js`](../config.js) dengan nilai `BS_PUBLIC_URL`, supaya pengguna
+tidak perlu mengetik URL server di dialog Masuk.
 
 Perintah lain: `branchsync migrate` (migrasi saja), `branchsync version`.
 

@@ -28,7 +28,9 @@ window.BranchMode = (() => {
     if (!/^https?:$/.test(parsed.protocol)) throw new ApiError('URL harus diawali http:// atau https://', 0, 'bad-url');
     return u;
   }
-  const getBaseUrl = () => local.get(K.url) || '';
+  // URL yang pernah dipakai di browser ini, atau bawaan deploy dari config.js.
+  const configUrl = () => { try { return normalizeUrl((window.BRANCHSYNC_CONFIG || {}).apiBaseUrl || ''); } catch (_) { return ''; } };
+  const getBaseUrl = () => local.get(K.url) || configUrl();
   const getToken = () => session.get(K.token) || '';
   function getUser() { try { return JSON.parse(session.get(K.user) || 'null'); } catch (_) { return null; } }
   function setSession(token, user) {

@@ -3,8 +3,11 @@
 Dokumen ini menjelaskan endpoint yang dipanggil frontend saat **mode Live** aktif.
 Pada **Mode Demo**, tidak ada panggilan jaringan; semua data disimulasikan di browser.
 
-- Mode dipilih **setelah login** lewat dropdown mode di header admin. Memilih **Live** membuka dialog
-  *Sambungkan ke Live* (URL server + akun, atau Google). Base URL juga bisa diubah di
+- Dialog **Masuk** di halaman depan langsung login ke server (kata sandi, OTP email, atau Google) dan membuka
+  workspace dalam mode Live. Tombol *Coba Mode Demo* di dialog yang sama masuk tanpa akun.
+  Dari dalam workspace, menu mode di header tetap bisa beralih Demo ⇄ Live (dialog *Sambungkan ke Live*).
+- Base URL diambil dari (urutan prioritas): URL terakhir yang dipakai di browser ini, lalu `apiBaseUrl` di
+  **`config.js`** (diisi saat deploy), lalu isian *URL server* di dialog Masuk. Bisa juga diubah di
   **Pengaturan › Mode & koneksi server** (contoh `https://api.branchsync.co.id/v1`).
   Semua path di bawah relatif terhadap base URL.
 - Semua body request dan response memakai JSON (`Content-Type: application/json`).

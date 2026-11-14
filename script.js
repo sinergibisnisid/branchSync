@@ -59,20 +59,19 @@ const I18N = {
   f3: ['SLA terukur', 'Measurable SLA'], f3d: ['Waktu proses internal dipisahkan dari waktu verifikasi Google.', 'Internal processing time is measured separately from Google verification.'],
   f4: ['Akses berjenjang & audit', 'Role-based access & audit'], f4d: ['Hak akses per peran dan jejak sebelum–sesudah untuk setiap perubahan.', 'Role-based permissions and a before/after trail for every change.'],
   bandTitle: ['Siap mengelola jaringan Anda?', 'Ready to manage your network?'],
-  bandText: ['Masuk ke workspace admin untuk mulai bekerja. Mode demo — gunakan akun apa saja.', 'Sign in to the admin workspace to get started. Demo mode — any account works.'],
+  bandText: ['Masuk dengan akun BranchSync Anda, atau coba Mode Demo tanpa akun.', 'Sign in with your BranchSync account, or try Demo mode without an account.'],
   footer: ['© 2026 PT Bank Rakyat Indonesia (Persero) Tbk. Seluruh hak dilindungi.', '© 2026 PT Bank Rakyat Indonesia (Persero) Tbk. All rights reserved.'],
-  footerNote: ['Prototipe dengan data simulasi — tidak terhubung ke sistem produksi.', 'Prototype with simulated data — not connected to production systems.'],
+  footerNote: ['Mode Demo memakai data simulasi di browser. Mode Live memakai data asli dari server BranchSync.', 'Demo mode uses simulated data in your browser. Live mode uses real data from the BranchSync server.'],
   adminWorkspace: ['Admin Workspace', 'Admin Workspace'], close: ['Tutup', 'Close'],
   loginTitle: ['Selamat datang kembali', 'Welcome back'],
   loginIntro: ['Masuk untuk mengelola jaringan kantor Anda.', 'Sign in to manage your office network.'],
-  loginHint: ['Mode Demo: isi nama pengguna dan kata sandi apa saja. Setelah masuk, Anda bisa beralih ke Live dari menu di header.', 'Demo mode: enter any username and password. After signing in, switch to Live from the header menu.'],
+  loginServerEdit: ['Ubah', 'Change'], loginServerLabel: ['URL server BranchSync', 'BranchSync server URL'],
+  loginDemo: ['Coba Mode Demo (data simulasi, tanpa akun)', 'Try Demo mode (simulated data, no account)'],
+  otpResend: ['Kirim ulang kode', 'Resend code'],
   loginUsername: ['Nama pengguna', 'Username'], loginPassword: ['Kata sandi', 'Password'], loginSubmit: ['Masuk', 'Sign in'],
   loginOr: ['atau', 'or'], loginGoogle: ['Masuk dengan Google', 'Sign in with Google'], loginOtp: ['Masuk dengan kode OTP email', 'Sign in with an email OTP code'],
-  googleTitle: ['Masuk dengan Google (demo)', 'Sign in with Google (demo)'],
-  googleNotice: ['Pada versi produksi, Anda akan diarahkan ke halaman login Google. Di demo ini tidak ada akun yang dihubungkan.', 'In production you would be redirected to Google sign-in. No account is connected in this demo.'],
-  googleContinue: ['Lanjutkan sebagai akun demo', 'Continue with demo account'],
   otpEmail: ['Alamat email', 'Email address'], otpOpen: ['Kirim kode', 'Send code'],
-  otpCode: ['Kode OTP (6 digit)', 'OTP code (6 digits)'], otpHint: ['Kode demo:', 'Demo code:'], otpVerify: ['Verifikasi & masuk', 'Verify & sign in'],
+  otpCode: ['Kode OTP (6 digit)', 'OTP code (6 digits)'], otpVerify: ['Verifikasi & masuk', 'Verify & sign in'],
   backToPassword: ['Kembali ke kata sandi', 'Back to password'],
   required: ['', '']
 };
@@ -294,14 +293,17 @@ const header = document.querySelector('.site-header');
 window.addEventListener('scroll', () => header.classList.toggle('is-scrolled', window.scrollY > 8), { passive: true });
 
 /* ---------------------------------------------------------------- *
- * Login — masuk ke workspace. Mode Demo/Live dipilih setelah masuk
- * lewat menu di header admin. Kata sandi tidak pernah disimpan.
+ * Login — akun diperiksa oleh server BranchSync (Mode Live):
+ * kata sandi, kode OTP email, atau Google. Mode Demo tersedia lewat
+ * tombol tersendiri (tanpa akun). Kata sandi tidak pernah disimpan.
  * ---------------------------------------------------------------- */
+const MODE = window.BranchMode;
 const dialog = $('loginDialog');
 const loginForm = $('loginForm'), username = $('loginUsername'), password = $('loginPassword'), passwordToggle = $('passwordToggle');
 const otpEmailForm = $('otpEmailForm'), otpCodeForm = $('otpCodeForm'), otpEmail = $('otpEmail'), otpCode = $('otpCode');
-const googlePanel = $('googlePanel'), alternatives = $('loginAlternatives'), backToPassword = $('backToPassword'), loginError = $('loginError');
-let loginTrigger = null;
+const alternatives = $('loginAlternatives'), backToPassword = $('backToPassword'), loginError = $('loginError');
+const serverUrl = $('loginServerUrl'), serverField = $('loginServerField'), serverEdit = $('loginServerEdit');
+let loginTrigger = null, otpAddress = '';
 
 const errorEl = input => $((input.getAttribute('aria-describedby') || '').split(' ').find(id => /(Error|Status)$/.test(id)) || '');
 function setError(input, msg) {
@@ -310,19 +312,60 @@ function setError(input, msg) {
   else { input.removeAttribute('aria-invalid'); if (el) el.textContent = ''; }
 }
 const showLoginError = msg => { loginError.textContent = msg || ''; };
-function clearErrors() { [username, password, otpEmail, otpCode].forEach(i => setError(i, '')); showLoginError(''); }
+function clearErrors() { [username, password, otpEmail, otpCode, serverUrl].forEach(i => setError(i, '')); showLoginError(''); }
+
+// ---- Server tujuan
+function hostOf(url) { try { return new URL(url).host; } catch (_) { return url; } }
+function renderServer() {
+  const url = MODE.getBaseUrl(), box = $('loginServer');
+  box.dataset.state = url ? 'set' : 'none';
+  $('loginServerText').innerHTML = url
+    ? `${text('Server', 'Server')}: <strong>${hostOf(url).replace(/[<>&"]/g, '')}</strong>`
+    : text('Server BranchSync belum diatur. Isi URL dari tim TI, atau coba Mode Demo.', 'BranchSync server not set. Enter the URL from your IT team, or try Demo mode.');
+  if (!url) showServerField(true, false);
+}
+function showServerField(show, focus = true) {
+  serverField.hidden = !show;
+  serverEdit.hidden = show;
+  serverEdit.setAttribute('aria-expanded', String(show));
+  if (show) { serverUrl.value = serverUrl.value || MODE.getBaseUrl(); if (focus) serverUrl.focus(); }
+}
+serverEdit.addEventListener('click', () => showServerField(true));
+// URL server yang dipakai untuk masuk; menampilkan galat di kolom URL bila tidak valid.
+function targetServer() {
+  const raw = serverField.hidden ? MODE.getBaseUrl() : serverUrl.value;
+  let url = '';
+  try { url = MODE.normalizeUrl(raw); } catch (e) { showServerField(true); setError(serverUrl, e.message); serverUrl.focus(); return null; }
+  if (!url) { showServerField(true); setError(serverUrl, text('Isi URL server BranchSync, atau pilih Mode Demo di bawah.', 'Enter the BranchSync server URL, or choose Demo mode below.')); serverUrl.focus(); return null; }
+  return url;
+}
+const networkMsg = e => (e && e.status ? e.message : text('Tidak dapat terhubung ke server BranchSync. Periksa URL server dan koneksi internet, atau coba Mode Demo.', 'Cannot reach the BranchSync server. Check the server URL and your internet connection, or try Demo mode.'));
+async function busy(btn, label, fn) {
+  const old = btn.textContent; btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = label;
+  try { return await fn(); } finally { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.textContent = old; }
+}
+// Sesi diterima → simpan, masuk workspace dalam Mode Live.
+function startLive(url, res) {
+  MODE.setBaseUrl(url);
+  MODE.setSession(res && res.token, res && res.user);
+  MODE.setMode('live');
+  loginForm.reset();
+  dialog.close();
+  enterAdmin();
+}
+
 function setLoginPanel(panel, moveFocus = true) {
   [loginForm, otpEmailForm, otpCodeForm].forEach(f => f.reset());
   password.type = 'password';
   clearErrors();
   loginForm.hidden = panel !== 'password';
   alternatives.hidden = panel !== 'password';
-  googlePanel.hidden = panel !== 'google';
   otpEmailForm.hidden = panel !== 'email';
   otpCodeForm.hidden = panel !== 'code';
   backToPassword.hidden = panel === 'password';
+  $('loginDemoBox').hidden = panel !== 'password';
   updateLoginCopy();
-  if (moveFocus) ({ password: username, google: $('googleTitle'), email: otpEmail, code: otpCode })[panel].focus({ preventScroll: true });
+  if (moveFocus) ({ password: username, email: otpEmail, code: otpCode })[panel].focus({ preventScroll: true });
   dialog.scrollTop = 0;
 }
 function updateLoginCopy() {
@@ -330,13 +373,19 @@ function updateLoginCopy() {
   passwordToggle.textContent = visible ? text('Sembunyikan', 'Hide') : text('Tampilkan', 'Show');
   passwordToggle.setAttribute('aria-label', visible ? text('Sembunyikan kata sandi', 'Hide password') : text('Tampilkan kata sandi', 'Show password'));
   passwordToggle.setAttribute('aria-pressed', String(visible));
+  if (dialog && !otpCodeForm.hidden) $('otpHint').textContent = text(`Jika ${otpAddress} terdaftar, kode 6 digit telah dikirim ke email tersebut. Kode berlaku 10 menit.`, `If ${otpAddress} is registered, a 6-digit code has been sent to it. The code is valid for 10 minutes.`);
+  if (dialog) renderServer();
 }
 function openLogin(trigger, message) {
   loginTrigger = trigger || document.querySelector('.header-actions [data-login]');
+  // Sesi Live yang masih tersimpan di tab ini → langsung masuk (server memeriksa ulang sesinya).
+  if (!message && MODE.isLive() && MODE.hasSession() && MODE.getBaseUrl()) { enterAdmin(); return; }
   setLoginPanel('password', false);
+  showServerField(!MODE.getBaseUrl(), false);
+  renderServer();
   if (!dialog.open) dialog.showModal();
   if (message) showLoginError(message);
-  username.focus();
+  (serverField.hidden ? username : serverUrl).focus();
 }
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-login]');
@@ -351,31 +400,81 @@ dialog.addEventListener('close', () => {
   if (loginTrigger && loginTrigger.isConnected && !document.body.classList.contains('admin-active')) loginTrigger.focus();
 });
 passwordToggle.addEventListener('click', () => { password.type = password.type === 'password' ? 'text' : 'password'; updateLoginCopy(); password.focus(); });
-$('googlePreview').addEventListener('click', () => setLoginPanel('google'));
 $('otpPreview').addEventListener('click', () => setLoginPanel('email'));
 backToPassword.addEventListener('click', () => setLoginPanel('password'));
-$('googleContinue').addEventListener('click', () => enterAdmin());
-loginForm.addEventListener('submit', e => {
+
+// Mode Demo: tanpa akun, data simulasi di browser.
+$('loginDemo').addEventListener('click', () => {
+  MODE.clearSession();
+  MODE.setMode('demo');
+  dialog.close();
+  enterAdmin();
+});
+
+// Kata sandi → POST /auth/login
+loginForm.addEventListener('submit', async e => {
   e.preventDefault();
   clearErrors();
   let first = null;
   if (!username.value.trim()) { setError(username, text('Isi nama pengguna.', 'Enter a username.')); first = username; }
   if (!password.value) { setError(password, text('Isi kata sandi.', 'Enter a password.')); first ||= password; }
   if (first) { first.focus(); return; }
-  loginForm.reset();
-  enterAdmin();
+  const url = targetServer(); if (!url) return;
+  await busy($('loginSubmit'), text('Memeriksa…', 'Checking…'), async () => {
+    try {
+      const res = await MODE.request('POST', '/auth/login', { username: username.value.trim(), password: password.value }, { auth: false, baseUrl: url });
+      startLive(url, res);
+    } catch (err) {
+      if (err.status === 401) { setError(password, text('Nama pengguna atau kata sandi salah.', 'Incorrect username or password.')); password.select(); password.focus(); }
+      else showLoginError(networkMsg(err));
+    }
+  });
 });
-otpEmailForm.addEventListener('submit', e => {
+
+// Google → server mengarahkan ke Google, lalu kembali ke halaman ini dengan #bs_token (lihat handleOAuthReturn).
+$('googlePreview').addEventListener('click', () => {
+  clearErrors();
+  if (location.protocol === 'file:') { showLoginError(text('Login Google hanya bisa dipakai bila BranchSync dibuka lewat alamat web (http/https), bukan dari file lokal. Gunakan kata sandi atau kode OTP.', 'Google sign-in only works when BranchSync is opened from a web address (http/https), not a local file. Use a password or OTP code.')); return; }
+  const url = targetServer(); if (!url) return;
+  MODE.setBaseUrl(url);
+  location.assign(`${url}/auth/google/start?redirect_uri=${encodeURIComponent(location.href.split('#')[0])}`);
+});
+
+// OTP email → POST /auth/otp/request lalu /auth/otp/verify
+async function requestOtp(btn) {
+  const url = targetServer(); if (!url) return false;
+  return busy(btn, text('Mengirim…', 'Sending…'), async () => {
+    try { await MODE.request('POST', '/auth/otp/request', { email: otpAddress }, { auth: false, baseUrl: url }); return true; }
+    catch (err) { showLoginError(err.status === 400 ? err.message : networkMsg(err)); return false; }
+  });
+}
+otpEmailForm.addEventListener('submit', async e => {
   e.preventDefault();
+  clearErrors();
   if (!otpEmail.value.trim() || !otpEmail.checkValidity()) { setError(otpEmail, text('Masukkan alamat email yang valid.', 'Enter a valid email address.')); otpEmail.focus(); return; }
+  otpAddress = otpEmail.value.trim().toLowerCase();
+  if (!(await requestOtp($('otpSend')))) return;
   setLoginPanel('code');
 });
+$('otpResend').addEventListener('click', async () => {
+  clearErrors();
+  if (await requestOtp($('otpResend'))) setError(otpCode, text('Kode baru telah dikirim.', 'A new code has been sent.'));
+});
 otpCode.addEventListener('input', () => { otpCode.value = otpCode.value.replace(/\D/g, '').slice(0, 6); setError(otpCode, ''); });
-otpCodeForm.addEventListener('submit', e => {
+otpCodeForm.addEventListener('submit', async e => {
   e.preventDefault();
-  if (otpCode.value !== '123456') { setError(otpCode, text('Kode tidak sesuai. Gunakan kode demo 123456.', 'Incorrect code. Use demo code 123456.')); otpCode.focus(); return; }
-  otpCode.value = '';
-  enterAdmin();
+  if (!/^\d{6}$/.test(otpCode.value)) { setError(otpCode, text('Masukkan 6 digit kode dari email.', 'Enter the 6-digit code from the email.')); otpCode.focus(); return; }
+  const url = targetServer(); if (!url) return;
+  await busy($('otpVerifyBtn'), text('Memeriksa…', 'Checking…'), async () => {
+    try {
+      const res = await MODE.request('POST', '/auth/otp/verify', { email: otpAddress, code: otpCode.value }, { auth: false, baseUrl: url });
+      otpCode.value = '';
+      startLive(url, res);
+    } catch (err) {
+      if (err.status === 401) { setError(otpCode, err.message || text('Kode tidak sesuai.', 'Incorrect code.')); otpCode.select(); otpCode.focus(); }
+      else showLoginError(networkMsg(err));
+    }
+  });
 });
 window.BranchLogin = { open: message => openLogin(null, message) };
 

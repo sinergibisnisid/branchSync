@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css?v=20261114-landing5">
+    <link rel="stylesheet" href="styles.css?v=20261114-landing6">
     <link rel="stylesheet" href="admin.css?v=20261114-admin17">
 </head>
 <body>
@@ -166,7 +166,7 @@
                     </article>
                 </div>
                 <div class="cta-band">
-                    <div><strong data-i18n="bandTitle">Siap mengelola jaringan Anda?</strong><p data-i18n="bandText">Masuk ke workspace admin untuk mulai bekerja. Mode demo — gunakan akun apa saja.</p></div>
+                    <div><strong data-i18n="bandTitle">Siap mengelola jaringan Anda?</strong><p data-i18n="bandText">Masuk dengan akun BranchSync Anda, atau coba Mode Demo tanpa akun.</p></div>
                     <button type="button" class="btn btn-orange btn-lg" data-login aria-haspopup="dialog" aria-controls="loginDialog" data-i18n="ctaLogin">Masuk ke Dashboard</button>
                 </div>
             </section>
@@ -176,7 +176,7 @@
             <div class="container footer-inner">
                 <div class="brand small"><span class="brand-logo" aria-hidden="true">BRI</span><span class="brand-text"><strong>BranchSync</strong></span></div>
                 <p data-i18n="footer">© 2026 PT Bank Rakyat Indonesia (Persero) Tbk. Seluruh hak dilindungi.</p>
-                <p class="footer-note" data-i18n="footerNote">Prototipe dengan data simulasi — tidak terhubung ke sistem produksi.</p>
+                <p class="footer-note" data-i18n="footerNote">Mode Demo memakai data simulasi di browser. Mode Live memakai data asli dari server BranchSync.</p>
             </div>
         </footer>
     </div>
@@ -196,7 +196,16 @@
             <h2 id="loginTitle" data-i18n="loginTitle">Selamat datang kembali</h2>
             <p id="loginIntro" class="login-intro" data-i18n="loginIntro">Masuk untuk mengelola jaringan kantor Anda.</p>
 
-            <p class="login-hint" id="loginHintBox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><span data-i18n="loginHint">Mode Demo: isi nama pengguna dan kata sandi apa saja. Setelah masuk, Anda bisa beralih ke Live dari menu di header.</span></p>
+            <div class="login-server" id="loginServer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+                <span id="loginServerText"></span>
+                <button type="button" class="link-btn" id="loginServerEdit" aria-controls="loginServerField" aria-expanded="false" data-i18n="loginServerEdit">Ubah</button>
+            </div>
+            <div class="field" id="loginServerField" hidden>
+                <label for="loginServerUrl" data-i18n="loginServerLabel">URL server BranchSync</label>
+                <input id="loginServerUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://api.branchsync.co.id/v1" aria-describedby="loginServerError">
+                <small class="field-error" id="loginServerError"></small>
+            </div>
             <p class="login-error" id="loginError" role="alert"></p>
 
             <form id="loginForm" novalidate>
@@ -213,7 +222,7 @@
                     </div>
                     <small class="field-error" id="passwordError"></small>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block btn-lg" data-i18n="loginSubmit">Masuk</button>
+                <button type="submit" id="loginSubmit" class="btn btn-primary btn-block btn-lg" data-i18n="loginSubmit">Masuk</button>
             </form>
 
             <div id="loginAlternatives" class="login-alternatives">
@@ -233,11 +242,6 @@
                 </button>
             </div>
 
-            <section id="googlePanel" class="login-panel" hidden aria-labelledby="googleTitle">
-                <h3 id="googleTitle" tabindex="-1" data-i18n="googleTitle">Masuk dengan Google (demo)</h3>
-                <p id="googleNotice" data-i18n="googleNotice">Pada versi produksi, Anda akan diarahkan ke halaman login Google. Di demo ini tidak ada akun yang dihubungkan.</p>
-                <button type="button" id="googleContinue" class="btn btn-primary btn-block btn-lg" data-i18n="googleContinue">Lanjutkan sebagai akun demo</button>
-            </section>
 
             <form id="otpEmailForm" hidden novalidate>
                 <div class="field">
@@ -245,30 +249,35 @@
                     <input id="otpEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" required aria-describedby="otpEmailError" placeholder="nama@example.test">
                     <small class="field-error" id="otpEmailError"></small>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block btn-lg" data-i18n="otpOpen">Kirim kode</button>
+                <button type="submit" id="otpSend" class="btn btn-primary btn-block btn-lg" data-i18n="otpOpen">Kirim kode</button>
             </form>
 
             <form id="otpCodeForm" hidden novalidate>
                 <div class="field">
                     <label for="otpCode" data-i18n="otpCode">Kode OTP (6 digit)</label>
-                    <p id="otpHint" class="otp-hint"><span data-i18n="otpHint">Kode demo:</span> <strong>123456</strong></p>
+                    <p id="otpHint" class="otp-hint"></p>
                     <input id="otpCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required aria-describedby="otpHint otpStatus">
                     <small id="otpStatus" class="field-error" role="status" aria-live="polite"></small>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block btn-lg" data-i18n="otpVerify">Verifikasi & masuk</button>
+                <button type="submit" id="otpVerifyBtn" class="btn btn-primary btn-block btn-lg" data-i18n="otpVerify">Verifikasi & masuk</button>
+                <button type="button" id="otpResend" class="link-btn otp-resend" data-i18n="otpResend">Kirim ulang kode</button>
             </form>
 
             <button type="button" id="backToPassword" class="link-btn login-back" hidden>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
                 <span data-i18n="backToPassword">Kembali ke kata sandi</span>
             </button>
+            <div class="login-demo" id="loginDemoBox">
+                <button type="button" id="loginDemo" class="btn btn-ghost btn-block" data-i18n="loginDemo">Coba Mode Demo (data simulasi, tanpa akun)</button>
+            </div>
         </div>
     </dialog>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="mode.js?v=20261114-mode2"></script>
-    <script src="script.js?v=20261114-landing6"></script>
-    <script src="admin-content.js?v=20261114-content7"></script>
+    <script src="config.js?v=20261114-config1"></script>
+    <script src="mode.js?v=20261114-mode3"></script>
+    <script src="script.js?v=20261114-landing7"></script>
+    <script src="admin-content.js?v=20261114-content8"></script>
     <script src="admin-i18n.js?v=20261114-i18n9"></script>
     <!-- Admin workspace: modul dimuat berurutan; lihat admin/app.js -->
     <script src="admin/app.js?v=20261114-mod1"></script>

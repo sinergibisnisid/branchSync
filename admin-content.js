@@ -10,8 +10,9 @@ window.BranchAdminContent = {
       id: 'start', icon: 'zap', title: ['Memulai', 'Getting started'],
       summary: ['Masuk, memilih mode, dan mengenal tata letak workspace.', 'Sign in, choose a mode, and learn the workspace layout.'],
       steps: [
-        ['Klik “Masuk” di halaman utama, lalu isi nama pengguna dan kata sandi. Pada Mode Demo, akun apa saja dapat dipakai.', 'Click “Sign in” on the home page and enter a username and password. In Demo mode, any account works.'],
-        ['Pilih mode di menu header: Mode Demo (data simulasi di browser) atau Live (data asli dari server BranchSync).', 'Choose a mode from the header menu: Demo mode (simulated data in the browser) or Live (real data from the BranchSync server).'],
+        ['Klik “Masuk” di halaman utama, lalu masuk dengan akun BranchSync: kata sandi, kode OTP email, atau Google. Akun dibuat oleh administrator di Pengguna & Akses. Bila server belum diatur, isi URL server dari tim TI.', 'Click “Sign in” on the home page and sign in with your BranchSync account: password, email OTP code, or Google. Accounts are created by an administrator in Users & Access. If the server is not set yet, enter the server URL from your IT team.'],
+        ['Ingin mencoba tanpa akun? Klik “Coba Mode Demo” di dialog masuk — semua data adalah simulasi di browser Anda.', 'Want to try without an account? Click “Try Demo mode” in the sign-in dialog — all data is simulated in your browser.'],
+        ['Mode bisa diganti kapan saja dari menu di header: Mode Demo (data simulasi di browser) atau Live (data asli dari server BranchSync).', 'You can switch modes at any time from the header menu: Demo mode (simulated data in the browser) or Live (real data from the BranchSync server).'],
         ['Gunakan menu di sisi kiri untuk berpindah halaman. Angka oranye menandakan pekerjaan yang perlu ditindaklanjuti.', 'Use the left menu to move between pages. Orange numbers show work that needs follow-up.'],
         ['Tekan ⌘ K / Ctrl K untuk mencari unit kerja, menu, atau aksi dengan cepat.', 'Press ⌘ K / Ctrl K to quickly search locations, menus, or actions.'],
         ['Ganti bahasa (ID/EN) dan tema terang/gelap dari tombol di header.', 'Switch language (ID/EN) and light/dark theme from the header buttons.']
