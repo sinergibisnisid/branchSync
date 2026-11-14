@@ -545,7 +545,8 @@
   const ui = {
     view: 'dashboard', navOpen: false, running: null, pop: '', renderMs: 0,
     loc: { q: '', quick: 'all', status: [], region: [], type: [], gbp: [], sort: 'name', dir: 1, page: 1, selected: new Set() },
-    map: { q: '', status: '', region: '', gbp: '', showGoogle: true },
+    map: { q: '', status: '', region: '', gbp: '', showGoogle: true, limit: 300 },
+    dups: { limit: 30 },
     disc: { q: '', field: '' }, claims: { tab: 'active' }, approvals: { tab: 'pending' },
     sync: { tab: 'failures' }, audit: { q: '', module: '', actor: '', range: '30' }, access: { tab: 'users', q: '' },
     drawer: null,
@@ -579,32 +580,49 @@
     state.locations.forEach(l => { const x = issuesOf(l); if (x.length) m.set(l.code, x); });
     return m;
   });
-  const duplicatePairs = () => memo('dups', () => {
-    const ignored = new Set(state.dupIgnored), cell = 0.02, grid = new Map(), out = [], seen = new Set();
-    const active = state.locations.filter(l => l.gbp !== 'Duplikat');
-    active.forEach(l => {
-      const k = `${Math.floor(l.lat / cell)}:${Math.floor(l.lng / cell)}`;
-      if (!grid.has(k)) grid.set(k, []);
-      grid.get(k).push(l);
-    });
-    active.forEach(a => {
-      const gy = Math.floor(a.lat / cell), gx = Math.floor(a.lng / cell), na = normName(a.name);
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        (grid.get(`${gy + dy}:${gx + dx}`) || []).forEach(b => {
-          if (b.code <= a.code) return;
-          const key = `${a.code}|${b.code}`;
-          if (seen.has(key) || ignored.has(key)) return;
-          const d = distM(a, b), same = na && na === normName(b.name);
-          let reason = '';
-          if (same && d < 2000) reason = 'Nama sama dan berdekatan';
-          else if (d <= state.settings.dupRadius && a.type === b.type) reason = `Tipe sama dalam radius ${state.settings.dupRadius} m`;
-          if (!reason) return;
-          seen.add(key);
-          out.push({ key, a, b, d, reason, score: same ? (d < 300 ? 95 : 80) : 70 });
-        });
+  /* Deteksi duplikat (Tahap 5): dua lintasan grid —
+   *  1) nama sama (dinormalisasi) dalam 2 km, 2) tipe sama dalam radius pengaturan.
+   * Tiap unit menyimpan maks. DUP_PER_UNIT pasangan terdekat dan memeriksa maks. DUP_SCAN kandidat,
+   * supaya ribuan titik yang bertumpuk (mis. salah impor koordinat) tidak membuat halaman macet. */
+  const DUP_PER_UNIT = 5, DUP_SCAN = 200;
+  function nearPairs(list, radius, emit) {
+    const cell = radius / 111320 / 0.97, grid = new Map(); // 0,97 ≈ cos 14° (batas lintang Indonesia)
+    const keyOf = (y, x) => `${y}:${x}`;
+    list.forEach((l, i) => { const k = keyOf(Math.floor(l.lat / cell), Math.floor(l.lng / cell)); (grid.get(k) || grid.set(k, []).get(k)).push(i); });
+    let capped = 0;
+    list.forEach((a, i) => {
+      const gy = Math.floor(a.lat / cell), gx = Math.floor(a.lng / cell), best = [];
+      let scanned = 0;
+      for (let dy = -1; dy <= 1 && scanned < DUP_SCAN; dy++) for (let dx = -1; dx <= 1 && scanned < DUP_SCAN; dx++) {
+        const ids = grid.get(keyOf(gy + dy, gx + dx)); if (!ids) continue;
+        for (let n = 0; n < ids.length; n++) {
+          const j = ids[n]; if (j === i) continue;
+          if (++scanned > DUP_SCAN) { capped++; break; }
+          const d = distM(a, list[j]); if (d > radius) continue;
+          if (best.length < DUP_PER_UNIT) best.push([d, j]); else if (d < best[best.length - 1][0]) best[best.length - 1] = [d, j]; else continue;
+          best.sort((x, y) => x[0] - y[0]);
+        }
       }
+      best.forEach(([d, j]) => emit(a, list[j], d));
     });
-    return out.sort((x, y) => y.score - x.score || x.d - y.d);
+    return capped;
+  }
+  const duplicatePairs = () => memo('dups', () => {
+    const ignored = new Set(state.dupIgnored), R = state.settings.dupRadius, out = [], seen = new Set();
+    const active = state.locations.filter(l => l.gbp !== 'Duplikat');
+    const add = same => (a, b, d) => {
+      const [x, y] = a.code < b.code ? [a, b] : [b, a], key = `${x.code}|${y.code}`;
+      if (seen.has(key) || ignored.has(key)) return;
+      seen.add(key);
+      out.push({ key, a: x, b: y, d, reason: same ? 'Nama sama dan berdekatan' : `Tipe sama dalam radius ${R} m`, score: same ? (d < 300 ? 95 : 80) : 70 });
+    };
+    const group = keyFn => { const m = new Map(); active.forEach(l => { const k = keyFn(l); if (k) (m.get(k) || m.set(k, []).get(k)).push(l); }); return m; };
+    let capped = 0;
+    group(l => normName(l.name)).forEach(g => { if (g.length > 1) capped += nearPairs(g, 2000, add(true)); });
+    group(l => l.type).forEach(g => { if (g.length > 1) capped += nearPairs(g, R, add(false)); });
+    out.sort((x, y) => y.score - x.score || x.d - y.d);
+    out.dense = capped; // > 0 → ada area sangat padat; hanya pasangan terdekat yang dicatat
+    return out;
   });
   const openFailures = () => memo('fails', () => {
     const out = [], seen = new Set();
@@ -1071,9 +1089,13 @@
     FILTERS.forEach(([k]) => { if (v[k] && v[k].length) parts.push(v[k].join(', ')); });
     return parts.join(' · ') || 'Semua unit';
   }
+  // Performa (Tahap 5): teks pencarian per unit disiapkan sekali per perubahan data (cache dikosongkan touch()).
+  const hay = () => memo('hay', () => new Map(state.locations.map(l => [l, `${l.name} ${l.code} ${l.city} ${l.province} ${l.address}`.toLowerCase()])));
+  const COLLATOR = new Intl.Collator('id', { numeric: true });
   function locMatcher(v) {
-    const q = (v.q || '').toLowerCase(), im = issueMap(), quick = (QUICK.find(x => x[0] === v.quick) || QUICK[0])[2];
-    return l => (!q || `${l.name} ${l.code} ${l.city} ${l.province} ${l.address}`.toLowerCase().includes(q)) && FILTERS.every(([k]) => !(v[k] && v[k].length) || v[k].includes(l[k])) && quick(l, im);
+    const q = (v.q || '').trim().toLowerCase(), im = issueMap(), quick = (QUICK.find(x => x[0] === v.quick) || QUICK[0])[2], H = hay();
+    const fs = FILTERS.filter(([k]) => v[k] && v[k].length).map(([k]) => [k, new Set(v[k])]);
+    return l => (!q || H.get(l).includes(q)) && fs.every(([k, set]) => set.has(l[k])) && quick(l, im);
   }
   const viewCount = v => memo(`vc:${JSON.stringify(v)}`, () => state.locations.filter(locMatcher(v)).length);
   function applySavedView(id) {
@@ -1101,14 +1123,16 @@
     });
   }
 
+  // Hasil filter + urut di-memo per kombinasi filter; dipakai ulang oleh render, pilih semua, ekspor, dan pengumuman.
   function locFiltered() {
-    const f = ui.loc, q = f.q.trim().toLowerCase(), im = issueMap(), quick = (QUICK.find(x => x[0] === f.quick) || QUICK[0])[2];
-    const xs = state.locations.filter(l =>
-      (!q || `${l.name} ${l.code} ${l.city} ${l.province} ${l.address}`.toLowerCase().includes(q)) &&
-      FILTERS.every(([k]) => !f[k].length || f[k].includes(l[k])) && quick(l));
-    const k = f.sort, dir = f.dir;
-    const val = l => (k === 'issues' ? im.get(l.code)?.length || 0 : k === 'lastSync' ? l.lastSync || 0 : l[k] ?? '');
-    return xs.sort((a, b) => { const va = val(a), vb = val(b); return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'id', { numeric: true })) * dir; });
+    const f = ui.loc, key = `lf:${JSON.stringify([f.q.trim().toLowerCase(), f.quick, FILTERS.map(([k]) => f[k]), f.sort, f.dir])}`;
+    return memo(key, () => {
+      const xs = state.locations.filter(locMatcher(f)), im = issueMap(), k = f.sort, dir = f.dir;
+      const val = l => (k === 'issues' ? im.get(l.code)?.length || 0 : k === 'lastSync' ? l.lastSync || 0 : k === 'updatedAt' ? l.updatedAt || 0 : String(l[k] ?? ''));
+      const keyed = xs.map(l => [val(l), l]);
+      keyed.sort((a, b) => (typeof a[0] === 'number' ? a[0] - b[0] : COLLATOR.compare(a[0], b[0])) * dir);
+      return keyed.map(x => x[1]);
+    });
   }
   // Menu ekspor CSV / Excel — dipakai di kepala halaman Unit Kerja ('all') dan bilah aksi massal ('sel').
   const exportMenu = scope => `<details class="bs-filter bs-export" data-pop="export-${scope}" ${ui.pop === `export-${scope}` ? 'open' : ''}><summary class="bs-btn${scope === 'sel' ? ' sm' : ''}">${ic('download')}<span>Ekspor</span>${ic('chevD')}</summary>
@@ -1177,10 +1201,31 @@
   /* ------------------------------------------------------------------ *
    * View: Peta
    * ------------------------------------------------------------------ */
-  let mapObj = null, mapLayer = null, mapMarkers = new Map();
+  let mapObj = null, mapLayer = null, mapExtra = null, mapMarkers = new Map();
+  /* Marker clustering (Leaflet.markercluster, versi dikunci + SRI, dimuat saat peta pertama dibuka).
+   * Bila gagal dimuat, peta tetap berjalan tanpa clustering. */
+  const CLUSTER = {
+    js: { url: 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js', sri: 'sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr' },
+    css: [{ url: 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css', sri: 'sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV' },
+      { url: 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css', sri: 'sha384-wgw+aLYNQ7dlhK47ZPK7FRACiq7ROZwgFNg0m04avm4CaXS+Z9Y7nMu8yNjBKYC+' }]
+  };
+  let clusterJob = null;
+  function loadCluster() {
+    if (typeof L !== 'undefined' && L.markerClusterGroup) return Promise.resolve(true);
+    return clusterJob || (clusterJob = new Promise(resolve => {
+      CLUSTER.css.forEach(c => { const k = document.createElement('link'); k.rel = 'stylesheet'; k.href = c.url; k.integrity = c.sri; k.crossOrigin = 'anonymous'; k.referrerPolicy = 'no-referrer'; document.head.append(k); });
+      const sc = document.createElement('script');
+      sc.src = CLUSTER.js.url; sc.integrity = CLUSTER.js.sri; sc.crossOrigin = 'anonymous'; sc.referrerPolicy = 'no-referrer'; sc.async = true;
+      sc.onload = () => resolve(!!L.markerClusterGroup);
+      sc.onerror = () => { clusterJob = null; sc.remove(); resolve(false); };
+      document.head.append(sc);
+      setTimeout(() => resolve(!!L.markerClusterGroup), 8000); // jangan tahan peta terlalu lama
+    }));
+  }
+  const clusterIcon = c => { const n = c.getChildCount(); return L.divIcon({ html: `<span>${n >= 1000 ? `${Math.round(n / 100) / 10}k` : n}</span>`, className: `bs-cluster ${n >= 500 ? 'is-lg' : n >= 50 ? 'is-md' : ''}`, iconSize: L.point(40, 40) }); };
   function mapFiltered() {
     const m = ui.map, q = m.q.trim().toLowerCase();
-    return state.locations.filter(l => (!q || `${l.name} ${l.code} ${l.city} ${l.province}`.toLowerCase().includes(q)) && (!m.status || l.status === m.status) && (!m.region || l.region === m.region) && (!m.gbp || l.gbp === m.gbp));
+    return memo(`mf:${JSON.stringify([q, m.status, m.region, m.gbp])}`, () => state.locations.filter(l => (!q || `${l.name} ${l.code} ${l.city} ${l.province}`.toLowerCase().includes(q)) && (!m.status || l.status === m.status) && (!m.region || l.region === m.region) && (!m.gbp || l.gbp === m.gbp)));
   }
   function viewMap() {
     const m = ui.map;
@@ -1201,6 +1246,13 @@
     mapObj = L.map(el, { preferCanvas: true, zoomControl: true }).setView([-2.5, 118], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(mapObj);
     mapLayer = L.layerGroup().addTo(mapObj);
+    mapExtra = L.layerGroup().addTo(mapObj);
+    loadCluster().then(ok => {
+      if (!ok || !mapObj || !L.markerClusterGroup) return;
+      mapObj.removeLayer(mapLayer);
+      mapLayer = L.markerClusterGroup({ chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 50, spiderfyOnMaxZoom: true, iconCreateFunction: clusterIcon }).addTo(mapObj);
+      updateMap(false);
+    });
     mapObj.on('popupopen', e => {
       const node = e.popup.getElement();
       node?.addEventListener('click', ev => { const b = ev.target.closest('[data-action="open-loc"]'); if (b) openDrawer(b.dataset.id); });
@@ -1218,22 +1270,26 @@
     }
     if ($('bsMapCount')) $('bsMapCount').textContent = `${fmtNum(xs.length)} unit ditampilkan`;
     if ($('bsMapList')) {
-      $('bsMapList').innerHTML = xs.slice(0, 300).map(l => `<li><button type="button" data-action="map-focus" data-id="${esc(l.code)}"><i style="background:${MARKER[l.status]}" aria-hidden="true"></i><span><strong>${esc(l.name)}</strong><small>${esc(l.code)} · ${esc(l.city)}</small></span>${im.has(l.code) ? `<span class="bs-issue sm" title="Beda dengan Google">${ic('alert')}</span>` : ''}</button></li>`).join('') +
-        (xs.length > 300 ? `<li class="bs-list-more">+${fmtNum(xs.length - 300)} unit lain — persempit pencarian</li>` : '') ||
+      const lim = ui.map.limit || 300;
+      $('bsMapList').innerHTML = xs.slice(0, lim).map(l => `<li><button type="button" data-action="map-focus" data-id="${esc(l.code)}"><i style="background:${MARKER[l.status]}" aria-hidden="true"></i><span><strong>${esc(l.name)}</strong><small>${esc(l.code)} · ${esc(l.city)}</small></span>${im.has(l.code) ? `<span class="bs-issue sm" title="Beda dengan Google">${ic('alert')}</span>` : ''}</button></li>`).join('') +
+        (xs.length > lim ? `<li class="bs-list-more">${btn(`Tampilkan ${fmtNum(Math.min(300, xs.length - lim))} lagi`, 'map-more', { variant: 'sm ghost' })}<small>${fmtNum(xs.length - lim)} unit belum tampil di daftar — semua tetap ada di peta</small></li>` : '') ||
         `<li class="bs-list-more">Tidak ada unit yang cocok.</li>`;
     }
     if (!mapObj) return;
-    mapLayer.clearLayers(); mapMarkers = new Map();
+    mapLayer.clearLayers(); mapExtra.clearLayers(); mapMarkers = new Map();
+    const markers = [];
     xs.forEach(l => {
+      // Isi popup dibuat saat diklik (bukan 10.000 string sekaligus).
       const mk = L.circleMarker([l.lat, l.lng], { radius: 7, color: '#fff', weight: 2, fillColor: MARKER[l.status], fillOpacity: 1 })
-        .bindPopup(`<div class="bs-popup"><strong>${esc(l.name)}</strong><span>${esc(l.code)} · ${esc(l.type)}</span><span>${esc(l.address)}</span><span>Status: ${esc(SL(l.status))} · GBP: ${esc(SL(l.gbp))}</span><button type="button" data-action="open-loc" data-id="${esc(l.code)}">Lihat detail →</button></div>`);
-      mk.addTo(mapLayer); mapMarkers.set(l.code, mk);
+        .bindPopup(() => `<div class="bs-popup"><strong>${esc(l.name)}</strong><span>${esc(l.code)} · ${esc(l.type)}</span><span>${esc(l.address)}</span><span>Status: ${esc(SL(l.status))} · GBP: ${esc(SL(l.gbp))}</span><button type="button" data-action="open-loc" data-id="${esc(l.code)}">Lihat detail →</button></div>`);
+      markers.push(mk); mapMarkers.set(l.code, mk);
       const coord = (im.get(l.code) || []).find(i => i.field === 'coords');
       if (ui.map.showGoogle && coord) {
-        L.polyline([[l.lat, l.lng], [l.google.lat, l.google.lng]], { color: '#e0660f', weight: 2, dashArray: '4 4' }).addTo(mapLayer);
-        L.circleMarker([l.google.lat, l.google.lng], { radius: 6, color: '#e0660f', weight: 2, fillColor: '#fff', fillOpacity: 1 }).bindTooltip(`Titik Google · selisih ${fmtDist(coord.dist)}`).addTo(mapLayer);
+        L.polyline([[l.lat, l.lng], [l.google.lat, l.google.lng]], { color: '#e0660f', weight: 2, dashArray: '4 4' }).addTo(mapExtra);
+        L.circleMarker([l.google.lat, l.google.lng], { radius: 6, color: '#e0660f', weight: 2, fillColor: '#fff', fillOpacity: 1 }).bindTooltip(`Titik Google · selisih ${fmtDist(coord.dist)}`).addTo(mapExtra);
       }
     });
+    if (mapLayer.addLayers) mapLayer.addLayers(markers); else markers.forEach(m => m.addTo(mapLayer));
     if (fit && xs.length) mapObj.fitBounds(L.latLngBounds(xs.map(l => [l.lat, l.lng])), { padding: [30, 30], maxZoom: 13 });
   }
 
@@ -1277,12 +1333,14 @@
     const side = (l, keep) => `<div class="bs-dup-side"><button type="button" class="bs-cell-link" data-action="open-loc" data-id="${esc(l.code)}"><strong>${esc(l.name)}</strong><small>${esc(l.code)} · ${esc(l.type)}</small></button>
       ${kv([['Alamat', esc(l.address)], ['Telepon', esc(l.phone)], ['Status', badge(l.status)], ['GBP', badge(l.gbp)], ['Diperbarui', when(l.updatedAt)]])}
       ${btn('Pertahankan ini', 'dup-keep', { id: keep, icon: 'merge', variant: 'sm' })}</div>`;
-    const list = pairs.map(p => `<article class="bs-dup">
+    const shown = pairs.slice(0, ui.dups.limit);
+    const list = shown.map(p => `<article class="bs-dup">
       <header><span class="bs-score" data-high="${p.score >= 90}">${p.score}% mirip</span><span>${esc(p.reason)} · jarak ${fmtDist(p.d)}</span><span class="bs-spacer"></span>${btn('Bukan duplikat', 'dup-ignore', { id: p.key, variant: 'sm ghost' })}${btn('Laporkan ke Google', 'dup-report', { id: p.key, variant: 'sm ghost' })}</header>
       <div class="bs-dup-grid">${side(p.a, `${p.key}|a`)}<div class="bs-dup-vs" aria-hidden="true">vs</div>${side(p.b, `${p.key}|b`)}</div></article>`).join('');
     return head('Duplikat Titik Lokasi', navItem('duplicates').desc, btn('Atur radius deteksi', 'nav', { id: 'settings', icon: 'sliders' })) +
       `<div class="bs-callout">${ic('info')}<p>Deteksi otomatis memakai <b>kemiripan nama</b> (dalam 2 km) dan <b>tipe sama dalam radius ${state.settings.dupRadius} m</b>. “Pertahankan ini” akan menonaktifkan unit lainnya dan menandainya <i>Duplikat</i>. Anda bisa membatalkannya.</p></div>` +
-      (pairs.length ? `<div class="bs-stack">${list}</div>` : card('Tidak ada duplikat', emptyState('Tidak ada titik ganda', 'Semua unit kerja memiliki titik yang unik.')));
+      (pairs.dense ? `<div class="bs-callout" data-tone="warn">${ic('alert')}<p>Ada area dengan titik yang sangat berdekatan (kemungkinan salah impor koordinat). Untuk tiap unit di area itu hanya ${DUP_PER_UNIT} pasangan terdekat yang ditampilkan.</p></div>` : '') +
+      (pairs.length ? `<p class="bs-muted bs-gap">Menampilkan ${fmtNum(shown.length)} dari ${fmtNum(pairs.length)} pasangan, urut dari yang paling mirip.</p><div class="bs-stack">${list}</div>${pairs.length > shown.length ? `<div class="bs-more">${btn(`Tampilkan ${fmtNum(Math.min(30, pairs.length - shown.length))} lagi`, 'dup-more', { variant: 'sm' })}</div>` : ''}` : card('Tidak ada duplikat', emptyState('Tidak ada titik ganda', 'Semua unit kerja memiliki titik yang unik.')));
   }
 
   /* ------------------------------------------------------------------ *
@@ -3055,6 +3113,7 @@
     if (a === 'api') { state.api[b] = value; log('Integrasi Google', `${value ? 'Mengaktifkan' : 'Menonaktifkan'} notifikasi edit eksternal`); touch(); toast(value ? 'Notifikasi edit eksternal aktif.' : 'Notifikasi edit eksternal nonaktif.'); remote('PATCH', '/integrations/google', { [b]: value }); return; }
     ui[a][b] = value;
     if (a === 'loc') ui.loc.page = 1;
+    if (a === 'map') ui.map.limit = 300;
     if (a === 'reviews') { ui.reviews.limit = 20; if (b === 'account') ui.reviews.location = ''; }
     if (a === 'report' && b === 'account' && value) ui.report.region = '';
   }
@@ -3275,7 +3334,14 @@
       case 'import-errors': importErrorsCSV(); break;
       case 'import-commit': commitImport(); break;
       // Peta
-      case 'map-focus': if (l && mapObj) { mapObj.flyTo([l.lat, l.lng], 15, { duration: 0.6 }); mapMarkers.get(id)?.openPopup(); } else if (l) openDrawer(id); break;
+      case 'map-focus': {
+        const mk = mapMarkers.get(id);
+        if (l && mapObj && mk && mapLayer.zoomToShowLayer) mapLayer.zoomToShowLayer(mk, () => mk.openPopup());
+        else if (l && mapObj) { mapObj.flyTo([l.lat, l.lng], 15, { duration: 0.6 }); mk?.openPopup(); } else if (l) openDrawer(id);
+        break;
+      }
+      case 'map-more': ui.map.limit = (ui.map.limit || 300) + 300; updateMap(false); $('bsMapList')?.querySelectorAll('li')[ui.map.limit - 300]?.querySelector('button')?.focus(); break;
+      case 'dup-more': ui.dups.limit += 30; render(); break;
       // Sinkronisasi
       case 'sync-all': runSync(null); break;
       case 'sync-one': if (l) runSync([id], { label: l.name, retry: true }); break;

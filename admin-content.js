@@ -99,9 +99,11 @@ window.BranchAdminContent = {
       steps: [
         ['Saring berdasarkan status, region, atau status GBP; cari nama atau kode unit.', 'Filter by status, region, or GBP status; search by name or code.'],
         ['Klik nama di daftar kanan untuk memperbesar ke titik tersebut.', 'Click a name in the right list to zoom to that point.'],
-        ['Aktifkan “Tampilkan selisih titik Google” untuk melihat garis antara titik Dashboard dan titik Google.', 'Turn on “Show Google pin differences” to see lines between Dashboard and Google pins.']
+        ['Aktifkan “Tampilkan selisih titik Google” untuk melihat garis antara titik Dashboard dan titik Google.', 'Turn on “Show Google pin differences” to see lines between Dashboard and Google pins.'],
+        ['Titik yang berdekatan digabung menjadi lingkaran berangka (klaster). Klik klaster untuk memperbesar; di zoom terdekat, titik yang bertumpuk dibuka melingkar.', 'Nearby points are grouped into numbered circles (clusters). Click a cluster to zoom in; at the closest zoom, stacked points fan out.'],
+        ['Daftar kanan menampilkan 300 unit pertama; klik “Tampilkan 300 lagi” untuk melihat berikutnya. Semua unit hasil filter tetap tampil di peta.', 'The right list shows the first 300 locations; click “Show 300 more” for the next ones. All filtered locations stay on the map.']
       ],
-      tips: [['Peta membutuhkan koneksi internet.', 'The map requires an internet connection.']],
+      tips: [['Peta membutuhkan koneksi internet. Bila pustaka klaster gagal dimuat, peta tetap tampil tanpa klaster.', 'The map requires an internet connection. If the cluster library fails to load, the map still works without clusters.']],
       links: [['map', ['Buka Peta', 'Open Map']]]
     },
     {
@@ -133,7 +135,9 @@ window.BranchAdminContent = {
       steps: [
         ['Buka Duplikat. Setiap pasangan menampilkan skor kemiripan, alasan, dan jarak.', 'Open Duplicate. Each pair shows a similarity score, reason, and distance.'],
         ['Klik “Pertahankan ini” pada unit yang benar; unit lain dinonaktifkan dan ditandai Duplikat.', 'Click “Keep this” on the correct location; the other is deactivated and marked Duplicate.'],
-        ['Pilih “Bukan duplikat” bila keduanya memang berbeda, atau “Laporkan ke Google”.', 'Choose “Not a duplicate” when both are genuinely different, or “Report to Google”.']
+        ['Pilih “Bukan duplikat” bila keduanya memang berbeda, atau “Laporkan ke Google”.', 'Choose “Not a duplicate” when both are genuinely different, or “Report to Google”.'],
+        ['Pasangan tampil 30 per halaman, urut dari yang paling mirip; klik “Tampilkan 30 lagi” untuk berikutnya.', 'Pairs are shown 30 at a time, most similar first; click “Show 30 more” for the next ones.'],
+        ['Bila muncul peringatan “titik yang sangat berdekatan”, kemungkinan ada koordinat yang salah impor. Untuk tiap unit di area itu hanya 5 pasangan terdekat yang ditampilkan — perbaiki koordinatnya di Unit Kerja.', 'If you see the “points very close together” warning, coordinates were probably imported wrongly. For each location in that area only the 5 nearest pairs are shown — fix the coordinates in Locations.']
       ],
       tips: [['Radius deteksi dapat diubah di Pengaturan.', 'The detection radius can be changed in Settings.']],
       links: [['duplicates', ['Buka Duplikat', 'Open Duplicate']]]
@@ -231,6 +235,28 @@ window.BranchAdminContent = {
         ['Bila koneksi terputus atau server gagal merespons, banner di atas halaman menjelaskan kondisinya dan data terakhir tetap tampil. Klik “Coba lagi”; saat internet kembali, data dimuat ulang otomatis.', 'If the connection drops or the server fails, a banner at the top explains the situation and the last data stays visible. Click “Try again”; when the internet is back, data reloads automatically.']
       ],
       links: [['settings', ['Buka Pengaturan', 'Open Settings']]]
+    },
+    {
+      id: 'checklist', icon: 'check', title: ['Checklist uji manual per halaman', 'Manual test checklist per page'],
+      summary: ['Daftar periksa singkat untuk tiap halaman, dipetakan ke Scenario Test 1–13. Catat hasil dan bukti di halaman Scenario Test.', 'A short checklist for each page, mapped to Scenario Test 1–13. Record results and evidence on the Scenario Test page.'],
+      steps: [
+        ['Unit Kerja › Impor data (Skenario 1): impor 20–30 unit dari Excel/CSV; pemetaan kolom terisi otomatis, baris bermasalah tampil paling atas, dan jumlah unit di footer bertambah.', 'Locations › Import data (Scenario 1): import 20–30 locations from Excel/CSV; columns map automatically, problem rows appear first, and the footer count increases.'],
+        ['Unit Kerja (Skenario 2): cari nama/kode/kota, pakai filter status/region/tipe dan tampilan cepat; chip filter muncul, “Reset filter” mengosongkan semuanya, dan tautan halaman menyimpan filter.', 'Locations (Scenario 2): search by name/code/city, use the status/region/type filters and quick views; filter chips appear, “Reset filters” clears them, and the page link keeps the filters.'],
+        ['Ketidaksesuaian (Skenario 3): klik “Simulasikan perubahan Google”, lalu selesaikan satu perbedaan dengan data Dashboard dan satu dengan data Google; catat temuan dan ekspor laporan.', 'Mismatches (Scenario 3): click “Simulate Google change”, then resolve one difference with Dashboard data and one with Google data; record a note and export the report.'],
+        ['Pengaturan › Buat 1.000 unit uji (Skenario 4): ulangi hingga ±10.000 unit; Unit Kerja, Peta, Duplikat, dan Laporan tetap terbuka dalam waktu singkat (lihat angka render di footer) tanpa error.', 'Settings › Create 1,000 test locations (Scenario 4): repeat up to ±10,000 locations; Locations, Map, Duplicates, and Reports still open quickly (see the render time in the footer) without errors.'],
+        ['Edit unit + Sinkronkan (Skenario 5): ubah telepon/jam satu unit, sinkronkan, lalu pastikan tab “Bandingkan Google” di panel unit tidak menunjukkan perbedaan.', 'Edit location + Sync (Scenario 5): change one location’s phone/hours, sync it, then check that the “Compare Google” tab in the location panel shows no differences.'],
+        ['Klaim & Titik Baru (Skenario 6–7): ajukan klaim untuk unit “Belum diklaim” dan satu titik baru; pindahkan keduanya hingga “Selesai” dan periksa waktu proses internal vs verifikasi Google.', 'Claims & New Points (Scenarios 6–7): submit a claim for an “Not claimed” location and one new point; move both to “Done” and check internal vs Google verification time.'],
+        ['Duplikat (Skenario 8): tinjau pasangan, “Pertahankan ini” pada satu unit (konfirmasi menyebut kedua nama), lalu coba “Urungkan”.', 'Duplicates (Scenario 8): review the pairs, “Keep this” on one location (the confirmation names both), then try “Undo”.'],
+        ['Persetujuan Edit (Skenario 9): simulasikan edit dari email GBP lain; data unit tidak berubah sebelum disetujui, dan berubah setelah disetujui.', 'Edit Approvals (Scenario 9): simulate an edit from another GBP email; location data does not change before approval, and changes after approval.'],
+        ['Riwayat Perubahan (Skenario 10): setiap perubahan di atas tercatat dengan nilai sebelum/sesudah dan penggunanya; ekspor CSV memakai waktu YYYY-MM-DD HH:mm.', 'Change History (Scenario 10): every change above is logged with before/after values and the user; the CSV export uses YYYY-MM-DD HH:mm times.'],
+        ['SLA & Kinerja (Skenario 11): waktu proses internal dan waktu verifikasi Google tampil terpisah; ekspor laporan SLA.', 'SLA & Performance (Scenario 11): internal processing time and Google verification time are shown separately; export the SLA report.'],
+        ['Sync Monitor (Skenario 12): jalankan sinkronisasi; kegagalan tampil dengan penyebab, “Coba lagi” berfungsi, dan tindak lanjut bisa dicatat.', 'Sync Monitor (Scenario 12): run a sync; failures show their cause, “Retry” works, and follow-ups can be recorded.'],
+        ['Laporan & Analitik + Dashboard (Skenario 13): KPI, tren, dan tabel region tampil untuk 7/30/90 hari; cetak/PDF dan ekspor CSV berhasil.', 'Reports & Analytics + Dashboard (Scenario 13): KPIs, trends, and the region table appear for 7/30/90 days; print/PDF and CSV export work.'],
+        ['Semua halaman: ganti ke EN dan tema gelap, buka di lebar 360 px (tidak ada gulir ke samping), dan coba navigasi keyboard (Tab, ←/→ di tab, Esc menutup dialog).', 'All pages: switch to EN and dark theme, open at 360 px width (no sideways scrolling), and try keyboard navigation (Tab, ←/→ on tabs, Esc closes dialogs).'],
+        ['Mode Live (bila server tersedia): hubungkan, ulangi Skenario 1, 2, 5, dan 12; matikan koneksi untuk melihat banner offline dan pemuatan ulang otomatis.', 'Live mode (if a server is available): connect, repeat Scenarios 1, 2, 5, and 12; turn off the connection to see the offline banner and automatic reload.']
+      ],
+      tips: [['Gunakan tombol “Bukti otomatis” di setiap skenario untuk mengambil angka dari aplikasi sebagai evidence.', 'Use the “Auto evidence” button in each scenario to capture numbers from the app as evidence.']],
+      links: [['scenarios', ['Buka Scenario Test', 'Open Scenario Test']], ['settings', ['Buka Pengaturan', 'Open Settings']]]
     },
     {
       id: 'faq', icon: 'info', title: ['Pertanyaan umum & pemecahan masalah', 'FAQ & troubleshooting'],

@@ -396,6 +396,10 @@
     R(`^Server sedang menyinkronkan ${N} unit\\.$`, 'The server is syncing $1 locations.'),
     R(`^${N} unit cocok\\.$`, '$1 matching locations.'), R(`^${N} unit di peta\\.$`, '$1 locations on the map.'), R(`^${N} perbedaan\\.$`, '$1 differences.'),
     R(`^${N} aktivitas\\.$`, '$1 activities.'), R(`^${N} ulasan\\.$`, '$1 reviews.'), R(`^${N} unit dipilih\\.$`, '$1 locations selected.'),
+    // Tahap 5 — performa (daftar peta, duplikat bertahap)
+    R(`^Tampilkan ${N} lagi$`, 'Show $1 more'), R(`^${N} unit belum tampil di daftar — semua tetap ada di peta$`, '$1 locations not yet in the list — all are still on the map'),
+    R(`^Menampilkan ${N} dari ${N} pasangan, urut dari yang paling mirip\\.$`, 'Showing $1 of $2 pairs, most similar first.'),
+    R(`^Ada area dengan titik yang sangat berdekatan \\(kemungkinan salah impor koordinat\\)\\. Untuk tiap unit di area itu hanya ${N} pasangan terdekat yang ditampilkan\\.$`, 'Some areas have points very close together (coordinates were probably imported wrongly). For each location there, only the $1 nearest pairs are shown.'),
     R('^oleh (.+)$', 'by $1'), R('^(.+):$', (m, a) => { const x = tr(a); return x == null ? m : `${x}:`; }),
     // Tooltip & label grafik (tanggal sudah diformat oleh Intl)
     R(`^(.+): Berhasil ${N} Gagal ${N}$`, '$1: Successful $2 Failed $3'),
