@@ -209,7 +209,8 @@ BranchSyncAdmin.part('events', function* (app) {
       }
       // Integrasi Google
       case 'gbp-oauth':
-        if (isLive()) { location.assign(`${MODE.getBaseUrl()}/integrations/google/oauth/start?redirect_uri=${encodeURIComponent(location.href.split('#')[0])}`); break; }
+        // Live: server membuat URL persetujuan Google yang terikat ke sesi pengguna ini (bukan tautan publik).
+        if (isLive()) { remote('POST', '/integrations/google/oauth/url', { redirect_uri: location.href.split('#')[0] }).then(res => { if (res && res.url) location.assign(res.url); }); break; }
         if (!app.state.api.clientId || !app.state.api.hasClientSecret) { toast('Isi OAuth Client ID dan Client Secret lalu simpan konfigurasi terlebih dahulu.', { tone: 'warn' }); $('g-clientId')?.focus(); break; }
         app.state.api.connected = true; app.state.api.lastTest = Date.now(); log('Integrasi Google', 'Menghubungkan akun Google (simulasi)', { detail: app.state.api.account }); touch(); render(); toast('Akun Google terhubung (simulasi).', { tone: 'good' });
         break;

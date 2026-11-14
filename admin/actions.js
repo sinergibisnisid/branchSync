@@ -6,11 +6,11 @@
 BranchSyncAdmin.part('actions', function* (app) {
   // Impor dari modul lain (diisi app.link() begitu modul asalnya siap).
   let byCode, CLAIM_KINDS, claimActive, DAY, diff, distM, downloadCSV, downloadXlsx, EXT_EMAILS, FIELD_LABEL, fmtDist, fmtNum, formatHours, formGrid,
-    guard, HOURS, hoursEditor, hoursError, issueMap, log, mountPicker, navigate, offset, openDrawer, openModal, PERMS, pick, pickerBlock,
+    guard, HOURS, hoursEditor, hoursError, isLive, issueMap, log, mountPicker, navigate, offset, openDrawer, openModal, PERMS, pick, pickerBlock,
     presetHours, regionOf, remote, render, rng, SL, snapshot, STEPS, STREETS, toast, touch, TYPES, ui, validateLoc;
-  app.imports(() => ({ byCode, CLAIM_KINDS, claimActive, DAY, diff, distM, downloadCSV, downloadXlsx, EXT_EMAILS, FIELD_LABEL, fmtDist, fmtNum,
-    formatHours, formGrid, guard, HOURS, hoursEditor, hoursError, issueMap, log, mountPicker, navigate, offset, openDrawer, openModal, PERMS, pick,
-    pickerBlock, presetHours, regionOf, remote, render, rng, SL, snapshot, STEPS, STREETS, toast, touch, TYPES, ui, validateLoc } = app));
+    app.imports(() => ({ byCode, CLAIM_KINDS, claimActive, DAY, diff, distM, downloadCSV, downloadXlsx, EXT_EMAILS, FIELD_LABEL, fmtDist, fmtNum,
+    formatHours, formGrid, guard, HOURS, hoursEditor, hoursError, isLive, issueMap, log, mountPicker, navigate, offset, openDrawer, openModal, PERMS,
+    pick, pickerBlock, presetHours, regionOf, remote, render, rng, SL, snapshot, STEPS, STREETS, toast, touch, TYPES, ui, validateLoc } = app));
   // Fungsi yang dipakai modul lain — tersedia sebelum kode modul mana pun dijalankan.
   app.export({ resolveDisc, simulateGoogleChange, simulateEdit, decide, advanceClaim, claimForm, pointForm, userForm, roleForm, exportLocations,
     generateUnits });
@@ -144,21 +144,23 @@ BranchSyncAdmin.part('actions', function* (app) {
   }
   function userForm(id) {
     if (!guard('users.manage')) return;
-    const u = app.state.users.find(x => x.id === Number(id));
+    const u = app.state.users.find(x => x.id === Number(id)), live = isLive();
+    // Demo: akun utama (id 1) dan domain @example.test. Live: email apa pun; akun sendiri tidak bisa dinonaktifkan.
+    const locked = live ? !!u && u.email === app.ME.email : u?.id === 1;
     openModal(u ? `Edit ${u.name}` : 'Tambah pengguna', formGrid([
-      { name: 'name', label: 'Nama lengkap', value: u?.name, full: true }, { name: 'email', label: 'Email', type: 'email', value: u?.email, full: true, hint: 'Gunakan domain @example.test untuk demo.' },
+      { name: 'name', label: 'Nama lengkap', value: u?.name, full: true }, { name: 'email', label: 'Email', type: 'email', value: u?.email, full: true, hint: live ? '' : 'Gunakan domain @example.test untuk demo.' },
       { name: 'role', label: 'Peran', type: 'select', options: app.state.roles.map(r => r.name), value: u?.role || 'Viewer' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Aktif', 'Nonaktif'], value: u?.status || 'Aktif', attrs: u?.id === 1 ? 'disabled' : '' }
+      { name: 'status', label: 'Status', type: 'select', options: ['Aktif', 'Nonaktif'], value: u?.status || 'Aktif', attrs: locked ? 'disabled' : '' }
     ]), {
       submit: u ? 'Simpan' : 'Tambah pengguna',
       onSubmit: p => {
         const e = {};
         p.name = String(p.name || '').trim(); p.email = String(p.email || '').trim().toLowerCase();
         if (!p.name) e.name = 'Wajib diisi.';
-        if (!/^[^\s@]+@example\.test$/.test(p.email)) e.email = 'Email harus berdomain @example.test.';
+        if (live ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email) : !/^[^\s@]+@example\.test$/.test(p.email)) e.email = live ? 'Email tidak valid.' : 'Email harus berdomain @example.test.';
         else if (app.state.users.some(x => x !== u && x.email === p.email)) e.email = 'Email sudah terdaftar.';
         if (Object.keys(e).length) return e;
-        if (u?.id === 1) p.status = 'Aktif';
+        if (locked) p.status = u.status;
         if (u) { const ch = diff(u, p, ['name', 'email', 'role', 'status']); Object.assign(u, p); log('Pengguna & Akses', 'Memperbarui pengguna', { detail: p.name, changes: ch }); remote('PATCH', `/users/${encodeURIComponent(u.id)}`, p); }
         else { app.state.users.push({ ...p, id: ++app.state.seq.user, lastActive: Date.now() }); log('Pengguna & Akses', 'Menambahkan pengguna', { detail: `${p.name} (${p.role})` }); remote('POST', '/users', p); }
         toast('Pengguna disimpan.', { tone: 'good' });

@@ -24,7 +24,7 @@ Token disimpan frontend di `sessionStorage` (hilang saat tab ditutup). Kata sand
 | POST | `/auth/login` | `{ username, password }` | `{ token, user }` |
 | POST | `/auth/otp/request` | `{ email }` | `204` atau `{ ok: true }` |
 | POST | `/auth/otp/verify` | `{ email, code }` | `{ token, user }` |
-| GET | `/auth/google/start?redirect_uri=<url>` | — | Login pengguna via Google. Setelah selesai, server mengarahkan kembali ke `redirect_uri#bs_token=<token>` atau `redirect_uri#bs_error=<pesan>` |
+| GET | `/auth/google/start?redirect_uri=<url>` | — | Login pengguna via Google. Setelah selesai, server mengarahkan kembali ke `redirect_uri#bs_token=<token>` atau `redirect_uri#bs_error=<pesan>`. Callback Google: `{base}/auth/google/callback` (daftarkan di Google Cloud). `redirect_uri` harus ber-origin yang diizinkan server |
 | GET 🔒 | `/me` | — | `user` |
 | POST 🔒 | `/auth/logout` | — | `204` |
 
@@ -123,7 +123,7 @@ setelahnya. **Server wajib mencatat setiap perubahan ke `audit`** (dengan nilai 
 | Hapus massal | `POST /locations/bulk-delete` | `{ codes: [] }` |
 | Ubah status massal | `POST /locations/bulk-update` | `{ codes: [], patch: { status } }` |
 | Impor CSV / Excel | `POST /locations/import` | `{ items: [ { code\|null, exists, name, type, city, province, region, address, phone, hours, lat, lng, status } ] }` — `exists: true` = perbarui unit dengan `code` tersebut; `exists: false` + `code` terisi = buat unit baru memakai kode dari file (mis. store code GBP); `code: null` = server membuat kode. File Excel dibaca di browser — server selalu menerima JSON yang sama. |
-| Jalankan sinkronisasi | `POST /sync` | `{ codes: [] \| null, retry: bool, label }` → **kembalikan objek `run`** (lihat `runs`) agar ringkasan hasil bisa ditampilkan |
+| Jalankan sinkronisasi | `POST /sync` | `{ codes: [] \| null, retry: bool, label }` → **kembalikan objek `run`** (lihat `runs`) agar ringkasan hasil bisa ditampilkan. Untuk banyak unit (server referensi: > 15) server menjalankannya di latar belakang dan membalas `202 { status: "running", total }`; hasilnya muncul di `runs` pada `/bootstrap` berikutnya |
 | Tindak lanjut kegagalan | `POST /sync/failures/resolve` | `{ code, run, note }` |
 | Selesaikan ketidaksesuaian | `POST /discrepancies/resolve` | `{ code, field, source: "dashboard" \| "google" }` — `field`: name, phone, hours, address, coords |
 | Selesaikan massal | `POST /discrepancies/resolve-bulk` | `{ source: "dashboard", items: [ { code, field } ] }` |
@@ -140,13 +140,18 @@ setelahnya. **Server wajib mencatat setiap perubahan ke `audit`** (dengan nilai 
 | Balas / ubah balasan ulasan | `PUT /reviews/{id}/reply` | `{ text }` (maks. 4.096 karakter). Server meneruskan ke Google: `PUT accounts/{a}/locations/{l}/reviews/{r}/reply` |
 | Hapus balasan ulasan | `DELETE /reviews/{id}/reply` | — (Google: `DELETE …/reviews/{r}/reply`) |
 | Konfigurasi Google API | `PATCH /integrations/google` | `{ project, account, clientId, clientSecret?, apiKey?, scopes[], syncInterval, quotaLimit, pubsubTopic, webhook, connected? }` — `clientSecret`/`apiKey` hanya dikirim saat diisi; simpan terenkripsi |
-| Hubungkan akun GBP (OAuth) | `GET /integrations/google/oauth/start?redirect_uri=<url>` | Redirect ke consent Google (scope dari konfigurasi). Callback di `{base}/integrations/google/oauth/callback`, lalu kembali ke `redirect_uri#bs_gbp=connected` atau `#bs_gbp=<pesan error>` |
+| Hubungkan akun GBP (OAuth) | `POST /integrations/google/oauth/url` | `{ redirect_uri }` → `{ url }`. Frontend lalu membuka `url` (consent Google, akses offline, scope dari konfigurasi). Callback di `{base}/integrations/google/oauth/callback`, lalu kembali ke `redirect_uri#bs_gbp=connected` atau `#bs_gbp=<pesan error>`. URL terikat ke sesi pengguna ber-izin `settings.write`, sehingga orang lain tidak bisa menghubungkan akun Google-nya ke workspace. *(Menggantikan `GET /integrations/google/oauth/start` yang tidak memakai sesi.)* |
+| Tarik akun & lokasi GBP | `POST /integrations/google/discover` | → `{ accounts, linked, imported, skipped }`. Lokasi Google dengan `storeCode` = kode unit dihubungkan; lokasi lain diimpor sebagai unit baru. Otomatis dijalankan setelah akun dihubungkan |
 | Uji koneksi Google | `POST /integrations/google/test` | → `{ ok: bool, latencyMs?, message? }` |
 | Jadwalkan laporan | `POST /reports/schedules` | `{ name, frequency, day, period, format, recipients[], filters }` — server membuat & mengirim laporan (PDF/CSV) ke email penerima sesuai jadwal |
 | Hapus jadwal laporan | `DELETE /reports/schedules/{id}` | — |
 
 Ulasan baru dari Google sebaiknya ditarik server secara berkala (sesuai `syncInterval`) atau lewat
 notifikasi Pub/Sub (`pubsubTopic`), lalu muncul di `/bootstrap`.
+
+Server referensi (`server/`, Go + PostgreSQL) menerima notifikasi Pub/Sub lewat langganan *push* ke
+`POST {base}/integrations/google/pubsub?token=<BS_PUBSUB_TOKEN>` (tanpa header Authorization). Respons
+`POST /locations/import` di server referensi: `{ added, updated }`. Kode unit baru berformat `BS-00001`.
 
 ## Fitur yang hanya ada di Mode Demo
 

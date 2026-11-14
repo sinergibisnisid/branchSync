@@ -303,7 +303,12 @@ BranchSyncAdmin.part('forms', function* (app) {
   // importDraft: { stage: 'input' | 'map' | 'review', text, source: { name, kind }, header, rows: [{ line, cells }], map: { field: index }, items, error, busy }
   app.importDraft = null;
   function sampleCSV(n = 25) {
-    const r = rng(Date.now() % 100000), base = app.state.locations.filter(l => l.type === 'Kantor Cabang');
+    // Kota acuan: Kantor Cabang yang ada; workspace kosong (mis. server Live baru) memakai kota cadangan.
+    const own = app.state.locations.filter(l => l.type === 'Kantor Cabang');
+    const r = rng(Date.now() % 100000), base = own.length ? own : [
+      { city: 'Jakarta', province: 'DKI Jakarta', lat: -6.2088, lng: 106.8456 }, { city: 'Bandung', province: 'Jawa Barat', lat: -6.9175, lng: 107.6191 },
+      { city: 'Surabaya', province: 'Jawa Timur', lat: -7.2575, lng: 112.7521 }, { city: 'Medan', province: 'Sumatera Utara', lat: 3.5952, lng: 98.6722 },
+      { city: 'Makassar', province: 'Sulawesi Selatan', lat: -5.1477, lng: 119.4327 }];
     const lines = [TEMPLATE_HEAD.join(',')];
     for (let i = 0; i < n; i++) {
       const b = base[i % base.length], p = offset(b.lat, b.lng, 1500 + r() * 6000, r() * 6.28), type = pick(r, ['KCP', 'Unit', 'ATM']);
