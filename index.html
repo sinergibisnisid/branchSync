@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BranchSync · BRI Location Sync Platform</title>
+    <meta name="description" content="BranchSync — platform monitoring dan sinkronisasi lokasi kantor BRI ke Google Business Profile.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css?v=20261114-landing3">
+    <link rel="stylesheet" href="admin.css?v=20261114-admin4">
+</head>
+<body>
+    <div class="page-container">
+        <a class="skip-link" href="#main" data-i18n="skip">Lewati ke konten utama</a>
+
+        <!-- Navigasi atas -->
+        <header class="site-header">
+            <div class="container header-inner">
+                <a class="brand" href="#top" aria-label="BranchSync BRI — ke atas">
+                    <span class="brand-logo" aria-hidden="true">BRI</span>
+                    <span class="brand-text"><strong>BranchSync</strong><small data-i18n="brandTag">Location Sync Platform</small></span>
+                </a>
+                <nav class="site-nav" aria-label="Navigasi halaman" data-i18n-aria="navLabel">
+                    <a href="#peta" data-i18n="navMap">Peta jaringan</a>
+                    <a href="#ringkasan" data-i18n="navSummary">Ringkasan</a>
+                    <a href="#fitur" data-i18n="navFeatures">Fitur</a>
+                </nav>
+                <div class="header-actions">
+                    <div class="lang-toggle" role="group" aria-label="Bahasa" data-i18n-aria="langLabel">
+                        <button type="button" data-language="id" aria-pressed="true" lang="id">ID</button>
+                        <button type="button" data-language="en" aria-pressed="false" lang="en">EN</button>
+                    </div>
+                    <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" aria-label="Mode gelap">
+                        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                    </button>
+                    <button type="button" class="btn btn-primary" data-login aria-haspopup="dialog" aria-controls="loginDialog">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+                        <span data-i18n="login">Masuk</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main id="main" tabindex="-1">
+            <!-- Hero -->
+            <section class="hero" id="top" aria-labelledby="heroTitle">
+                <div class="container hero-inner">
+                    <div class="hero-copy">
+                        <p class="hero-eyebrow"><span class="live-dot" aria-hidden="true"></span><span data-i18n="heroEyebrow">Platform Monitoring Lokasi Kantor BRI</span></p>
+                        <h1 id="heroTitle"><span data-i18n="heroTitle1">Satu peta untuk</span> <em data-i18n="heroTitle2">seluruh jaringan BRI.</em></h1>
+                        <p class="hero-lead" data-i18n="heroLead">Pantau kantor cabang, unit, dan ATM di seluruh Indonesia, lalu pastikan datanya selalu sama dengan Google Maps — lengkap dengan jejak audit.</p>
+                        <div class="hero-cta">
+                            <button type="button" class="btn btn-light btn-lg" data-login aria-haspopup="dialog" aria-controls="loginDialog"><span data-i18n="ctaLogin">Masuk ke Dashboard</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+                            <a class="btn btn-ghost-light btn-lg" href="#peta"><span data-i18n="ctaMap">Lihat peta jaringan</span></a>
+                        </div>
+                        <p class="hero-meta"><span data-i18n="clockLabel">Waktu Jakarta</span> · <time id="serverTime">—</time></p>
+                    </div>
+                    <div class="hero-panel" aria-label="Ringkasan jaringan" data-i18n-aria="heroPanel">
+                        <div class="hero-panel-head">
+                            <strong data-i18n="healthTitle">Kesehatan jaringan</strong>
+                            <span class="pill-demo" data-i18n="demoData">Data simulasi</span>
+                        </div>
+                        <div class="health-score"><strong id="healthPct">—</strong><span data-i18n="healthNote">lokasi online</span></div>
+                        <div class="health-bar" id="healthBar" role="img"></div>
+                        <ul class="health-legend" id="healthLegend"></ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Statistik -->
+            <section class="container stats" aria-label="Statistik utama" data-i18n-aria="statsLabel">
+                <div class="stats-grid" id="statsGrid"></div>
+            </section>
+
+            <!-- Peta -->
+            <section class="container section" id="peta" aria-labelledby="mapTitle">
+                <div class="section-head">
+                    <div>
+                        <h2 id="mapTitle" data-i18n="mapTitle">Peta jaringan kantor</h2>
+                        <p data-i18n="mapLead">Cari lokasi atau pilih status untuk menyaring titik di peta. Klik nama lokasi untuk memperbesar.</p>
+                    </div>
+                </div>
+                <div class="card map-card">
+                    <div class="map-toolbar">
+                        <div class="search-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                            <input type="search" id="mapSearch" autocomplete="off" data-i18n-placeholder="searchPh" placeholder="Cari kota, provinsi, atau kode…" aria-label="Cari lokasi" data-i18n-aria="searchLabel">
+                            <button type="button" class="search-clear" id="searchClear" hidden aria-label="Hapus pencarian" data-i18n-aria="clearSearch">×</button>
+                        </div>
+                        <div class="status-chips" id="statusChips" role="group" aria-label="Filter status" data-i18n-aria="statusFilter"></div>
+                        <label class="layer-select"><span data-i18n="layer">Layer</span>
+                            <select id="layerSelect">
+                                <option value="street" data-i18n="layerStreet">Peta jalan</option>
+                                <option value="topo" data-i18n="layerTopo">Topografi</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="map-body">
+                        <div id="map" role="region" aria-label="Peta lokasi kantor" data-i18n-aria="mapLabel"></div>
+                        <aside class="map-list" aria-labelledby="resultCount">
+                            <div class="map-list-head"><strong id="resultCount" role="status" aria-live="polite">—</strong><button type="button" class="link-btn" id="resetFilters" hidden data-i18n="resetFilters">Reset filter</button></div>
+                            <ol id="locationList"></ol>
+                        </aside>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Ringkasan -->
+            <section class="container section" id="ringkasan" aria-labelledby="summaryTitle">
+                <div class="section-head">
+                    <div>
+                        <h2 id="summaryTitle" data-i18n="summaryTitle">Ringkasan jaringan</h2>
+                        <p data-i18n="summaryLead">Gambaran singkat sebaran lokasi dan hasil sinkronisasi hari ini.</p>
+                    </div>
+                </div>
+                <div class="summary-grid">
+                    <article class="card">
+                        <header class="card-head"><h3 data-i18n="regionTitle">Sebaran per region</h3><small data-i18n="regionHint">Klik untuk menyaring peta</small></header>
+                        <div class="card-body" id="regionList"></div>
+                    </article>
+                    <article class="card">
+                        <header class="card-head"><h3 data-i18n="syncTitle">Sinkronisasi hari ini</h3><small data-i18n="demoData">Data simulasi</small></header>
+                        <div class="card-body sync-body" id="syncSummary"></div>
+                    </article>
+                    <article class="card">
+                        <header class="card-head"><h3 data-i18n="activityTitle">Aktivitas terbaru</h3><button type="button" class="link-btn" data-login aria-haspopup="dialog" aria-controls="loginDialog" data-i18n="viewAll">Lihat semua</button></header>
+                        <div class="card-body"><ol class="activity" id="activityList"></ol></div>
+                    </article>
+                </div>
+            </section>
+
+            <!-- Fitur -->
+            <section class="container section" id="fitur" aria-labelledby="featureTitle">
+                <div class="section-head center">
+                    <div>
+                        <h2 id="featureTitle" data-i18n="featureTitle">Semua yang dibutuhkan pengelola lokasi</h2>
+                        <p data-i18n="featureLead">Dari pendataan unit kerja sampai bukti audit, dalam satu tempat.</p>
+                    </div>
+                </div>
+                <ol class="steps">
+                    <li><span class="step-num">1</span><div><strong data-i18n="step1">Kelola data unit kerja</strong><p data-i18n="step1d">Impor atau perbarui data kantor, unit, dan ATM secara massal.</p></div></li>
+                    <li><span class="step-num">2</span><div><strong data-i18n="step2">Sinkronkan ke Google</strong><p data-i18n="step2d">Kirim data ke Google Business Profile dan pantau setiap job.</p></div></li>
+                    <li><span class="step-num">3</span><div><strong data-i18n="step3">Awasi & tindak lanjuti</strong><p data-i18n="step3d">Temukan data yang berbeda, duplikat, dan edit dari pihak lain.</p></div></li>
+                </ol>
+                <div class="feature-grid">
+                    <article class="feature">
+                        <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></span>
+                        <h3 data-i18n="f1">GIS interaktif</h3><p data-i18n="f1d">Peta seluruh lokasi kantor beserta status dan selisih titik dengan Google Maps.</p>
+                    </article>
+                    <article class="feature">
+                        <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/></svg></span>
+                        <h3 data-i18n="f2">Monitoring sinkronisasi</h3><p data-i18n="f2d">Pantau setiap job hingga tingkat lokasi, lengkap dengan penyebab kegagalan.</p>
+                    </article>
+                    <article class="feature">
+                        <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg></span>
+                        <h3 data-i18n="f3">SLA terukur</h3><p data-i18n="f3d">Waktu proses internal dipisahkan dari waktu verifikasi Google.</p>
+                    </article>
+                    <article class="feature">
+                        <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>
+                        <h3 data-i18n="f4">Akses berjenjang & audit</h3><p data-i18n="f4d">Hak akses per peran dan jejak sebelum–sesudah untuk setiap perubahan.</p>
+                    </article>
+                </div>
+                <div class="cta-band">
+                    <div><strong data-i18n="bandTitle">Siap mengelola jaringan Anda?</strong><p data-i18n="bandText">Masuk ke workspace admin untuk mulai bekerja. Mode demo — gunakan akun apa saja.</p></div>
+                    <button type="button" class="btn btn-orange btn-lg" data-login aria-haspopup="dialog" aria-controls="loginDialog" data-i18n="ctaLogin">Masuk ke Dashboard</button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="site-footer">
+            <div class="container footer-inner">
+                <div class="brand small"><span class="brand-logo" aria-hidden="true">BRI</span><span class="brand-text"><strong>BranchSync</strong></span></div>
+                <p data-i18n="footer">© 2026 PT Bank Rakyat Indonesia (Persero) Tbk. Seluruh hak dilindungi.</p>
+                <p class="footer-note" data-i18n="footerNote">Prototipe dengan data simulasi — tidak terhubung ke sistem produksi.</p>
+            </div>
+        </footer>
+    </div>
+
+    <section id="adminPanel" hidden aria-label="Panel admin"></section>
+
+    <!-- Dialog login -->
+    <dialog id="loginDialog" class="login-dialog" aria-labelledby="loginTitle" aria-describedby="loginIntro">
+        <div class="login-band">
+            <span class="brand-logo" aria-hidden="true">BRI</span>
+            <span class="brand-text"><strong>BranchSync</strong><small data-i18n="adminWorkspace">Admin Workspace</small></span>
+            <button type="button" class="login-close" aria-label="Tutup" data-i18n-aria="close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="login-content">
+            <h2 id="loginTitle" data-i18n="loginTitle">Selamat datang kembali</h2>
+            <p id="loginIntro" class="login-intro" data-i18n="loginIntro">Masuk untuk mengelola jaringan kantor Anda.</p>
+            <p class="login-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><span data-i18n="loginHint">Mode demo: isi nama pengguna dan kata sandi apa saja. Jangan gunakan kredensial asli.</span></p>
+
+            <form id="loginForm" novalidate>
+                <div class="field">
+                    <label for="loginUsername" data-i18n="loginUsername">Nama pengguna</label>
+                    <input id="loginUsername" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required aria-describedby="usernameError">
+                    <small class="field-error" id="usernameError" data-i18n="required"></small>
+                </div>
+                <div class="field">
+                    <label for="loginPassword" data-i18n="loginPassword">Kata sandi</label>
+                    <div class="password-control">
+                        <input id="loginPassword" type="password" autocomplete="current-password" required aria-describedby="passwordError">
+                        <button id="passwordToggle" type="button" aria-controls="loginPassword" aria-pressed="false">Tampilkan</button>
+                    </div>
+                    <small class="field-error" id="passwordError"></small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-lg" data-i18n="loginSubmit">Masuk</button>
+            </form>
+
+            <div id="loginAlternatives" class="login-alternatives">
+                <div class="login-divider"><span data-i18n="loginOr">atau</span></div>
+                <button type="button" id="googlePreview" class="btn btn-outline btn-block">
+                    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z"/>
+                        <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.07v2.59A10 10 0 0 0 12 22Z"/>
+                        <path fill="#FBBC05" d="M6.41 13.92A6 6 0 0 1 6.1 12c0-.67.11-1.31.31-1.92V7.49H3.07A10 10 0 0 0 2 12c0 1.61.39 3.14 1.07 4.51l3.34-2.59Z"/>
+                        <path fill="#EA4335" d="M12 5.96c1.47 0 2.79.5 3.82 1.49l2.87-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.93 5.49l3.34 2.59C7.2 7.72 9.4 5.96 12 5.96Z"/>
+                    </svg>
+                    <span data-i18n="loginGoogle">Masuk dengan Google</span>
+                </button>
+                <button type="button" id="otpPreview" class="btn btn-outline btn-block">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+                    <span data-i18n="loginOtp">Masuk dengan kode OTP email</span>
+                </button>
+            </div>
+
+            <section id="googlePanel" class="login-panel" hidden aria-labelledby="googleTitle">
+                <h3 id="googleTitle" tabindex="-1" data-i18n="googleTitle">Masuk dengan Google (demo)</h3>
+                <p data-i18n="googleNotice">Pada versi produksi, Anda akan diarahkan ke halaman login Google. Di demo ini tidak ada akun yang dihubungkan.</p>
+                <button type="button" id="googleContinue" class="btn btn-primary btn-block btn-lg" data-i18n="googleContinue">Lanjutkan sebagai akun demo</button>
+            </section>
+
+            <form id="otpEmailForm" hidden novalidate>
+                <div class="field">
+                    <label for="otpEmail" data-i18n="otpEmail">Alamat email</label>
+                    <input id="otpEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" required aria-describedby="otpEmailError" placeholder="nama@example.test">
+                    <small class="field-error" id="otpEmailError"></small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-lg" data-i18n="otpOpen">Kirim kode</button>
+            </form>
+
+            <form id="otpCodeForm" hidden novalidate>
+                <div class="field">
+                    <label for="otpCode" data-i18n="otpCode">Kode OTP (6 digit)</label>
+                    <p id="otpHint" class="otp-hint"><span data-i18n="otpHint">Kode demo:</span> <strong>123456</strong></p>
+                    <input id="otpCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required aria-describedby="otpHint otpStatus">
+                    <small id="otpStatus" class="field-error" role="status" aria-live="polite"></small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-lg" data-i18n="otpVerify">Verifikasi & masuk</button>
+            </form>
+
+            <button type="button" id="backToPassword" class="link-btn login-back" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                <span data-i18n="backToPassword">Kembali ke kata sandi</span>
+            </button>
+        </div>
+    </dialog>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js?v=20261114-landing3"></script>
+    <script src="admin.js?v=20261114-admin4"></script>
+</body>
+</html>
