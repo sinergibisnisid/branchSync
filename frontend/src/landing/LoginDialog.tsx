@@ -1,15 +1,15 @@
 /*
  * Dialog Masuk: akun diperiksa oleh server BranchSync (kata sandi, kode OTP email, atau Google).
  * Kata sandi tidak pernah disimpan; token sesi disimpan di sessionStorage.
+ * URL server tidak diisi pengguna: diambil dari /config.js (apiBaseUrl) atau Pengaturan › Koneksi server.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import * as api from '../lib/api';
 import { useApp } from '../store';
 import { enterAdmin } from '../admin/workspace';
 import { useLandingText } from './Landing';
 
 type Panel = 'password' | 'email' | 'code';
-const hostOf = (url: string) => { try { return new URL(url).host; } catch { return url; } };
 
 export function LoginDialog({ open, message, onClose }: { open: boolean; message: string; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -17,15 +17,13 @@ export function LoginDialog({ open, message, onClose }: { open: boolean; message
   const T = useLandingText();
   const text = (id: string, en: string) => (lang === 'en' ? en : id);
   const [panel, setPanel] = useState<Panel>('password');
-  const [showUrl, setShowUrl] = useState(!api.getBaseUrl());
-  const [url, setUrl] = useState(api.getBaseUrl());
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [otpAddress, setOtpAddress] = useState('');
   const [otpInfo, setOtpInfo] = useState('');
-  const urlRef = useRef<HTMLInputElement>(null), userRef = useRef<HTMLInputElement>(null), pwRef = useRef<HTMLInputElement>(null);
+  const userRef = useRef<HTMLInputElement>(null), pwRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null), codeRef = useRef<HTMLInputElement>(null);
 
   useLayoutEffect(() => {
@@ -33,8 +31,7 @@ export function LoginDialog({ open, message, onClose }: { open: boolean; message
     if (open && !d.open) {
       d.showModal();
       setPanel('password'); setErrs({}); setFormError(message); setShowPw(false); setBusy('');
-      const base = api.getBaseUrl(); setUrl(base); setShowUrl(!base);
-      requestAnimationFrame(() => (base ? userRef.current : urlRef.current)?.focus());
+      requestAnimationFrame(() => userRef.current?.focus());
     }
     if (!open && d.open) d.close();
   }, [open, message]);
@@ -44,17 +41,14 @@ export function LoginDialog({ open, message, onClose }: { open: boolean; message
     clear(); setPanel(p);
     requestAnimationFrame(() => ({ password: userRef, email: emailRef, code: codeRef })[p].current?.focus({ preventScroll: true }));
   };
-  // URL server yang dipakai untuk masuk; menampilkan galat di kolom URL bila tidak valid.
+  // URL server dari konfigurasi deploy; bila belum diatur, masuk tidak bisa dilakukan.
   const target = (): string | null => {
-    const raw = showUrl ? url : api.getBaseUrl();
-    let u = '';
-    try { u = api.normalizeUrl(raw); } catch (e) { setShowUrl(true); setErrs({ url: (e as Error).message }); urlRef.current?.focus(); return null; }
-    if (!u) { setShowUrl(true); setErrs({ url: text('Isi URL server BranchSync dari tim TI Anda.', 'Enter the BranchSync server URL from your IT team.') }); requestAnimationFrame(() => urlRef.current?.focus()); return null; }
+    const u = api.getBaseUrl();
+    if (!u) { setFormError(text('Server BranchSync belum dikonfigurasi. Hubungi tim TI Anda.', 'The BranchSync server is not configured. Contact your IT team.')); return null; }
     return u;
   };
-  const networkMsg = (e: unknown) => { const err = e as api.ApiError; return err && err.status ? err.message : text('Tidak dapat terhubung ke server BranchSync. Periksa URL server dan koneksi internet.', 'Cannot reach the BranchSync server. Check the server URL and your internet connection.'); };
-  const startLive = (u: string, res: { token?: string; user?: api.SessionUser }) => {
-    api.setBaseUrl(u);
+  const networkMsg = (e: unknown) => { const err = e as api.ApiError; return err && err.status ? err.message : text('Tidak dapat terhubung ke server BranchSync. Periksa koneksi internet, atau hubungi tim TI bila masalah berlanjut.', 'Cannot reach the BranchSync server. Check your internet connection, or contact your IT team if the problem persists.'); };
+  const startLive = (res: { token?: string; user?: api.SessionUser }) => {
     api.setSession(res?.token, res?.user);
     onClose();
     enterAdmin();
@@ -70,7 +64,7 @@ export function LoginDialog({ open, message, onClose }: { open: boolean; message
     setBusy('password');
     try {
       const res = await api.request<{ token?: string; user?: api.SessionUser }>('POST', '/auth/login', { username, password }, { auth: false, baseUrl: u });
-      startLive(u, res);
+      startLive(res);
     } catch (err) {
       if ((err as api.ApiError).status === 401) { setErrs({ password: text('Nama pengguna atau kata sandi salah.', 'Incorrect username or password.') }); pwRef.current?.select(); pwRef.current?.focus(); }
       else setFormError(networkMsg(err));
@@ -99,7 +93,7 @@ export function LoginDialog({ open, message, onClose }: { open: boolean; message
     setBusy('verify');
     try {
       const res = await api.request<{ token?: string; user?: api.SessionUser }>('POST', '/auth/otp/verify', { email: otpAddress, code }, { auth: false, baseUrl: u });
-      startLive(u, res);
+      startLive(res);
     } catch (err) {
       if ((err as api.ApiError).status === 401) { setErrs({ code: (err as Error).message || text('Kode tidak sesuai.', 'Incorrect code.') }); codeRef.current?.select(); codeRef.current?.focus(); }
       else setFormError(networkMsg(err));
@@ -109,12 +103,9 @@ export function LoginDialog({ open, message, onClose }: { open: boolean; message
     clear();
     if (location.protocol === 'file:') { setFormError(text('Login Google hanya bisa dipakai bila BranchSync dibuka lewat alamat web (http/https), bukan dari file lokal. Gunakan kata sandi atau kode OTP.', 'Google sign-in only works when BranchSync is opened from a web address (http/https), not a local file. Use a password or OTP code.')); return; }
     const u = target(); if (!u) return;
-    api.setBaseUrl(u);
     location.assign(`${u}/auth/google/start?redirect_uri=${encodeURIComponent(location.href.split('#')[0])}`);
   };
-  const base = api.getBaseUrl();
   const errAttrs = (k: string, id: string) => ({ 'aria-invalid': errs[k] ? true : undefined, 'aria-describedby': id });
-  useEffect(() => { if (!showUrl) setErrs(e => { const { url: _u, ...rest } = e; void _u; return rest; }); }, [showUrl]);
 
   return (
     <dialog ref={ref} id="loginDialog" className="login-dialog" aria-labelledby="loginTitle" aria-describedby="loginIntro"
@@ -129,18 +120,6 @@ export function LoginDialog({ open, message, onClose }: { open: boolean; message
       <div className="login-content">
         <h2 id="loginTitle">{T('loginTitle')}</h2>
         <p id="loginIntro" className="login-intro">{T('loginIntro')}</p>
-        <div className="login-server" id="loginServer" data-state={base ? 'set' : 'none'}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2" /><rect x="3" y="13" width="18" height="7" rx="2" /><path d="M7 7.5h.01M7 16.5h.01" /></svg>
-          <span id="loginServerText">{base ? <>{text('Server', 'Server')}: <strong>{hostOf(base)}</strong></> : text('Server BranchSync belum diatur. Isi URL dari tim TI Anda.', 'BranchSync server not set. Enter the URL from your IT team.')}</span>
-          {!showUrl && <button type="button" className="link-btn" id="loginServerEdit" aria-controls="loginServerField" aria-expanded={showUrl} onClick={() => { setShowUrl(true); requestAnimationFrame(() => urlRef.current?.focus()); }}>{T('loginServerEdit')}</button>}
-        </div>
-        {showUrl && (
-          <div className="field" id="loginServerField">
-            <label htmlFor="loginServerUrl">{T('loginServerLabel')}</label>
-            <input ref={urlRef} id="loginServerUrl" type="url" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="https://api.branchsync.co.id/v1" value={url} onChange={e => setUrl(e.target.value)} {...errAttrs('url', 'loginServerError')} />
-            <small className="field-error" id="loginServerError">{errs.url}</small>
-          </div>
-        )}
         <p className="login-error" id="loginError" role="alert">{formError}</p>
 
         {panel === 'password' && <>

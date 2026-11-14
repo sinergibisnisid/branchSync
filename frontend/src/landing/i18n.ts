@@ -48,7 +48,6 @@ export const LANDING_I18N: Record<string, [string, string]> = {
   adminWorkspace: ['Admin Workspace', 'Admin Workspace'], close: ['Tutup', 'Close'],
   loginTitle: ['Selamat datang kembali', 'Welcome back'],
   loginIntro: ['Masuk untuk mengelola jaringan kantor Anda.', 'Sign in to manage your office network.'],
-  loginServerEdit: ['Ubah', 'Change'], loginServerLabel: ['URL server BranchSync', 'BranchSync server URL'],
   otpResend: ['Kirim ulang kode', 'Resend code'],
   loginUsername: ['Nama pengguna', 'Username'], loginPassword: ['Kata sandi', 'Password'], loginSubmit: ['Masuk', 'Sign in'],
   loginOr: ['atau', 'or'], loginGoogle: ['Masuk dengan Google', 'Sign in with Google'], loginOtp: ['Masuk dengan kode OTP email', 'Sign in with an email OTP code'],

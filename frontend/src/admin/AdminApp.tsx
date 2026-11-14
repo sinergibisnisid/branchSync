@@ -264,7 +264,7 @@ function LiveState() {
       <p className="bs-muted">Server: {api.getBaseUrl() || 'belum diatur'}</p>
       <div className="bs-btn-row">
         <Btn label="Coba lagi" icon="refresh" variant="primary" onClick={() => { void loadLive(); }} />
-        <Btn label="Ubah server / masuk ulang" icon="plug" onClick={logout} />
+        <Btn label="Masuk lagi" icon="plug" onClick={logout} />
       </div>
     </div>
   );

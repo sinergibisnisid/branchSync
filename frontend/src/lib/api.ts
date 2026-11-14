@@ -1,6 +1,7 @@
 /*
  * Klien REST API BranchSync (backend Go + PostgreSQL). Kontrak endpoint: ../../API.md.
- * - URL server: terakhir dipakai di browser ini → apiBaseUrl dari /config.js (deploy) → isian dialog Masuk.
+ * - URL server: diubah di Pengaturan › Koneksi server (tersimpan di browser ini) → apiBaseUrl dari /config.js.
+ *   Dialog Masuk tidak menampilkan kolom URL server.
  * - Token sesi disimpan di sessionStorage (hilang saat tab ditutup). Kata sandi tidak pernah disimpan.
  */
 

@@ -21,12 +21,12 @@ go run ./cmd/branchsync serve                         # migrasi skema berjalan o
 ```
 
 Jalankan frontend (lihat [`../frontend/README.md`](../frontend/README.md)): `cd ../frontend && npm install && npm run dev`,
-lalu buka `http://localhost:5173` → **Masuk** → isi URL server (mis. `http://localhost:8080/v1` bila
-`BS_PUBLIC_URL=http://localhost:8080/v1`) dan akun administrator. Tambahkan `http://localhost:5173` ke
-`BS_ALLOWED_ORIGINS`.
+lalu buka `http://localhost:5173` → **Masuk** dengan akun administrator. Frontend memakai URL server dari
+`frontend/public/config.js` (default `http://localhost:8080/v1`, sesuai `BS_ADDR`/`BS_PUBLIC_URL` default); ubah
+file itu bila server berjalan di alamat lain. Tambahkan `http://localhost:5173` ke `BS_ALLOWED_ORIGINS`.
 
-Saat deploy dengan [`../deploy`](../deploy/README.md), URL server diisi otomatis lewat `/config.js`, jadi pengguna
-tidak perlu mengetiknya di dialog Masuk.
+Saat deploy dengan [`../deploy`](../deploy/README.md), URL server diisi otomatis lewat `/config.js`. Dialog Masuk
+tidak menampilkan kolom URL server.
 
 Perintah lain: `branchsync migrate` (migrasi saja), `branchsync version`.
 

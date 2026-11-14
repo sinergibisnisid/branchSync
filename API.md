@@ -4,9 +4,9 @@ Dokumen ini menjelaskan endpoint yang dipanggil frontend React (`frontend/`). Se
 server ini (Go + PostgreSQL); frontend tidak menyimpan data workspace di browser.
 
 - Dialog **Masuk** di halaman depan login ke server (kata sandi, OTP email, atau Google) lalu membuka workspace.
-- Base URL diambil dari (urutan prioritas): URL terakhir yang dipakai di browser ini, lalu `apiBaseUrl` di
-  **`/config.js`** (dibuat saat deploy; lihat `deploy/`), lalu isian *URL server* di dialog Masuk. Bisa juga diubah di
-  **Pengaturan › Koneksi server** (contoh `https://api.branchsync.co.id/v1`).
+- Base URL diambil dari (urutan prioritas): URL yang disimpan lewat **Pengaturan › Koneksi server** di browser ini,
+  lalu `apiBaseUrl` di **`/config.js`** (dibuat saat deploy; lihat `deploy/`), contoh `https://api.branchsync.co.id/v1`.
+  Dialog Masuk tidak menampilkan kolom URL server.
   Semua path di bawah relatif terhadap base URL.
 - Semua body request dan response memakai JSON (`Content-Type: application/json`).
 - Waktu boleh dikirim sebagai **epoch milidetik** atau **string ISO 8601**.

@@ -17,8 +17,10 @@ npm run build      # typecheck + build produksi ke dist/
 npm run preview    # sajikan dist/ di http://localhost:4173
 ```
 
-URL server API diisi di dialog Masuk, atau lewat `public/config.js` (`apiBaseUrl`). Saat deploy dengan
-[`../deploy`](../deploy/README.md), `/config.js` dibuat otomatis dari `.env`.
+URL server API diambil dari `public/config.js` (`apiBaseUrl`, default `http://localhost:8080/v1` untuk
+pengembangan). Dialog Masuk tidak menampilkan kolom URL server. Administrator masih bisa menggantinya per browser
+di **Pengaturan › Koneksi server**. Saat deploy dengan [`../deploy`](../deploy/README.md), `/config.js` dibuat
+otomatis dari `.env`.
 
 ## Struktur
 
