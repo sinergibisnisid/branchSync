@@ -1,11 +1,36 @@
 // Akar aplikasi: halaman depan + dialog Masuk, atau workspace admin setelah masuk.
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import * as api from './lib/api';
-import { AdminApp } from './admin/AdminApp';
 import { enterAdmin, registerLoginOpener } from './admin/workspace';
 import { Landing } from './landing/Landing';
 import { LoginDialog } from './landing/LoginDialog';
 import { getApp, useApp } from './store';
+
+/*
+ * Workspace admin dimuat terpisah (code splitting): halaman depan tidak perlu mengunduh kode admin.
+ * Unduhan dimulai lebih awal saat dialog Masuk dibuka. Bila file lama sudah tidak ada di server
+ * (ada deploy baru sejak halaman dibuka), halaman dimuat ulang sekali untuk mengambil versi baru.
+ */
+const RELOAD_KEY = 'bs_chunk_reload';
+let adminChunk: Promise<typeof import('./admin/AdminApp')> | null = null;
+function loadAdmin() {
+  adminChunk ??= import('./admin/AdminApp')
+    .then(m => { try { sessionStorage.removeItem(RELOAD_KEY); } catch { /* abaikan */ } return m; })
+    .catch((e: unknown) => {
+      adminChunk = null;
+      let reloaded = false;
+      try { reloaded = sessionStorage.getItem(RELOAD_KEY) === '1'; if (!reloaded) sessionStorage.setItem(RELOAD_KEY, '1'); } catch { reloaded = true; }
+      if (!reloaded) { location.reload(); return new Promise<never>(() => {}); }
+      throw e;
+    });
+  return adminChunk;
+}
+const AdminApp = lazy(() => loadAdmin().then(m => ({ default: m.AdminApp })));
+
+function AdminLoading() {
+  const en = useApp(s => s.lang) === 'en';
+  return <div className="bs-live-loading" aria-busy="true"><p className="bs-live-loading-msg" role="status"><span className="bs-spinner sm" aria-hidden="true" />{en ? 'Loading workspace…' : 'Memuat workspace…'}</p></div>;
+}
 
 /*
  * Kembali dari server setelah OAuth Google:
@@ -35,6 +60,7 @@ export function App() {
   const screen = useApp(s => s.screen);
   const [login, setLogin] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const openLogin = (message = '') => {
+    void loadAdmin().catch(() => {});
     // Sesi yang masih tersimpan di tab ini → langsung masuk (server memeriksa ulang sesinya).
     if (!message && api.hasSession() && api.getBaseUrl()) { enterAdmin(); return; }
     setLogin({ open: true, message });
@@ -47,7 +73,7 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return <>
-    {screen === 'admin' ? <AdminApp /> : <Landing onLogin={() => openLogin()} />}
+    {screen === 'admin' ? <Suspense fallback={<AdminLoading />}><AdminApp /></Suspense> : <Landing onLogin={() => openLogin()} />}
     <LoginDialog open={login.open && screen !== 'admin'} message={login.message} onClose={() => setLogin({ open: false, message: '' })} />
   </>;
 }
