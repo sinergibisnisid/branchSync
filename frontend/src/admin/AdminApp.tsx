@@ -46,7 +46,8 @@ function Shell() {
   const prefs = useApp(s => s.prefs);
   const navOpen = useApp(s => s.ui.navOpen);
   const mobile = useMedia('(max-width: 900px)');
-  const theme = prefs.theme || (document.body.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  // Default terang; gelap hanya bila dipilih di admin atau di halaman depan (tidak mengikuti tema OS).
+  const theme = prefs.theme || (document.body.classList.contains('dark') ? 'dark' : 'light');
   useDomTranslation(root, lang === 'en');
 
   useEffect(() => { document.body.classList.add('admin-active'); return () => document.body.classList.remove('admin-active'); }, []);
