@@ -21,7 +21,6 @@ type Config struct {
 	PublicURL   string        // URL publik server termasuk prefiks path, mis. https://api.branchsync.co.id/v1
 	BasePath    string        // prefiks path dari PublicURL ("/v1"), dibuang sebelum routing
 	Origins     []string      // origin frontend yang diizinkan CORS; "*" = semua (hanya untuk pengembangan)
-	AllowFile   bool          // izinkan redirect_uri file:// (frontend dibuka langsung dari file)
 	SecretKey   []byte        // 32 byte — mengenkripsi client secret, API key, dan refresh token Google
 	SessionTTL  time.Duration // masa berlaku sesi
 	Dev         bool          // mode pengembangan: kode OTP & email dicetak ke log
@@ -64,7 +63,6 @@ func Load() (*Config, error) {
 		Addr:               env("BS_ADDR", ":8080"),
 		DatabaseURL:        os.Getenv("BS_DATABASE_URL"),
 		PublicURL:          strings.TrimRight(env("BS_PUBLIC_URL", "http://localhost:8080"), "/"),
-		AllowFile:          envBool("BS_ALLOW_FILE_REDIRECT", false),
 		SessionTTL:         envDuration("BS_SESSION_TTL", 12*time.Hour),
 		Dev:                envBool("BS_DEV", false),
 		SMTPHost:           os.Getenv("BS_SMTP_HOST"),
@@ -125,9 +123,8 @@ func (c *Config) RedirectAllowed(raw string) bool {
 	if err != nil || u.Fragment != "" {
 		return false
 	}
-	if u.Scheme == "file" {
-		return c.AllowFile
-	}
+	// file:// tidak didukung: browser memblokir redirect dari server http(s) ke halaman file lokal,
+	// jadi login Google / hubungkan GBP butuh frontend yang dilayani lewat http(s).
 	if u.Scheme != "http" && u.Scheme != "https" || u.Host == "" {
 		return false
 	}

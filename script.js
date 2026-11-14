@@ -407,7 +407,8 @@ function enterAdmin() { window.BranchAdmin.enter(); }
 // Kembali dari OAuth Google lewat server (mode Live):
 //   #bs_token=…  → login Google berhasil   ·   #bs_error=… → login gagal
 //   #bs_gbp=connected | #bs_gbp=<pesan>    → hasil menghubungkan akun Google Business Profile
-(function handleOAuthReturn() {
+// Dijalankan setelah semua skrip (termasuk admin/*.js) dimuat, karena memanggil window.BranchAdmin.
+function handleOAuthReturn() {
   const h = new URLSearchParams(location.hash.slice(1));
   const token = h.get('bs_token'), err = h.get('bs_error'), gbp = h.get('bs_gbp');
   if (!token && !err && !gbp) return;
@@ -424,4 +425,5 @@ function enterAdmin() { window.BranchAdmin.enter(); }
   window.BranchMode.request('GET', '/me')
     .then(user => { window.BranchMode.setSession(token, user); enterAdmin(); })
     .catch(e => { window.BranchMode.clearSession(); window.BranchMode.setMode('demo'); openLogin(null, e.message); });
-})();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', handleOAuthReturn); else handleOAuthReturn();

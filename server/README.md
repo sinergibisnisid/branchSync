@@ -20,7 +20,9 @@ go run ./cmd/branchsync create-admin -email admin@bri.co.id -name "Admin BranchS
 go run ./cmd/branchsync serve                         # migrasi skema berjalan otomatis
 ```
 
-Lalu buka `index.html` → masuk → menu mode di header → **Live** → isi URL server
+Layani frontend lewat HTTP (wajib untuk login Google & menghubungkan GBP), mis.
+`cd .. && python3 -m http.server 5500`, lalu buka `http://localhost:5500/index.html` → masuk → menu mode
+di header → **Live** → isi URL server
 (mis. `http://localhost:8080/v1` bila `BS_PUBLIC_URL=http://localhost:8080/v1`) dan akun administrator.
 
 Perintah lain: `branchsync migrate` (migrasi saja), `branchsync version`.
@@ -32,8 +34,7 @@ Perintah lain: `branchsync migrate` (migrasi saja), `branchsync version`.
 | `BS_DATABASE_URL` | ya | `postgres://user:pass@host:5432/branchsync?sslmode=require` |
 | `BS_SECRET_KEY` | ya | 32 byte base64 (`openssl rand -base64 32`). Mengenkripsi client secret, API key, dan refresh token Google. **Jangan diganti** setelah dipakai (data terenkripsi tidak bisa dibuka lagi). |
 | `BS_PUBLIC_URL` | ya | URL publik server **termasuk prefiks path**, mis. `https://api.branchsync.co.id/v1`. Prefiks (`/v1`) dibuang sebelum routing; dipakai untuk redirect URI OAuth. |
-| `BS_ALLOWED_ORIGINS` | ya | Origin frontend yang diizinkan CORS, dipisah koma, mis. `https://branchsync.bri.co.id`. Frontend yang dibuka dari file lokal mengirim origin `null`. |
-| `BS_ALLOW_FILE_REDIRECT` | | `true` bila frontend dibuka dari `file://` dan memakai login Google / hubungkan GBP. |
+| `BS_ALLOWED_ORIGINS` | ya | Origin frontend yang diizinkan (CORS dan tujuan kembali OAuth), dipisah koma, mis. `https://branchsync.bri.co.id`. Frontend yang dibuka dari file lokal mengirim origin `null`. Login dengan kata sandi bisa dari file lokal, tetapi **login Google dan "Hubungkan akun Google" butuh frontend yang dilayani lewat http(s)**, karena browser memblokir redirect dari server ke `file://`. |
 | `BS_ADDR` | | Alamat listen, default `:8080`. |
 | `BS_SESSION_TTL` | | Masa berlaku sesi, default `12h`. |
 | `BS_SMTP_HOST`, `BS_SMTP_PORT`, `BS_SMTP_USER`, `BS_SMTP_PASS`, `BS_SMTP_FROM` | | Untuk kode OTP dan laporan terjadwal. Tanpa `BS_SMTP_HOST`, email hanya dicatat di log. Port 465 = TLS langsung, lainnya STARTTLS. |

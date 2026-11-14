@@ -75,7 +75,7 @@ func setup(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	g := newFakeGoogle()
-	cfg := &config.Config{PublicURL: "http://api.test/v1", BasePath: "/v1", Origins: []string{"http://app.test", "null"}, AllowFile: true,
+	cfg := &config.Config{PublicURL: "http://api.test/v1", BasePath: "/v1", Origins: []string{"http://app.test", "null"},
 		SecretKey: bytes.Repeat([]byte{7}, 32), SessionTTL: time.Hour, PubSubToken: "pubsub-secret", Google: g.endpoints()}
 	m := &capMail{}
 	s, err := New(cfg, pool, m, slog.New(slog.NewTextHandler(io.Discard, nil)))

@@ -12,6 +12,9 @@ Pada **Mode Demo**, tidak ada panggilan jaringan; semua data disimulasikan di br
 - Frontend dimuat dari origin lain (atau `file://`), jadi server **wajib mengaktifkan CORS**:
   izinkan origin aplikasi, method `GET, POST, PATCH, PUT, DELETE, OPTIONS`, dan header
   `Authorization, Content-Type`. Frontend tidak mengirim cookie (`credentials: omit`).
+- Login dengan kata sandi berfungsi meski frontend dibuka dari `file://` (origin `null`). Login Google dan
+  *Hubungkan akun Google* membutuhkan frontend yang dilayani lewat `http(s)`, karena browser memblokir
+  redirect dari server ke halaman `file://`.
 
 ## Autentikasi
 
