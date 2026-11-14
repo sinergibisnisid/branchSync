@@ -22,7 +22,10 @@
    * ------------------------------------------------------------------ */
   const MIN = 6e4, HOUR = 36e5, DAY = 864e5;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const fmtNum = n => new Intl.NumberFormat('id-ID').format(n);
+  // Bahasa dibagi dengan halaman utama (variabel global `language` di script.js).
+  const isEn = () => typeof language !== 'undefined' && language === 'en';
+  const LOC = () => (isEn() ? 'en-GB' : 'id-ID');
+  const fmtNum = n => new Intl.NumberFormat(LOC()).format(n);
   const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
   const sum = xs => xs.reduce((a, b) => a + b, 0);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -45,23 +48,25 @@
   function offset(lat, lng, meters, angle) {
     return { lat: lat + (meters * Math.cos(angle)) / 111320, lng: lng + (meters * Math.sin(angle)) / (111320 * Math.cos((lat * Math.PI) / 180)) };
   }
-  const fmtDist = m => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`);
+  const fmtDist = m => (m < 1000 ? `${Math.round(m)} m` : `${new Intl.NumberFormat(LOC(), { maximumFractionDigits: 1 }).format(m / 1000)} km`);
   function fmtDur(ms) {
     if (ms == null || !isFinite(ms)) return '—';
     const m = Math.max(0, Math.round(ms / MIN));
-    if (m < 60) return `${m} mnt`;
+    const en = isEn();
+    if (m < 60) return en ? `${m} min` : `${m} mnt`;
     const h = Math.floor(m / 60), mm = m % 60;
-    if (h < 48) return mm ? `${h} j ${mm} m` : `${h} jam`;
+    if (h < 48) return mm ? (en ? `${h}h ${mm}m` : `${h} j ${mm} m`) : (en ? `${h} h` : `${h} jam`);
     const d = Math.floor(h / 24), hh = h % 24;
-    return hh ? `${d} hr ${hh} j` : `${d} hari`;
+    return hh ? (en ? `${d}d ${hh}h` : `${d} hr ${hh} j`) : (en ? `${d} day${d === 1 ? '' : 's'}` : `${d} hari`);
   }
-  const fmtDate = (t, opts = { dateStyle: 'medium', timeStyle: 'short' }) => new Intl.DateTimeFormat('id-ID', { timeZone: state.settings.timezone, ...opts }).format(new Date(t));
+  const fmtDate = (t, opts = { dateStyle: 'medium', timeStyle: 'short' }) => new Intl.DateTimeFormat(LOC(), { timeZone: state.settings.timezone, ...opts }).format(new Date(t));
   function fmtRel(t) {
     const d = Date.now() - t;
-    if (d < MIN) return 'baru saja';
-    if (d < HOUR) return `${Math.floor(d / MIN)} mnt lalu`;
-    if (d < DAY) return `${Math.floor(d / HOUR)} jam lalu`;
-    if (d < 7 * DAY) return `${Math.floor(d / DAY)} hari lalu`;
+    const en = isEn();
+    if (d < MIN) return en ? 'just now' : 'baru saja';
+    if (d < HOUR) return en ? `${Math.floor(d / MIN)} min ago` : `${Math.floor(d / MIN)} mnt lalu`;
+    if (d < DAY) return en ? `${Math.floor(d / HOUR)} h ago` : `${Math.floor(d / HOUR)} jam lalu`;
+    if (d < 7 * DAY) { const n = Math.floor(d / DAY); return en ? `${n} day${n === 1 ? '' : 's'} ago` : `${n} hari lalu`; }
     return fmtDate(t, { dateStyle: 'medium' });
   }
   const normName = s => String(s || '').toLowerCase()
@@ -143,6 +148,10 @@
     merge: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="12" r="3"/><path d="M6 9v6M9 6c5 0 6 6 6 6"/>',
     arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+    chart: '<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6" rx=".5"/><rect x="12" y="7" width="3" height="10" rx=".5"/><rect x="17" y="13" width="3" height="4" rx=".5"/>',
+    printer: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+    calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
     star: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
     chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
     send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
@@ -239,7 +248,19 @@
     if (!Array.isArray(s0.accounts)) s0.accounts = ACCOUNT_LIST.map(a => ({ ...a }));
     if (!Array.isArray(s0.reviews)) s0.reviews = buildReviews(s0.locations || []);
     s0.api = { clientId: '', hasClientSecret: false, hasApiKey: false, scopes: ['business.manage'], syncInterval: '60', pubsubTopic: '', ...(s0.api || {}) };
-    s0.seq = { review: s0.reviews.length, ...(s0.seq || {}) };
+    s0.seq = { review: s0.reviews.length, schedule: 1, ...(s0.seq || {}) };
+    if (!Array.isArray(s0.reportSchedules)) s0.reportSchedules = [{ id: 'RS-001', name: 'Laporan mingguan jaringan', frequency: 'weekly', day: '1', recipients: ['kepala.divisi@example.test'], format: 'PDF', period: '7', createdAt: Date.now() - 20 * DAY }];
+    if (!s0.histBackfilled && Array.isArray(s0.runs)) {
+      // Lengkapi riwayat sinkronisasi harian hingga 90 hari agar analitik tren terisi.
+      const r = rng(4242), oldest = s0.runs.reduce((m, x) => Math.min(m, x.time), Date.now());
+      const inactive = (s0.locations || []).filter(l => l.status === 'Tidak Aktif').length, total = (s0.locations || []).length;
+      for (let d = Math.ceil((Date.now() - oldest) / DAY) + 1; d <= 90; d++) {
+        const fail = Math.floor(r() * 5);
+        s0.runs.push({ id: `JOB-H${String(d).padStart(3, '0')}`, time: Date.now() - d * DAY - 9 * HOUR, scope: 'Semua unit', by: 'Penjadwal otomatis', total, ok: Math.max(0, total - fail - inactive), fail, skip: inactive, durationMs: 38000 + Math.floor(r() * 50000), items: [] });
+      }
+      s0.runs.sort((a, b) => b.time - a.time);
+      s0.histBackfilled = true;
+    }
     return s0;
   }
 
@@ -247,6 +268,7 @@
     { group: 'Monitoring', items: [
       { id: 'dashboard', label: 'Dashboard', icon: 'grid', desc: 'Ringkasan kondisi jaringan dan pekerjaan yang perlu ditindaklanjuti.' },
       { id: 'map', label: 'Peta Unit Kerja', icon: 'map', desc: 'Sebaran unit kerja beserta selisih titik dengan Google Maps.' },
+      { id: 'reports', label: 'Laporan & Analitik', icon: 'chart', desc: 'Analitik kinerja jaringan, sinkronisasi, ulasan, dan SLA per periode — siap dicetak atau diekspor.' },
       { id: 'sla', label: 'SLA & Kinerja', icon: 'gauge', desc: 'Waktu proses internal dipisahkan dari waktu verifikasi Google.' }
     ] },
     { group: 'Data Unit Kerja', items: [
@@ -421,7 +443,8 @@
     sync: { tab: 'failures' }, audit: { q: '', module: '', actor: '', range: '30' }, access: { tab: 'users', q: '' },
     drawer: null,
     live: { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 },
-    reviews: { account: '', location: '', rating: '', status: '', sort: 'newest', q: '', limit: 20, editing: null, drafts: {} }
+    reviews: { account: '', location: '', rating: '', status: '', sort: 'newest', q: '', limit: 20, editing: null, drafts: {} },
+    report: { period: '30', region: '', account: '', type: '' }
   };
 
   /* ------------------------------------------------------------------ *
@@ -539,7 +562,7 @@
   function blankState() {
     return { v: 2, locations: [], approvals: [], claims: [], runs: [], audit: [], users: [], roles: [],
       api: { connected: false, account: '', project: '', quotaLimit: 0, quotaUsed: 0, lastTest: null, webhook: false, clientId: '', hasClientSecret: false, hasApiKey: false, scopes: ['business.manage'], syncInterval: '60', pubsubTopic: '' },
-      accounts: [], reviews: [],
+      accounts: [], reviews: [], reportSchedules: [],
       settings: { workspace: 'BranchSync', timezone: 'Asia/Jakarta', slaInternal: 24, slaGoogle: 120, dupRadius: 150, coordTol: 50 },
       discNotes: {}, dupIgnored: [], seq: { loc: 0, claim: 0, cr: 0, job: 0, audit: 0, user: 0 } };
   }
@@ -558,6 +581,7 @@
     s2.roles = (d.roles || []).map(r => ({ name: r.name, permissions: r.permissions || [] }));
     s2.discNotes = d.discNotes || {};
     s2.dupIgnored = d.dupIgnored || [];
+    s2.reportSchedules = (d.reportSchedules || []).map(x => ({ ...x, createdAt: toMs(x.createdAt) }));
     s2.accounts = (d.accounts || []).map(a => ({ ...a }));
     s2.reviews = (d.reviews || []).map(rv => ({ ...rv, rating: Number(rv.rating) || 0, time: toMs(rv.time), reply: rv.reply && rv.reply.text ? { ...rv.reply, time: toMs(rv.reply.time) } : null }));
     // ID sementara untuk pembaruan optimistis; diganti data server saat dimuat ulang.
@@ -677,7 +701,7 @@
     const fail = items.filter(i => i.status === 'Gagal').length, skip = items.length - fail;
     const run = { id: `JOB-${String(++state.seq.job).padStart(4, '0')}`, time: Date.now(), scope: label, by: ME.name, total: targets.length, ok, fail, skip, durationMs: Math.round(performance.now() - started), items };
     state.runs.unshift(run);
-    if (state.runs.length > 400) state.runs.length = 400;
+    if (state.runs.length > 600) state.runs.length = 600;
     // Kegagalan lama yang sekarang berhasil → otomatis ditandai selesai
     const okCodes = new Set(targets.filter(l => !items.some(i => i.code === l.code)).map(l => l.code));
     state.runs.slice(1).forEach(r => r.items.forEach(i => { if (i.status === 'Gagal' && !i.resolved && okCodes.has(i.code)) { i.resolved = true; i.note = `Berhasil pada ${run.id}`; } }));
@@ -724,6 +748,7 @@
             <button type="button" class="bs-icon-btn" id="bsNotifBtn" data-action="notif" aria-haspopup="true" aria-expanded="false" aria-controls="bsNotif" aria-label="Notifikasi">${ic('bell')}<span class="bs-count-dot" id="bsNotifCount"></span></button>
             <div class="bs-popover bs-notif" id="bsNotif" hidden></div>
           </div>
+          <div class="bs-lang" role="group" aria-label="Bahasa" id="bsLang"><button type="button" data-action="lang" data-id="id" lang="id">ID</button><button type="button" data-action="lang" data-id="en" lang="en">EN</button></div>
           <button type="button" class="bs-icon-btn" id="bsThemeBtn" data-action="theme" aria-label="Ganti tema">${ic('moon')}</button>
           <button type="button" class="bs-icon-btn bs-hide-sm" data-action="shortcuts" aria-label="Pintasan keyboard" title="Pintasan keyboard (?)">${ic('keyboard')}</button>
         </div>
@@ -781,8 +806,8 @@
     const step = Math.pow(10, Math.floor(Math.log10(max)));
     const top = Math.ceil(max / step) * step;
     const ticks = [top, top / 2, 0];
-    const dayLabel = t => new Intl.DateTimeFormat('id-ID', { weekday: 'short' }).format(new Date(t));
-    const fullLabel = t => new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(t));
+    const dayLabel = t => new Intl.DateTimeFormat(LOC(), { weekday: 'short' }).format(new Date(t));
+    const fullLabel = t => new Intl.DateTimeFormat(LOC(), { weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(t));
     const cols = daily.map(d => {
       const tot = d.ok + d.fail;
       return `<div class="bs-col" tabindex="0" aria-label="${fullLabel(d.start)}: ${d.ok} berhasil, ${d.fail} gagal">
@@ -1191,6 +1216,184 @@
       `<div class="bs-grid bs-grid-main">${statusCard}${quotaCard}</div>` +
       card('Kredensial & konfigurasi Google API', form, { sub: 'Diperlukan agar BranchSync dapat mengelola lokasi dan membalas ulasan atas nama BRI.' }) +
       card(`Akun Google Business Profile (${fmtNum(accounts.length)})`, accounts.length ? table(['Akun', 'Account ID', 'Lokasi', 'Ulasan', '<span class="bs-sr">Aksi</span>'], acctRows) : emptyState('Belum ada akun', 'Hubungkan akun Google untuk menampilkan akun dan lokasinya.', '', 'info'), { flush: !!accounts.length });
+  }
+
+  /* ------------------------------------------------------------------ *
+   * View: Laporan & Analitik
+   * ------------------------------------------------------------------ */
+  const PERIODS = [['7', '7 hari terakhir'], ['30', '30 hari terakhir'], ['90', '90 hari terakhir']];
+  const FREQ = { weekly: 'Mingguan', monthly: 'Bulanan' };
+  const WEEKDAYS = [['1', 'Senin'], ['2', 'Selasa'], ['3', 'Rabu'], ['4', 'Kamis'], ['5', 'Jumat']];
+  function reportScope() {
+    const f = ui.report;
+    const locs = state.locations.filter(l => (!f.region || l.region === f.region) && (!f.account || acctOf(l) === f.account) && (!f.type || l.type === f.type));
+    return { locs, codes: new Set(locs.map(l => l.code)), filtered: !!(f.region || f.account || f.type) };
+  }
+  function reportBuckets(period) {
+    const days = Number(period) || 30, size = days > 30 ? 7 : 1, n = Math.ceil(days / size);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const end = today.getTime() + DAY, list = [];
+    for (let i = n - 1; i >= 0; i--) { const to = end - i * size * DAY; list.push({ from: to - size * DAY, to }); }
+    return { list, size, from: list[0].from, to: end };
+  }
+  function reportMetrics(from, to, sc) {
+    const inR = t => t != null && t >= from && t < to;
+    const runs = state.runs.filter(r => inR(r.time)), active = sc.locs.filter(l => l.status !== 'Tidak Aktif').length;
+    let ok = 0, fail = 0;
+    runs.forEach(r => {
+      if (!sc.filtered) { ok += r.ok; fail += r.fail; return; }
+      const f2 = r.items.filter(i => i.status === 'Gagal' && sc.codes.has(i.code)).length;
+      fail += f2; ok += Math.max(0, active - f2);
+    });
+    const rvs = state.reviews.filter(rv => inR(rv.time) && sc.codes.has(rv.code)), replied = rvs.filter(rv => rv.reply);
+    const resp = replied.map(rv => rv.reply.time - rv.time).filter(x => x >= 0);
+    const claims = state.claims.filter(c => inR(c.submittedAt) && c.status !== 'Ditolak' && (!sc.filtered || (c.code && sc.codes.has(c.code))));
+    const audit = state.audit.filter(a => inR(a.time));
+    const resolved = audit.filter(a => a.module === 'Ketidaksesuaian' && /^(Mengirim|Menerapkan)/.test(a.action) && (!sc.filtered || sc.codes.has(a.target))).length;
+    return {
+      runs, ok, fail, rate: ok + fail ? (ok / (ok + fail)) * 100 : null, rvs,
+      avgRating: rvs.length ? sum(rvs.map(r => r.rating)) / rvs.length : null,
+      replyRate: rvs.length ? (replied.length / rvs.length) * 100 : null,
+      avgResp: resp.length ? sum(resp) / resp.length : null,
+      claims, sla: claims.length ? (claims.filter(c => claimTimes(c).sla !== 'Lewat SLA').length / claims.length) * 100 : null,
+      resolved, audit
+    };
+  }
+  function kpiTile(label, cur, prev, { fmt, delta, better = 'up', icon = '' }) {
+    const d = cur != null && prev != null ? cur - prev : null;
+    const tone = d == null || Math.abs(d) < 1e-9 ? 'flat' : (d > 0) === (better === 'up') ? 'good' : 'bad';
+    const arrow = d == null ? '' : d > 0 ? '▲' : d < 0 ? '▼' : '■';
+    return `<article class="bs-metric bs-kpi"><div class="bs-metric-head"><span>${label}</span>${icon ? ic(icon) : ''}</div><div class="bs-metric-body"><div><strong>${cur == null ? '—' : fmt(cur)}</strong><small>${d == null ? 'Belum ada data pembanding' : `<span class="bs-delta" data-tone="${tone}">${arrow} ${delta(Math.abs(d))}</span> vs periode sebelumnya`}</small></div></div></article>`;
+  }
+  function columnChart(rows, { series, labelEvery = 1 }) {
+    const max = Math.max(1, ...rows.map(r => sum(series.map(sr => r.values[sr.key] || 0))));
+    const step = Math.pow(10, Math.floor(Math.log10(max))), top = Math.ceil(max / step) * step;
+    const cols = rows.map((r, i) => {
+      const tot = sum(series.map(sr => r.values[sr.key] || 0)), edge = i < 2 ? ' edge-l' : i > rows.length - 3 ? ' edge-r' : '';
+      return `<div class="bs-col${edge}" tabindex="0" aria-label="${esc(r.full)}: ${series.map(sr => `${sr.label} ${fmtNum(r.values[sr.key] || 0)}`).join(', ')}">
+        <div class="bs-col-stack" style="height:${(tot / top) * 100}%">${[...series].reverse().map(sr => (r.values[sr.key] ? `<span class="${sr.cls}" style="flex:${r.values[sr.key]}"></span>` : '')).join('')}</div>
+        <div class="bs-tip" role="tooltip"><strong>${esc(r.full)}</strong>${series.map(sr => `<span><i class="${sr.dot}"></i>${sr.label} <b>${fmtNum(r.values[sr.key] || 0)}</b></span>`).join('')}</div>
+        <small>${i % labelEvery === 0 ? esc(r.label) : ''}</small></div>`;
+    }).join('');
+    return (series.length > 1 ? `<div class="bs-legend">${series.map(sr => `<span><i class="${sr.dot}"></i>${sr.label}</span>`).join('')}</div>` : '') +
+      `<div class="bs-chart"><div class="bs-axis">${[top, top / 2, 0].map(t => `<span>${fmtNum(t)}</span>`).join('')}</div><div class="bs-plot bs-plot-dense">${cols}</div></div>` +
+      `<details class="bs-table-toggle"><summary>Lihat sebagai tabel</summary>${table(['Periode', ...series.map(sr => sr.label)], rows.map(r => `<tr><td>${esc(r.full)}</td>${series.map(sr => `<td>${fmtNum(r.values[sr.key] || 0)}</td>`).join('')}</tr>`))}</details>`;
+  }
+  function lineChart(rows, { min = 1, max = 5, fmt = v => v.toFixed(1), labelEvery = 1, label = 'Nilai' }) {
+    const n = rows.length, pts = rows.map((r, i) => (r.value == null ? null : [((i + 0.5) / n) * 100, 100 - ((r.value - min) / (max - min)) * 100]));
+    const segs = []; let cur = [];
+    pts.forEach(pt => { if (pt) cur.push(pt); else if (cur.length) { segs.push(cur); cur = []; } });
+    if (cur.length) segs.push(cur);
+    const ticks = []; for (let v = max; v >= min; v--) ticks.push(v);
+    return `<div class="bs-chart bs-line"><div class="bs-axis">${ticks.map(t => `<span>${t}</span>`).join('')}</div><div class="bs-plot bs-plot-dense">
+      <svg class="bs-line-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${segs.map(sg => `<polyline points="${sg.map(pt => pt.map(x => x.toFixed(2)).join(',')).join(' ')}"/>`).join('')}</svg>
+      ${rows.map((r, i) => `<div class="bs-col${i < 2 ? ' edge-l' : i > n - 3 ? ' edge-r' : ''}" tabindex="0" aria-label="${esc(r.full)}: ${r.value == null ? 'tidak ada data' : fmt(r.value)}">${r.value == null ? '' : `<i class="bs-pt" style="bottom:${((r.value - min) / (max - min)) * 100}%"></i>`}
+        <div class="bs-tip" role="tooltip"><strong>${esc(r.full)}</strong><span><i class="s1"></i>${label} <b>${r.value == null ? '—' : fmt(r.value)}</b></span>${r.note ? `<span>${esc(r.note)}</span>` : ''}</div><small>${i % labelEvery === 0 ? esc(r.label) : ''}</small></div>`).join('')}
+    </div></div><details class="bs-table-toggle"><summary>Lihat sebagai tabel</summary>${table(['Periode', label], rows.map(r => `<tr><td>${esc(r.full)}</td><td>${r.value == null ? '—' : fmt(r.value)}</td></tr>`))}</details>`;
+  }
+  const pctTxt = v => `${new Intl.NumberFormat(LOC(), { maximumFractionDigits: 1 }).format(v)}%`;
+  const ratingTxt = v => new Intl.NumberFormat(LOC(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v);
+  function composition(title, keys, counts) {
+    const total = sum(keys.map(k => counts[k] || 0));
+    return `<div class="bs-comp"><div class="bs-comp-head"><strong>${title}</strong><small>${fmtNum(total)} unit</small></div>
+      <div class="bs-comp-bar" role="img" aria-label="${esc(title)}: ${keys.map(k => `${k} ${counts[k] || 0}`).join(', ')}">${keys.map(k => (counts[k] ? `<span data-tone="${TONE[k] || 'neutral'}" style="flex:${counts[k]}" title="${esc(k)}: ${counts[k]}"></span>` : '')).join('')}</div>
+      <ul class="bs-comp-legend">${keys.map(k => `<li><i data-tone="${TONE[k] || 'neutral'}"></i><span>${esc(k)}</span><b>${fmtNum(counts[k] || 0)}</b><small>${pct(counts[k] || 0, total)}%</small></li>`).join('')}</ul></div>`;
+  }
+  function rankList(rows, emptyMsg, fixedMax) {
+    if (!rows.length) return `<p class="bs-muted">${emptyMsg}</p>`;
+    const max = fixedMax || Math.max(1, ...rows.map(r => r.n));
+    return `<ol class="bs-rank${fixedMax ? ' is-rating' : ''}">${rows.map(r => `<li><div class="bs-rank-top"><span class="bs-rank-label">${r.label}</span><b>${r.value ?? fmtNum(r.n)}</b></div>${bar(r.n, max, `${r.plain || ''}: ${r.n}`)}${r.sub ? `<small>${r.sub}</small>` : ''}</li>`).join('')}</ol>`;
+  }
+  function viewReports() {
+    const f = ui.report, sc = reportScope(), bk = reportBuckets(f.period), span = bk.to - bk.from;
+    const cur = reportMetrics(bk.from, bk.to, sc), prev = reportMetrics(bk.from - span, bk.from, sc);
+    const accounts = state.accounts || [];
+    const dLabel = t => new Intl.DateTimeFormat(LOC(), { day: 'numeric', month: 'short' }).format(new Date(t));
+    const fullLabel = b => (bk.size === 1 ? new Intl.DateTimeFormat(LOC(), { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(b.from)) : `${dLabel(b.from)} – ${dLabel(b.to - DAY)}`);
+    const labelEvery = bk.list.length > 14 ? 5 : 1;
+    // Tren sinkronisasi
+    const syncRows = bk.list.map(b => { const m = reportMetrics(b.from, b.to, sc); return { label: dLabel(b.from), full: fullLabel(b), values: { ok: m.ok, fail: m.fail } }; });
+    // Ulasan per minggu (selalu mingguan agar rata-rata stabil)
+    const wk = []; for (let t = bk.to; t > bk.from; t -= 7 * DAY) wk.unshift({ from: Math.max(bk.from, t - 7 * DAY), to: t });
+    const wkRows = wk.map(b => { const xs = state.reviews.filter(rv => rv.time >= b.from && rv.time < b.to && sc.codes.has(rv.code)); return { b, xs }; });
+    const wkFull = b => `${dLabel(b.from)} – ${dLabel(b.to - 1)}`;
+    const volRows = wkRows.map(({ b, xs }) => ({ label: dLabel(b.from), full: wkFull(b), values: { n: xs.length } }));
+    const ratRows = wkRows.map(({ b, xs }) => ({ label: dLabel(b.from), full: wkFull(b), value: xs.length ? sum(xs.map(x => x.rating)) / xs.length : null, note: `${xs.length} ulasan` }));
+    // Kinerja per region
+    const im = issueMap();
+    const regionRows = REGIONS.map(r => {
+      const ls = sc.locs.filter(l => l.region === r); if (!ls.length) return '';
+      const codes = new Set(ls.map(l => l.code)), rv = cur.rvs.filter(x => codes.has(x.code));
+      const on = pct(ls.filter(l => l.status === 'Online').length, ls.length), ver = pct(ls.filter(l => l.gbp === 'Terverifikasi').length, ls.length);
+      const iss = ls.filter(l => im.has(l.code)).length, avg = rv.length ? sum(rv.map(x => x.rating)) / rv.length : null, rep = rv.length ? pct(rv.filter(x => x.reply).length, rv.length) : null;
+      const cell = (v, warnBelow) => (v == null ? '<span class="bs-muted">—</span>' : `<span class="bs-cell-bar${v < warnBelow ? ' is-low' : ''}"><span style="width:${v}%"></span></span><b>${v}%</b>`);
+      return `<tr><th scope="row"><button type="button" class="bs-inline-link" data-action="report-region" data-id="${esc(r)}">${esc(r)}</button></th><td>${fmtNum(ls.length)}</td><td class="bs-td-bar">${cell(on, 80)}</td><td class="bs-td-bar">${cell(ver, 75)}</td><td>${iss ? `<span class="bs-issue sm">${ic('alert')}${iss}</span>` : '0'}</td><td>${avg == null ? '—' : `${stars(Math.round(avg))} ${ratingTxt(avg)}`}</td><td class="bs-td-bar">${cell(rep, 50)}</td></tr>`;
+    }).filter(Boolean);
+    // Komposisi
+    const cnt = key => sc.locs.reduce((m, l) => { m[l[key]] = (m[l[key]] || 0) + 1; return m; }, {});
+    // Daftar peringkat
+    const perLoc = new Map();
+    cur.rvs.forEach(rv => { const e = perLoc.get(rv.code) || { n: 0, s: 0, un: 0 }; e.n++; e.s += rv.rating; if (!rv.reply) e.un++; perLoc.set(rv.code, e); });
+    const lowest = [...perLoc.entries()].map(([code, e]) => ({ code, avg: e.s / e.n, ...e })).sort((a, b) => a.avg - b.avg || b.n - a.n).slice(0, 5)
+      .map(x => ({ label: `<button type="button" class="bs-inline-link" data-action="open-loc" data-id="${esc(x.code)}" data-tab="reviews">${esc(locName(x.code))}</button>`, plain: locName(x.code), n: x.avg, value: `${ratingTxt(x.avg)} ★`, sub: `${x.n} ulasan · ${x.un} belum dibalas` }));
+    const reasons = new Map();
+    cur.runs.forEach(r => r.items.forEach(i => { if (i.status === 'Gagal' && sc.codes.has(i.code)) reasons.set(i.reason, (reasons.get(i.reason) || 0) + 1); }));
+    const reasonRows = [...reasons.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, n]) => ({ label: esc(k), plain: k, n }));
+    const team = new Map();
+    cur.audit.filter(a => a.actor === 'Internal').forEach(a => team.set(a.user, (team.get(a.user) || 0) + 1));
+    const teamRows = [...team.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n]) => ({ label: esc(k), plain: k, n, value: `${fmtNum(n)} aksi` }));
+    const scopeTxt = [f.region, (accounts.find(a => a.id === f.account) || {}).name, f.type].filter(Boolean).join(' · ') || 'Seluruh jaringan';
+    const periodTxt = `${new Intl.DateTimeFormat(LOC(), { dateStyle: 'medium' }).format(new Date(bk.from))} – ${new Intl.DateTimeFormat(LOC(), { dateStyle: 'medium' }).format(new Date(bk.to - DAY))}`;
+    const sched = (state.reportSchedules || []).map(x => `<tr><td><strong>${esc(x.name)}</strong><small>${esc((PERIODS.find(p2 => p2[0] === x.period) || PERIODS[0])[1])} · ${esc(x.format)}</small></td><td>${esc(FREQ[x.frequency] || x.frequency)}${x.frequency === 'weekly' ? `<small>${esc((WEEKDAYS.find(w => w[0] === x.day) || WEEKDAYS[0])[1])}, 08.00</small>` : '<small>Tanggal 1, 08.00</small>'}</td><td class="bs-td-wrap">${x.recipients.map(esc).join(', ')}</td><td class="bs-td-actions">${btn('', 'report-unschedule', { id: x.id, icon: 'trash', variant: 'icon sm ghost', title: `Hapus jadwal ${x.name}` })}</td></tr>`);
+    return `<div class="bs-print-head"><strong>BranchSync — Laporan & Analitik</strong><span>Periode: ${esc(periodTxt)} · Cakupan: ${esc(scopeTxt)} · Dicetak: ${fmtDate(Date.now())}</span></div>` +
+      head('Laporan & Analitik', navItem('reports').desc, btn('Jadwalkan', 'report-schedule', { icon: 'calendar' }) + btn('Ekspor CSV', 'report-export', { icon: 'download' }) + btn('Cetak / PDF', 'report-print', { icon: 'printer', variant: 'primary' })) +
+      `<section class="bs-card bs-report-filters"><div class="bs-card-body flush"><div class="bs-toolbar">
+        ${selectF('report.period', 'Periode', PERIODS, f.period, '')}
+        ${selectF('report.region', 'Region', REGIONS, f.region, 'Semua region')}
+        ${selectF('report.account', 'Akun Google Business Profile', accounts.map(a => [a.id, a.name]), f.account, 'Semua akun')}
+        ${selectF('report.type', 'Tipe unit', TYPES, f.type, 'Semua tipe')}
+        ${f.region || f.account || f.type ? btn('Reset', 'report-reset', { icon: 'x', variant: 'ghost' }) : ''}
+      </div><p class="bs-report-scope">${ic('info')}<span><b>${esc(periodTxt)}</b> · ${esc(scopeTxt)} · ${fmtNum(sc.locs.length)} unit. Perubahan dibandingkan dengan ${f.period} hari sebelumnya.</span></p></div></section>` +
+      `<div class="bs-metrics bs-metrics-6">${[
+        kpiTile('Keberhasilan sync', cur.rate, prev.rate, { fmt: pctTxt, delta: v => `${new Intl.NumberFormat(LOC(), { maximumFractionDigits: 1 }).format(v)} poin`, icon: 'refresh' }),
+        kpiTile('Rata-rata rating', cur.avgRating, prev.avgRating, { fmt: v => `${ratingTxt(v)} ★`, delta: ratingTxt, icon: 'star' }),
+        kpiTile('Tingkat balasan ulasan', cur.replyRate, prev.replyRate, { fmt: pctTxt, delta: v => `${new Intl.NumberFormat(LOC(), { maximumFractionDigits: 1 }).format(v)} poin`, icon: 'chat' }),
+        kpiTile('Waktu balas rata-rata', cur.avgResp, prev.avgResp, { fmt: fmtDur, delta: fmtDur, better: 'down', icon: 'gauge' }),
+        kpiTile('Kepatuhan SLA internal', cur.sla, prev.sla, { fmt: pctTxt, delta: v => `${new Intl.NumberFormat(LOC(), { maximumFractionDigits: 1 }).format(v)} poin`, icon: 'shield' }),
+        kpiTile('Ketidaksesuaian diselesaikan', cur.resolved, prev.resolved, { fmt: fmtNum, delta: fmtNum, icon: 'alert' })
+      ].join('')}</div>` +
+      card(`Tren sinkronisasi ${bk.size === 1 ? 'harian' : 'mingguan'}`, columnChart(syncRows, { series: [{ key: 'ok', label: 'Berhasil', cls: 'bs-seg-good', dot: 'good' }, { key: 'fail', label: 'Gagal', cls: 'bs-seg-bad', dot: 'bad' }], labelEvery }), { sub: `${fmtNum(cur.ok + cur.fail)} pembaruan · ${fmtNum(cur.fail)} gagal` }) +
+      `<div class="bs-grid bs-grid-2">${card('Volume ulasan per minggu', columnChart(volRows, { series: [{ key: 'n', label: 'Ulasan', cls: 'bs-seg-accent', dot: 's1' }], labelEvery: volRows.length > 8 ? 2 : 1 }), { sub: `${fmtNum(cur.rvs.length)} ulasan dalam periode` })}${card('Rata-rata rating per minggu', lineChart(ratRows, { label: 'Rata-rata rating', fmt: v => `${ratingTxt(v)} ★`, labelEvery: ratRows.length > 8 ? 2 : 1 }), { sub: 'Skala 1–5 bintang' })}</div>` +
+      card('Kinerja per region', regionRows.length ? `<div class="bs-table-wrap" tabindex="0" role="region" aria-label="Kinerja per region"><table class="bs-table bs-report-table"><thead><tr><th scope="col">Region</th><th scope="col">Unit</th><th scope="col">Online</th><th scope="col">Terverifikasi GBP</th><th scope="col">Beda data</th><th scope="col">Rating (periode)</th><th scope="col">Ulasan dibalas</th></tr></thead><tbody>${regionRows.join('')}</tbody></table></div>` : emptyState('Tidak ada data', 'Tidak ada unit dalam cakupan ini.', '', 'info'), { sub: 'Klik region untuk menyaring laporan · bar oranye = di bawah target', flush: !!regionRows.length }) +
+      `<div class="bs-grid bs-grid-2">${card('Komposisi status unit', composition('Status operasional', STATUSES, cnt('status')) + composition('Status Google Business Profile', GBP, cnt('gbp')))}${card('Lokasi dengan rating terendah', rankList(lowest, 'Belum ada ulasan dalam periode ini.', 5), { sub: 'Berdasarkan ulasan dalam periode', actions: go('Ulasan', 'reviews') })}</div>` +
+      `<div class="bs-grid bs-grid-2">${card('Penyebab gagal sinkron teratas', rankList(reasonRows, 'Tidak ada kegagalan tercatat dalam periode ini.'), { actions: go('Sync Monitor', 'sync') })}${card('Aktivitas tim', rankList(teamRows, 'Belum ada aktivitas dalam periode ini.'), { sub: 'Jumlah perubahan per pengguna internal', actions: go('Riwayat', 'audit') })}</div>` +
+      card('Laporan terjadwal', sched.length ? table(['Laporan', 'Jadwal', 'Penerima', '<span class="bs-sr">Aksi</span>'], sched) : emptyState('Belum ada jadwal', 'Kirim laporan otomatis ke email pimpinan secara berkala.', btn('Jadwalkan laporan', 'report-schedule', { icon: 'calendar', variant: 'sm' }), 'calendar'), { sub: isLive() ? 'Dikirim otomatis oleh server BranchSync.' : 'Mode Demo — jadwal disimpan, email tidak benar-benar dikirim.', flush: !!sched.length });
+  }
+  function reportScheduleModal() {
+    openModal('Jadwalkan laporan', formGrid([
+      { name: 'name', label: 'Nama laporan', value: 'Laporan kinerja jaringan', full: true, attrs: 'required maxlength="80"' },
+      { name: 'frequency', label: 'Frekuensi', type: 'select', options: [['weekly', 'Mingguan'], ['monthly', 'Bulanan (tanggal 1)']], value: 'weekly' },
+      { name: 'day', label: 'Hari kirim (mingguan)', type: 'select', options: WEEKDAYS, value: '1' },
+      { name: 'period', label: 'Periode data', type: 'select', options: PERIODS, value: ui.report.period },
+      { name: 'format', label: 'Format', type: 'select', options: [['PDF', 'PDF'], ['CSV', 'CSV'], ['PDF + CSV', 'PDF + CSV']], value: 'PDF' },
+      { name: 'recipients', label: 'Penerima (pisahkan dengan koma)', type: 'textarea', full: true, hint: 'Contoh: kepala.divisi@bri.co.id, manajer.wilayah@bri.co.id', attrs: 'required' }
+    ]), {
+      desc: 'Laporan berisi ringkasan KPI, tren, dan kinerja per region sesuai filter yang sedang dipakai.', submit: 'Simpan jadwal',
+      onSubmit: p => {
+        const name = String(p.name || '').trim(), recipients = String(p.recipients || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+        const e = {};
+        if (!name) e.name = 'Wajib diisi.';
+        if (!recipients.length) e.recipients = 'Isi minimal satu email.';
+        else if (recipients.some(x => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x))) e.recipients = `Email tidak valid: ${recipients.filter(x => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x)).join(', ')}`;
+        if (recipients.length > 20) e.recipients = 'Maksimal 20 penerima.';
+        if (Object.keys(e).length) return e;
+        const sch = { id: `RS-${String(++state.seq.schedule).padStart(3, '0')}`, name, frequency: p.frequency, day: p.day, period: p.period, format: p.format, recipients, filters: { ...ui.report }, createdAt: Date.now() };
+        state.reportSchedules.push(sch);
+        log('Laporan & Analitik', 'Menjadwalkan laporan', { detail: `${name} · ${FREQ[sch.frequency]} · ${recipients.length} penerima` });
+        remote('POST', '/reports/schedules', sch);
+        toast(`Jadwal “${name}” disimpan.`, { tone: 'good' });
+      }
+    });
   }
 
   /* ------------------------------------------------------------------ *
@@ -1658,10 +1861,87 @@
   function dismissToast(id) { shell.querySelector(`[data-toast="${id}"]`)?.remove(); toastActions.delete(Number(id)); }
 
   /* ------------------------------------------------------------------ *
+   * Bahasa — teks antarmuka ditulis dalam Bahasa Indonesia, lalu
+   * diterjemahkan ke Inggris lewat kamus admin-i18n.js (MutationObserver).
+   * Konten pengguna (nama unit, isi ulasan, input) tidak diterjemahkan.
+   * ------------------------------------------------------------------ */
+  const I18N = window.BranchAdminI18n || { dict: {}, patterns: [] };
+  const ATTRS = ['placeholder', 'aria-label', 'title'];
+  const SKIP = 'textarea, script, style, code, [data-no-i18n], .bs-review-text:not(.bs-muted), .bs-reply p, .bs-diff del, .bs-diff ins, .bs-val, .bs-note';
+  const origText = new WeakMap(), origAttr = new WeakMap();
+  const missing = new Set();
+  function trCore(core) {
+    if (typeof I18N.translate === 'function') return I18N.translate(core);
+    if (Object.prototype.hasOwnProperty.call(I18N.dict, core)) return I18N.dict[core];
+    for (const [re, rep] of I18N.patterns) { re.lastIndex = 0; if (re.test(core)) { re.lastIndex = 0; return core.replace(re, rep); } }
+    return null;
+  }
+  function trString(str) {
+    const core = str.trim();
+    if (!core || !/[A-Za-zÀ-ÿ]/.test(core)) return str;
+    const out = trCore(core);
+    if (out == null) { if (window.BS_I18N_DEBUG) missing.add(core); return str; }
+    return str.replace(core, out);
+  }
+  function translateNode(root) {
+    if (!isEn() || !root) return;
+    if (root.nodeType === 3) {
+      if (root.parentElement && root.parentElement.closest(SKIP)) return;
+      const v = trString(root.nodeValue); if (v !== root.nodeValue) { if (!origText.has(root)) origText.set(root, root.nodeValue); root.nodeValue = v; }
+      return;
+    }
+    if (root.nodeType !== 1 || root.closest(SKIP)) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const texts = []; let n;
+    while ((n = walker.nextNode())) texts.push(n);
+    texts.forEach(translateNode);
+    [root, ...root.querySelectorAll('[placeholder],[aria-label],[title]')].forEach(el => ATTRS.forEach(a => {
+      const v = el.getAttribute(a); if (!v || el.closest(SKIP)) return;
+      const t = trString(v); if (t === v) return;
+      const m = origAttr.get(el) || {}; if (!(a in m)) m[a] = v; origAttr.set(el, m);
+      el.setAttribute(a, t);
+    }));
+  }
+  function restoreNode(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
+    while ((n = walker.nextNode())) if (origText.has(n)) { n.nodeValue = origText.get(n); origText.delete(n); }
+    [root, ...root.querySelectorAll('[placeholder],[aria-label],[title]')].forEach(el => { const m = origAttr.get(el); if (m) { Object.entries(m).forEach(([a, v]) => el.setAttribute(a, v)); origAttr.delete(el); } });
+  }
+  const observer = new MutationObserver(muts => {
+    if (!isEn()) return;
+    observer.disconnect();
+    muts.forEach(m => {
+      if (m.type === 'childList') m.addedNodes.forEach(translateNode);
+      else if (m.type === 'characterData') translateNode(m.target);
+      else if (m.type === 'attributes') translateNode(m.target);
+    });
+    watch();
+  });
+  const watch = () => observer.observe(shell, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS });
+  function translateAll() { observer.disconnect(); if (isEn()) translateNode(shell); else restoreNode(shell); watch(); }
+  window.BranchAdminMissing = () => [...missing].sort();
+  function setLanguage(lang) {
+    lang = lang === 'en' ? 'en' : 'id';
+    if (typeof language !== 'undefined') language = lang; // eslint-disable-line no-global-assign
+    try { localStorage.setItem('branchSyncLanguage', lang); } catch (_) {}
+    toggleModeMenu(false); toggleNotif(false); closeModal(); if (palette.open) palette.close();
+    observer.disconnect();
+    restoreNode(shell);
+    document.documentElement.lang = shell.lang = lang;
+    renderedView = null;
+    render();
+    translateAll();
+    if (typeof applyLanguage === 'function') { try { applyLanguage(); } catch (_) {} } // sinkronkan halaman utama
+    document.documentElement.lang = lang;
+    shell.querySelector(`#bsLang [data-id="${lang}"]`)?.focus();
+    toast(lang === 'en' ? 'Language changed to English.' : 'Bahasa diganti ke Bahasa Indonesia.');
+  }
+
+  /* ------------------------------------------------------------------ *
    * Render
    * ------------------------------------------------------------------ */
   let renderedView = null;
-  const VIEWS = { dashboard: viewDashboard, map: viewMap, locations: viewLocations, discrepancies: viewDiscrepancies, duplicates: viewDuplicates, claims: viewClaims, approvals: viewApprovals, sync: viewSync, audit: viewAudit, sla: viewSla, access: viewAccess, integrations: viewIntegrations, settings: viewSettings, reviews: viewReviews };
+  const VIEWS = { dashboard: viewDashboard, map: viewMap, locations: viewLocations, discrepancies: viewDiscrepancies, duplicates: viewDuplicates, claims: viewClaims, approvals: viewApprovals, sync: viewSync, audit: viewAudit, sla: viewSla, access: viewAccess, integrations: viewIntegrations, settings: viewSettings, reviews: viewReviews, reports: viewReports };
   function renderNav() {
     $('bsNav').innerHTML = NAV.map(g => `<p class="bs-nav-label">${g.group}</p>${g.items.map(n => { const c = n.count ? n.count() : 0; return `<button type="button" data-view="${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''} title="${esc(n.label)}">${ic(n.icon)}<span class="bs-nav-text">${n.label}</span>${c ? `<span class="bs-nav-count" aria-label="${c} perlu perhatian">${c > 99 ? '99+' : c}</span>` : ''}</button>`; }).join('')}`).join('');
   }
@@ -1687,6 +1967,7 @@
     $('bsNotifBtn').setAttribute('aria-label', n ? `Notifikasi, ${n} baru` : 'Notifikasi');
     $('bsThemeBtn').innerHTML = ic(shell.dataset.theme === 'dark' ? 'sun' : 'moon');
     $('bsThemeBtn').title = shell.dataset.theme === 'dark' ? 'Mode terang' : 'Mode gelap';
+    shell.querySelectorAll('#bsLang [data-action="lang"]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.id === 'en') === isEn())));
     $('bsFooterInfo').textContent = `${fmtNum(state.locations.length)} unit · render ${ui.renderMs} ms`;
     const prog = shell.querySelector('.bs-progress');
     if (prog && ui.running && !ui.running.indeterminate) { prog.firstElementChild.style.width = pct(ui.running.done, ui.running.total) + '%'; prog.setAttribute('aria-valuenow', ui.running.done); }
@@ -1954,6 +2235,7 @@
     ui[a][b] = value;
     if (a === 'loc') ui.loc.page = 1;
     if (a === 'reviews') { ui.reviews.limit = 20; if (b === 'account') ui.reviews.location = ''; }
+    if (a === 'report' && b === 'account' && value) ui.report.region = '';
   }
   function act(action, id, el) {
     const l = id ? byCode().get(id) : null;
@@ -1964,6 +2246,7 @@
       case 'nav-close': closeNav(); shell.querySelector('.bs-menu').focus(); break;
       case 'palette': openPalette(); break;
       case 'theme': toggleTheme(); break;
+      case 'lang': setLanguage(id); break;
       case 'shortcuts': shortcutsModal(); break;
       case 'notif': toggleNotif(); break;
       case 'logout': logout(); break;
@@ -2012,6 +2295,23 @@
       }
       case 'review-rating': ui.reviews.rating = String(ui.reviews.rating) === String(id) ? '' : String(id); ui.reviews.limit = 20; render(); break;
       case 'review-more': ui.reviews.limit += 20; render(); break;
+      // Laporan
+      case 'report-print': window.print(); break;
+      case 'report-reset': ui.report.region = ''; ui.report.account = ''; ui.report.type = ''; render(); break;
+      case 'report-region': ui.report.region = ui.report.region === id ? '' : id; render(); $('bsMain').scrollTop = 0; break;
+      case 'report-schedule': reportScheduleModal(); break;
+      case 'report-unschedule': { const x = state.reportSchedules.find(y => y.id === id); if (!x) break; confirmModal(`Hapus jadwal “${esc(x.name)}”?`, 'Laporan ini tidak akan dikirim lagi ke penerima.', 'Hapus jadwal', () => { state.reportSchedules = state.reportSchedules.filter(y => y !== x); log('Laporan & Analitik', 'Menghapus jadwal laporan', { detail: x.name }); remote('DELETE', `/reports/schedules/${encodeURIComponent(id)}`); toast('Jadwal dihapus.'); }); break; }
+      case 'report-export': {
+        const sc = reportScope(), bk = reportBuckets(ui.report.period), cur = reportMetrics(bk.from, bk.to, sc), im = issueMap();
+        const rows = [['Laporan BranchSync'], ['Periode', fmtDate(bk.from, { dateStyle: 'medium' }), fmtDate(bk.to - DAY, { dateStyle: 'medium' })], ['Cakupan', [ui.report.region, ui.report.account, ui.report.type].filter(Boolean).join(' · ') || 'Seluruh jaringan'], [],
+          ['KPI', 'Nilai'], ['Keberhasilan sync (%)', cur.rate == null ? '' : cur.rate.toFixed(1)], ['Pembaruan berhasil', cur.ok], ['Pembaruan gagal', cur.fail], ['Rata-rata rating', cur.avgRating == null ? '' : cur.avgRating.toFixed(2)], ['Jumlah ulasan', cur.rvs.length], ['Tingkat balasan (%)', cur.replyRate == null ? '' : cur.replyRate.toFixed(1)], ['Waktu balas rata-rata (jam)', cur.avgResp == null ? '' : (cur.avgResp / HOUR).toFixed(1)], ['Kepatuhan SLA internal (%)', cur.sla == null ? '' : cur.sla.toFixed(1)], ['Ketidaksesuaian diselesaikan', cur.resolved], [],
+          ['Region', 'Unit', 'Online (%)', 'Terverifikasi (%)', 'Beda data', 'Rata-rata rating', 'Ulasan dibalas (%)']];
+        REGIONS.forEach(r => { const ls = sc.locs.filter(l => l.region === r); if (!ls.length) return; const codes = new Set(ls.map(l => l.code)), rv = cur.rvs.filter(x => codes.has(x.code)); rows.push([r, ls.length, pct(ls.filter(l => l.status === 'Online').length, ls.length), pct(ls.filter(l => l.gbp === 'Terverifikasi').length, ls.length), ls.filter(l => im.has(l.code)).length, rv.length ? (sum(rv.map(x => x.rating)) / rv.length).toFixed(2) : '', rv.length ? pct(rv.filter(x => x.reply).length, rv.length) : '']); });
+        downloadCSV(`laporan-branchsync-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+        log('Laporan & Analitik', 'Mengekspor laporan CSV', { detail: `${ui.report.period} hari` });
+        toast('Laporan CSV diunduh.', { tone: 'good' });
+        break;
+      }
       case 'review-account': ui.reviews.account = id; ui.reviews.location = ''; ui.reviews.limit = 20; navigate('reviews'); break;
       case 'review-open-loc': { const lo = byCode().get(id); if (!lo) break; ui.reviews.account = acctOf(lo); ui.reviews.location = id; ui.reviews.limit = 20; if (sheet.open) sheet.close(); navigate('reviews'); break; }
       case 'review-clear-loc': ui.reviews.location = ''; render(); break;
@@ -2317,7 +2617,8 @@
       document.querySelector('.page-container').hidden = true;
       shell.hidden = false;
       document.body.classList.add('admin-active');
-      document.documentElement.lang = 'id';
+      document.documentElement.lang = shell.lang = isEn() ? 'en' : 'id';
+      translateAll();
       shell.dataset.theme = prefs.theme || (document.body.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       let live = isLive(), notice = opts.notice || '';
       if (live && !(MODE.hasSession() && MODE.getBaseUrl())) {

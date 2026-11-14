@@ -87,12 +87,15 @@ setelah setiap perubahan, dan setiap 60 detik (agar edit eksternal & hasil sync 
   "reviews": [{ "id": "RV-0001", "code": "DM-001",            // code = unit/lokasi; akun ditentukan dari location.accountId
                 "author": "Budi Santoso", "rating": 4, "text": "Pelayanan baik…", "time": "...",
                 "reply": { "text": "Terima kasih…", "by": "Rina Wijaya", "time": "..." } }],   // reply null jika belum dibalas
+  "reportSchedules": [{ "id": "RS-001", "name": "Laporan mingguan jaringan", "frequency": "weekly",   // weekly | monthly
+                        "day": "1", "period": "7", "format": "PDF", "recipients": ["kepala.divisi@bri.co.id"],
+                        "filters": { "region": "", "account": "", "type": "" }, "createdAt": "..." }],
   "discNotes": { "DM-004|phone": { "text": "Sudah dikonfirmasi ke cabang", "by": "Rina", "time": "..." } },
   "dupIgnored": ["DM-002|DM-046"]
 }
 ```
 
-Ketidaksesuaian dan kandidat duplikat **dihitung di frontend** dari `locations` (membandingkan
+Ketidaksesuaian, kandidat duplikat, dan seluruh angka **Laporan & Analitik** **dihitung di frontend** dari `locations` (membandingkan
 data unit dengan `google`, serta jarak & kemiripan nama), memakai `settings.coordTol` dan `settings.dupRadius`.
 
 Izin yang dikenal: `locations.read`, `locations.write`, `locations.import`, `sync.run`, `claims.manage`,
@@ -131,6 +134,8 @@ setelahnya. **Server wajib mencatat setiap perubahan ke `audit`** (dengan nilai 
 | Konfigurasi Google API | `PATCH /integrations/google` | `{ project, account, clientId, clientSecret?, apiKey?, scopes[], syncInterval, quotaLimit, pubsubTopic, webhook, connected? }` — `clientSecret`/`apiKey` hanya dikirim saat diisi; simpan terenkripsi |
 | Hubungkan akun GBP (OAuth) | `GET /integrations/google/oauth/start?redirect_uri=<url>` | Redirect ke consent Google (scope dari konfigurasi). Callback di `{base}/integrations/google/oauth/callback`, lalu kembali ke `redirect_uri#bs_gbp=connected` atau `#bs_gbp=<pesan error>` |
 | Uji koneksi Google | `POST /integrations/google/test` | → `{ ok: bool, latencyMs?, message? }` |
+| Jadwalkan laporan | `POST /reports/schedules` | `{ name, frequency, day, period, format, recipients[], filters }` — server membuat & mengirim laporan (PDF/CSV) ke email penerima sesuai jadwal |
+| Hapus jadwal laporan | `DELETE /reports/schedules/{id}` | — |
 
 Ulasan baru dari Google sebaiknya ditarik server secara berkala (sesuai `syncInterval`) atau lewat
 notifikasi Pub/Sub (`pubsubTopic`), lalu muncul di `/bootstrap`.
