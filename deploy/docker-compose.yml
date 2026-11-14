@@ -1,0 +1,84 @@
+# BranchSync — deploy satu server (VPS) dengan Docker Compose.
+#   caddy : HTTPS otomatis (Let's Encrypt), menyajikan frontend, dan meneruskan API ke `api`
+#   api   : server Go (Mode Live); migrasi skema berjalan otomatis saat start
+#   db    : PostgreSQL 16; data di volume `pgdata`
+# Hanya caddy yang membuka port ke internet (80/443). Lihat deploy/README.md.
+name: branchsync
+
+services:
+  caddy:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:?isi WEB_DOMAIN di .env}
+      API_DOMAIN: ${API_DOMAIN:?isi API_DOMAIN di .env}
+      API_PUBLIC_URL: https://${API_DOMAIN}/v1
+      ACME_EMAIL: ${ACME_EMAIL:?isi ACME_EMAIL di .env}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      app:
+        ipv4_address: ${CADDY_IP:-172.30.10.10}
+
+  api:
+    build: ../server
+    restart: unless-stopped
+    environment:
+      BS_ADDR: ":8080"
+      BS_DATABASE_URL: postgres://branchsync:${POSTGRES_PASSWORD}@db:5432/branchsync?sslmode=disable
+      BS_SECRET_KEY: ${BS_SECRET_KEY:?isi BS_SECRET_KEY di .env (openssl rand -base64 32)}
+      BS_PUBLIC_URL: https://${API_DOMAIN}/v1
+      BS_ALLOWED_ORIGINS: https://${WEB_DOMAIN}
+      # Hanya caddy yang dipercaya sebagai proxy: IP klien asli dibaca dari X-Forwarded-For yang diisi caddy.
+      BS_TRUSTED_PROXIES: ${CADDY_IP:-172.30.10.10}
+      BS_SESSION_TTL: ${BS_SESSION_TTL:-12h}
+      BS_SCHEDULER: ${BS_SCHEDULER:-true}
+      BS_SMTP_HOST: ${BS_SMTP_HOST:-}
+      BS_SMTP_PORT: ${BS_SMTP_PORT:-587}
+      BS_SMTP_USER: ${BS_SMTP_USER:-}
+      BS_SMTP_PASS: ${BS_SMTP_PASS:-}
+      BS_SMTP_FROM: ${BS_SMTP_FROM:-BranchSync <no-reply@localhost>}
+      BS_GOOGLE_CLIENT_ID: ${BS_GOOGLE_CLIENT_ID:-}
+      BS_GOOGLE_CLIENT_SECRET: ${BS_GOOGLE_CLIENT_SECRET:-}
+      BS_PUBSUB_TOKEN: ${BS_PUBSUB_TOKEN:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [app]
+
+  db:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: branchsync
+      POSTGRES_DB: branchsync
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env (openssl rand -hex 24)}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U branchsync -d branchsync"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [app]
+
+networks:
+  app:
+    ipam:
+      config:
+        - subnet: ${APP_SUBNET:-172.30.10.0/24}
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

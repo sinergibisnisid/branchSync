@@ -1,0 +1,45 @@
+# Nilai {$...} diambil dari environment container caddy (lihat docker-compose.yml / .env).
+{
+	email {$ACME_EMAIL}
+}
+
+(security) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# Frontend (halaman depan + workspace admin)
+{$WEB_DOMAIN} {
+	import security
+	encode zstd gzip
+	header X-Frame-Options "DENY"
+	header Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
+
+	# config.js dibuat dari .env, jadi URL server API tidak perlu diketik pengguna di dialog Masuk.
+	handle /config.js {
+		header Content-Type "application/javascript; charset=utf-8"
+		header Cache-Control "no-cache"
+		respond "'use strict'; window.BRANCHSYNC_CONFIG = { apiBaseUrl: '{$API_PUBLIC_URL}' };" 200
+	}
+
+	handle {
+		root * /srv
+		# Aset ber-?v= boleh di-cache lama (versi dinaikkan tiap rilis); index.html selalu diperiksa ulang.
+		@versioned query v=*
+		header @versioned Cache-Control "public, max-age=31536000, immutable"
+		@html path / /index.html
+		header @html Cache-Control "no-cache"
+		file_server
+	}
+}
+
+# Server API (Mode Live)
+{$API_DOMAIN} {
+	import security
+	encode zstd gzip
+	reverse_proxy api:8080
+}

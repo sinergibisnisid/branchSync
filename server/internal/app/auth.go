@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -74,13 +73,7 @@ func (l *limiter) failed(key string) {
 	l.record(key)
 }
 
-func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
-}
+func (s *Server) clientIP(r *http.Request) string { return s.cfg.ClientIP(r) }
 
 // ---- Sesi ----
 
@@ -154,7 +147,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 		return fail(400, "Isi nama pengguna dan kata sandi.")
 	}
 	userKey := "login:" + strings.ToLower(in.Username)
-	if !s.limiter.allow("login:"+clientIP(r), 60, 15*time.Minute) || s.limiter.blocked(userKey, 8, 15*time.Minute) {
+	if !s.limiter.allow("login:"+s.clientIP(r), 60, 15*time.Minute) || s.limiter.blocked(userKey, 8, 15*time.Minute) {
 		return fail(429, "Terlalu banyak percobaan masuk yang gagal. Coba lagi dalam 15 menit.")
 	}
 	var hash *string
@@ -209,7 +202,7 @@ func (s *Server) otpRequest(w http.ResponseWriter, r *http.Request) error {
 	if !emailRe.MatchString(email) {
 		return fail(400, "Alamat email tidak valid.")
 	}
-	if !s.limiter.allow("otp:"+clientIP(r), 20, time.Hour) || !s.limiter.allow("otp:"+email, 5, 15*time.Minute) {
+	if !s.limiter.allow("otp:"+s.clientIP(r), 20, time.Hour) || !s.limiter.allow("otp:"+email, 5, 15*time.Minute) {
 		return fail(429, "Terlalu banyak permintaan kode. Coba lagi nanti.")
 	}
 	var name string
@@ -244,7 +237,7 @@ func (s *Server) otpVerify(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	email := strings.ToLower(strings.TrimSpace(in.Email))
-	if !s.limiter.allow("otpv:"+clientIP(r), 30, 15*time.Minute) {
+	if !s.limiter.allow("otpv:"+s.clientIP(r), 30, 15*time.Minute) {
 		return fail(429, "Terlalu banyak percobaan. Coba lagi nanti.")
 	}
 	var hash []byte

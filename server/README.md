@@ -43,6 +43,7 @@ Perintah lain: `branchsync migrate` (migrasi saja), `branchsync version`.
 | `BS_GOOGLE_CLIENT_ID`, `BS_GOOGLE_CLIENT_SECRET` | | Opsional — bila kosong, diambil dari halaman **Integrasi Google** di aplikasi. |
 | `BS_PUBSUB_TOKEN` | | Token rahasia pada URL push Pub/Sub (lihat di bawah). |
 | `BS_SCHEDULER` | | `false` untuk mematikan job berkala (sinkronisasi otomatis, ulasan, laporan). |
+| `BS_TRUSTED_PROXIES` | di belakang proxy | IP/CIDR reverse proxy tepercaya, dipisah koma, mis. `172.30.10.10`. Permintaan dari alamat ini memakai IP klien dari `X-Forwarded-For`. Tanpa ini, semua pengguna di belakang proxy berbagi satu batas percobaan login. Jangan isi rentang yang bisa dijangkau klien langsung. |
 | `BS_DEV` | | `true` = kode OTP dicetak ke log. Jangan dipakai di produksi. |
 
 ## Menyiapkan Google Cloud & Google Business Profile
@@ -111,7 +112,8 @@ Perintah lain: `branchsync migrate` (migrasi saja), `branchsync version`.
 - Menghubungkan GBP memakai URL OAuth yang terikat ke sesi pengguna (`POST /integrations/google/oauth/url`).
   `redirect_uri` hanya boleh ke origin yang diizinkan, sehingga tidak bisa dipakai sebagai open redirect.
 - Setiap perubahan dicatat di tabel `audit` dengan nilai sebelum/sesudah.
-- Jalankan di belakang HTTPS (reverse proxy / load balancer).
+- Jalankan di belakang HTTPS (reverse proxy / load balancer) dan isi `BS_TRUSTED_PROXIES` dengan alamat proxy-nya.
+  Paket siap pakai (Docker Compose + Caddy + PostgreSQL): [`../deploy/README.md`](../deploy/README.md).
 
 ## Tes
 

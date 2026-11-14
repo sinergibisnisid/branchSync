@@ -5,6 +5,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -16,14 +19,17 @@ import (
 const Version = "1.0.0"
 
 type Config struct {
-	Addr        string        // alamat listen, mis. ":8080"
-	DatabaseURL string        // postgres://user:pass@host:5432/db?sslmode=disable
-	PublicURL   string        // URL publik server termasuk prefiks path, mis. https://api.branchsync.co.id/v1
-	BasePath    string        // prefiks path dari PublicURL ("/v1"), dibuang sebelum routing
-	Origins     []string      // origin frontend yang diizinkan CORS; "*" = semua (hanya untuk pengembangan)
-	SecretKey   []byte        // 32 byte — mengenkripsi client secret, API key, dan refresh token Google
-	SessionTTL  time.Duration // masa berlaku sesi
-	Dev         bool          // mode pengembangan: kode OTP & email dicetak ke log
+	Addr        string   // alamat listen, mis. ":8080"
+	DatabaseURL string   // postgres://user:pass@host:5432/db?sslmode=disable
+	PublicURL   string   // URL publik server termasuk prefiks path, mis. https://api.branchsync.co.id/v1
+	BasePath    string   // prefiks path dari PublicURL ("/v1"), dibuang sebelum routing
+	Origins     []string // origin frontend yang diizinkan CORS; "*" = semua (hanya untuk pengembangan)
+	// Reverse proxy tepercaya (CIDR/IP). Permintaan dari sini memakai IP klien dari X-Forwarded-For,
+	// supaya pembatasan login per IP tetap per pengguna, bukan per proxy.
+	TrustedProxies []netip.Prefix
+	SecretKey      []byte        // 32 byte — mengenkripsi client secret, API key, dan refresh token Google
+	SessionTTL     time.Duration // masa berlaku sesi
+	Dev            bool          // mode pengembangan: kode OTP & email dicetak ke log
 
 	SMTPHost, SMTPUser, SMTPPass, SMTPFrom string
 	SMTPPort                               int
@@ -89,6 +95,9 @@ func Load() (*Config, error) {
 			c.Origins = append(c.Origins, strings.TrimRight(o, "/"))
 		}
 	}
+	if c.TrustedProxies, err = parsePrefixes(os.Getenv("BS_TRUSTED_PROXIES")); err != nil {
+		return nil, fmt.Errorf("BS_TRUSTED_PROXIES tidak valid: %w", err)
+	}
 	key, err := base64.StdEncoding.DecodeString(os.Getenv("BS_SECRET_KEY"))
 	if err != nil || len(key) != 32 {
 		return nil, errors.New("BS_SECRET_KEY wajib berisi 32 byte dalam base64 (buat dengan: openssl rand -base64 32)")
@@ -135,6 +144,68 @@ func (c *Config) RedirectAllowed(raw string) bool {
 		}
 	}
 	return false
+}
+
+// parsePrefixes membaca daftar CIDR atau IP tunggal, dipisah koma.
+func parsePrefixes(s string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p == "" {
+			continue
+		}
+		if !strings.Contains(p, "/") {
+			a, err := netip.ParseAddr(p)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, netip.PrefixFrom(a.Unmap(), a.Unmap().BitLen()))
+			continue
+		}
+		pr, err := netip.ParsePrefix(p)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, pr.Masked())
+	}
+	return out, nil
+}
+
+func (c *Config) trusted(a netip.Addr) bool {
+	a = a.Unmap()
+	for _, p := range c.TrustedProxies {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// ClientIP mengembalikan IP klien. Header X-Forwarded-For hanya dipercaya bila permintaan datang dari
+// proxy tepercaya; daftar dibaca dari kanan dan dilewati selama alamatnya juga proxy tepercaya,
+// sehingga klien tidak bisa memalsukan IP dengan mengirim header sendiri.
+func (c *Config) ClientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	remote, err := netip.ParseAddr(host)
+	if err != nil || !c.trusted(remote) {
+		return host
+	}
+	var hops []string
+	for _, v := range r.Header.Values("X-Forwarded-For") {
+		hops = append(hops, strings.Split(v, ",")...)
+	}
+	for i := len(hops) - 1; i >= 0; i-- {
+		a, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
+		if err != nil {
+			break
+		}
+		if !c.trusted(a) {
+			return a.Unmap().String()
+		}
+	}
+	return host
 }
 
 func env(k, def string) string {
