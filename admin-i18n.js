@@ -330,6 +330,23 @@
   };
   Object.entries(ACTIONS).forEach(([id, en]) => { DICT[id] = en; DICT[id.charAt(0).toLowerCase() + id.slice(1)] = en.charAt(0).toLowerCase() + en.slice(1); });
 
+  // Tahap 4 — konsistensi (konfirmasi, tanggal, filter, label status) & aksesibilitas
+  Object.assign(DICT, {
+    'Belum sinkron': 'Not synced', 'Belum diklaim': 'Unclaimed', 'Menunggu verifikasi': 'Pending verification',
+    'Anda bisa mengurungkannya lewat tombol “Urungkan” di notifikasi.': 'You can undo this with the “Undo” button in the notification.',
+    'Tindakan ini tidak bisa dibatalkan.': 'This cannot be undone.', 'Anda bisa menghubungkannya lagi kapan saja dari halaman ini.': 'You can connect it again at any time from this page.',
+    'Reset filter': 'Reset filters', 'Kata kunci': 'Keyword', 'Filter aktif': 'Active filters', 'Format ekspor': 'Export format', 'Detail unit': 'Location details',
+    'Hapus unit': 'Delete location', 'Tandai duplikat': 'Mark as duplicate', 'Nonaktifkan': 'Deactivate', 'Putuskan': 'Disconnect',
+    'Putuskan Google Business Profile?': 'Disconnect Google Business Profile?', 'Sinkronisasi dan balasan ulasan ke akun': 'Sync and review replies for the account',
+    'berhenti sampai akun dihubungkan lagi.': 'stop until the account is connected again.', 'Pilihan dibatalkan.': 'Selection cleared.', 'Filter direset.': 'Filters reset.',
+    'Unit kerja berikut akan dihapus dari Dashboard:': 'The following locations will be deleted from the Dashboard:',
+    'Unit kerja berikut akan dihapus dari Dashboard dan server:': 'The following locations will be deleted from the Dashboard and the server:',
+    'Semua perubahan, impor, dan riwayat akan dikembalikan ke kondisi awal.': 'All changes, imports, and history will be reset to the initial state.',
+    'Unit baru berstatus “Belum sinkron” sampai disinkronkan ke Google.': 'New locations have the status “Not synced” until they are synced to Google.',
+    'Email GBP tidak dikenal': 'Unknown GBP email', 'Diterima': 'Received', 'dipertahankan.': 'is kept.',
+    'Pindah tab (saat tab terfokus)': 'Switch tabs (when a tab is focused)'
+  });
+
   // Tahap 3 — impor/ekspor Excel dan status Mode Live
   Object.assign(DICT, {
     'Impor data': 'Import data', 'Impor dari Excel (.xlsx) atau CSV': 'Import from Excel (.xlsx) or CSV', 'Ekspor hasil filter': 'Export filtered results',
@@ -365,6 +382,21 @@
   let tr = null; // diisi di bawah (rekursif)
   const R = (re, rep) => [new RegExp(re), rep];
   const PATTERNS = [
+    // Tahap 4 — konfirmasi baku, pengumuman pembaca layar, tanggal
+    R(`^Hapus ${N} unit terpilih\\?$`, 'Delete $1 selected locations?'), R(`^Hapus ${N} unit$`, 'Delete $1 locations'), R(`^dan ${N} unit lainnya$`, 'and $1 more locations'),
+    R('^Hapus balasan untuk ulasan (.+)\\?$', 'Delete the reply to the review by $1?'),
+    R('^Balasan pemilik pada ulasan (.+) \\((\\d)★\\) akan dihapus dari Google Maps\\.$', 'The owner reply to the review by $1 ($2★) will be deleted from Google Maps.'),
+    R('^Unit (.+) akan dihapus dari Dashboard( dan server)?\\.$', (m, a, b) => `Location ${a.split(' · ').map(x => T(x)).join(' · ')} will be deleted from the Dashboard${b ? ' and the server' : ''}.`),
+    R('^Tandai “(.+)” sebagai duplikat\\?$', 'Mark “$1” as a duplicate?'),
+    R('^\\((.+)\\) dipertahankan\\.$', '($1) is kept.'),
+    R('^\\((.+)\\) dinonaktifkan dan ditandai Duplikat( di Google Business Profile)?\\.$', (m, a, b) => `(${a}) is deactivated and marked as Duplicate${b ? ' in Google Business Profile' : ''}.`),
+    R('^Nonaktifkan (.+)\\?$', 'Deactivate $1?'), R('^(.+) \\((.+)\\) tidak bisa masuk ke BranchSync sampai diaktifkan kembali\\.$', '$1 ($2) cannot sign in to BranchSync until reactivated.'),
+    R('^Tampilan “(.+)” dihapus\\.$', 'View “$1” deleted.'), R('^Tampilan “(.+)” dikembalikan\\.$', 'View “$1” restored.'),
+    R(`^Sinkronisasi dimulai: ${N} unit\\.$`, 'Sync started: $1 locations.'), R(`^Sinkronisasi ${N}% — ${N} dari ${N} unit\\.$`, 'Sync $1% — $2 of $3 locations.'),
+    R(`^Server sedang menyinkronkan ${N} unit\\.$`, 'The server is syncing $1 locations.'),
+    R(`^${N} unit cocok\\.$`, '$1 matching locations.'), R(`^${N} unit di peta\\.$`, '$1 locations on the map.'), R(`^${N} perbedaan\\.$`, '$1 differences.'),
+    R(`^${N} aktivitas\\.$`, '$1 activities.'), R(`^${N} ulasan\\.$`, '$1 reviews.'), R(`^${N} unit dipilih\\.$`, '$1 locations selected.'),
+    R('^oleh (.+)$', 'by $1'), R('^(.+):$', (m, a) => { const x = tr(a); return x == null ? m : `${x}:`; }),
     // Tooltip & label grafik (tanggal sudah diformat oleh Intl)
     R(`^(.+): Berhasil ${N} Gagal ${N}$`, '$1: Successful $2 Failed $3'),
     R(`^(.+): ${N} berhasil, ${N} gagal$`, '$1: $2 successful, $3 failed'),
@@ -487,6 +519,7 @@
     R('^Menampilkan data terakhir(?: \\(dimuat (.+)\\))?\\. Perubahan belum dapat dikirim; data dimuat ulang otomatis saat koneksi pulih\\.$', (m, a) => `Showing the last loaded data${a ? ` (loaded ${a})` : ''}. Changes cannot be sent yet; data reloads automatically when the connection is back.`),
     R('^(.*) Menampilkan data terakhir(?: \\(dimuat (.+)\\))?\\.$', (m, e, a) => `${tr(e) || e} Showing the last loaded data${a ? ` (loaded ${a})` : ''}.`),
     R('^Masih gagal memuat data: (.+)$', (m, a) => `Still unable to load data: ${tr(a) || a}`),
+    R('^Hapus ([^?]+)$', 'Delete $1'), // tooltip tombol hapus per item (mis. tampilan tersimpan)
     R('^(.+): (.+)$', (m, a, b) => { const x = tr(a), y = tr(b); return x == null && y == null ? m : `${x == null ? a : x}: ${y == null ? b : y}`; }),
     R('^(.+) ·$', (m, a) => { const x = tr(a); return x == null ? m : `${x} ·`; }),
     R('^(Online|Status operasional|Status Google Business Profile)\\b(.*)$', m => terms(m))

@@ -69,6 +69,20 @@
     if (d < 7 * DAY) { const n = Math.floor(d / DAY); return en ? `${n} day${n === 1 ? '' : 's'} ago` : `${n} hari lalu`; }
     return fmtDate(t, { dateStyle: 'medium' });
   }
+  /* Pola tanggal baku (Tahap 4):
+   *  - daftar/tabel  → relatif + tooltip absolut: when(t)
+   *  - kolom “Waktu” → relatif + baris kecil absolut: whenCell(t)
+   *  - detail        → absolut (+ relatif bila < 7 hari): whenFull(t)
+   *  - ekspor        → absolut “YYYY-MM-DD HH:mm” zona waktu pengaturan: fmtStamp(t) */
+  const isoOf = t => new Date(t).toISOString();
+  const when = t => (t ? `<time datetime="${isoOf(t)}" title="${esc(fmtDate(t))}">${esc(fmtRel(t))}</time>` : '—');
+  const whenCell = t => (t ? `${when(t)}<small>${esc(fmtDate(t, { dateStyle: 'short', timeStyle: 'short' }))}</small>` : '—');
+  const whenFull = t => (t ? `<time datetime="${isoOf(t)}">${esc(fmtDate(t))}</time>${Date.now() - t < 7 * DAY ? ` <span class="bs-rel">(${esc(fmtRel(t))})</span>` : ''}` : '—');
+  function fmtStamp(t, dateOnly = false) {
+    if (!t) return '';
+    const P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: state.settings.timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t)).map(x => [x.type, x.value]));
+    return `${P.year}-${P.month}-${P.day}${dateOnly ? '' : ` ${P.hour}:${P.minute}`}`;
+  }
   const normName = s => String(s || '').toLowerCase()
     .replace(/\b(bank|bri|rakyat|indonesia|kantor|cabang|pembantu|unit|kc|kcp|atm)\b/g, ' ')
     .replace(/[^a-z0-9]+/g, ' ').trim();
@@ -142,6 +156,7 @@
     trash: '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
     external: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
     info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
     pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
     keyboard: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
     note: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
@@ -185,7 +200,11 @@
     Diajukan: 'info', 'Diproses internal': 'info', 'Menunggu verifikasi Google': 'warn',
     'Dalam SLA': 'good', 'Lewat SLA': 'bad', 'Mendekati batas': 'warn', Internal: 'neutral', Eksternal: 'warn', Ditangani: 'good'
   };
-  const badge = (s, label = s) => `<span class="bs-badge" data-tone="${TONE[s] || 'neutral'}"><i aria-hidden="true"></i>${esc(label)}</span>`;
+  // Label tampilan seragam (huruf kapital hanya di awal). Nilai data/API tetap memakai bentuk aslinya.
+  const STATUS_LABEL = { 'Belum Sync': 'Belum sinkron', 'Tidak Aktif': 'Tidak aktif', 'Belum Diklaim': 'Belum diklaim', 'Menunggu Verifikasi': 'Menunggu verifikasi' };
+  const SL = s => STATUS_LABEL[s] || s;
+  const labelled = xs => xs.map(x => [x, SL(x)]);
+  const badge = (s, label = SL(s)) => `<span class="bs-badge" data-tone="${TONE[s] || 'neutral'}"><i aria-hidden="true"></i>${esc(label)}</span>`;
   const FIELD_LABEL = { name: 'Nama listing', phone: 'Telepon', hours: 'Jam operasional', address: 'Alamat', coords: 'Titik koordinat', type: 'Tipe', status: 'Status', gbp: 'Status GBP', city: 'Kota', province: 'Provinsi', lat: 'Latitude', lng: 'Longitude' };
   const MARKER = { Online: '#1f8a5b', Offline: '#e0660f', 'Belum Sync': '#1a6fc4', 'Tidak Aktif': '#8a97a8' };
   const STEPS = ['Diajukan', 'Diproses internal', 'Menunggu verifikasi Google', 'Selesai'];
@@ -765,6 +784,7 @@
     if (isLive()) {
       ui.running = { done: 0, total: codes ? codes.length : state.locations.length, indeterminate: true };
       render();
+      announce(`Server sedang menyinkronkan ${fmtNum(ui.running.total)} unit.`);
       const run = await remote('POST', '/sync', { codes: codes || null, retry, label });
       ui.running = null;
       render();
@@ -781,6 +801,8 @@
     const started = performance.now();
     ui.running = { done: 0, total: targets.length };
     render();
+    announce(`Sinkronisasi dimulai: ${fmtNum(targets.length)} unit.`);
+    let lastQuarter = 0;
     const items = []; let ok = 0;
     const chunk = Math.max(5, Math.ceil(targets.length / 12));
     for (let i = 0; i < targets.length; i += chunk) {
@@ -790,6 +812,8 @@
         else items.push({ code: l.code, status: res.status, reason: res.reason, resolved: res.status !== 'Gagal', note: '' });
       });
       ui.running.done = Math.min(targets.length, i + chunk);
+      const q = Math.floor((ui.running.done / targets.length) * 4);
+      if (q > lastQuarter && q < 4) { lastQuarter = q; announce(`Sinkronisasi ${q * 25}% — ${fmtNum(ui.running.done)} dari ${fmtNum(targets.length)} unit.`); }
       updateChrome();
       await sleep(Math.max(40, 900 / Math.ceil(targets.length / chunk)));
     }
@@ -859,11 +883,20 @@
     <dialog class="bs-modal" id="bsModal" aria-labelledby="bsModalTitle"></dialog>
     <dialog class="bs-sheet" id="bsDrawer" aria-labelledby="bsDrawerTitle"></dialog>
     <dialog class="bs-palette" id="bsPalette" aria-label="Pencarian cepat"></dialog>
-    <div class="bs-toasts" id="bsToasts" role="region" aria-label="Notifikasi singkat" aria-live="polite"></div>`;
+    <div class="bs-toasts" id="bsToasts" role="region" aria-label="Notifikasi singkat" aria-live="polite"></div>
+    <div class="bs-sr" id="bsAnnounce" role="status" aria-live="polite" aria-atomic="true"></div>`;
   document.getElementById('adminEditDialog')?.remove();
   document.getElementById('legacyAdminTemplate')?.remove();
   const $ = id => document.getElementById(id);
   const modal = $('bsModal'), sheet = $('bsDrawer'), palette = $('bsPalette');
+  // Pengumuman pembaca layar (progres sync, jumlah hasil filter, aksi massal). Dikosongkan dulu
+  // supaya pesan yang sama tetap dibacakan ulang.
+  let announceTimer = 0;
+  function announce(msg) {
+    const el = $('bsAnnounce'); if (!el) return;
+    clearTimeout(announceTimer); el.textContent = '';
+    announceTimer = setTimeout(() => { el.textContent = msg; }, 60);
+  }
   const mobile = window.matchMedia('(max-width: 900px)');
 
   /* ------------------------------------------------------------------ *
@@ -878,7 +911,32 @@
     `<section class="bs-card ${cls}"><header class="bs-card-head"><div><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${actions ? `<div class="bs-card-actions">${actions}</div>` : ''}</header><div class="bs-card-body${flush ? ' flush' : ''}">${body}</div></section>`;
   const emptyState = (title, text, cta = '', icon = 'check') => `<div class="bs-empty-state">${ic(icon)}<strong>${title}</strong><p>${text}</p>${cta}</div>`;
   const head = (title, desc, actions = '') => `<div class="bs-page-head"><div><h1 id="bsTitle" tabindex="-1">${title}</h1><p>${desc}</p></div>${actions ? `<div class="bs-page-actions">${actions}</div>` : ''}</div>`;
-  const tabs = (bind, items, cur) => `<div class="bs-tabs" role="tablist">${items.map(([v, l, n]) => `<button type="button" role="tab" aria-selected="${v === cur}" data-action="tab" data-id="${bind}:${v}">${l}${n != null ? `<span class="bs-tab-count">${fmtNum(n)}</span>` : ''}</button>`).join('')}</div>`;
+  // Tab: hanya tab aktif yang masuk urutan Tab (roving tabindex); ←/→/Home/End berpindah tab (lihat keydown).
+  const tabSlug = bind => bind.replace(/\W+/g, '-');
+  const tabs = (bind, items, cur, label = '') => `<div class="bs-tabs" role="tablist"${label ? ` aria-label="${esc(label)}"` : ''}>${items.map(([v, l, n]) => `<button type="button" role="tab" id="bs-tab-${tabSlug(bind)}-${tabSlug(v || 'all')}" aria-selected="${v === cur}" aria-controls="bs-panel-${tabSlug(bind)}" tabindex="${v === cur ? 0 : -1}" data-action="tab" data-id="${bind}:${v}">${l}${n != null ? `<span class="bs-tab-count">${fmtNum(n)}</span>` : ''}</button>`).join('')}</div>`;
+  const tabPanel = (bind, cur, html, cls = '') => `<div role="tabpanel" class="bs-tabpanel ${cls}" id="bs-panel-${tabSlug(bind)}" aria-labelledby="bs-tab-${tabSlug(bind)}-${tabSlug(cur || 'all')}">${html}</div>`;
+  /* Bilah filter seragam: filter aktif tampil sebagai chip + tombol “Reset filter”.
+   * [kunci, label, format nilai, nilai default] per halaman. */
+  const CHIP_DEFS = {
+    map: [['q', 'Kata kunci'], ['status', 'Status', SL], ['region', 'Region'], ['gbp', 'Status GBP', SL]],
+    disc: [['q', 'Kata kunci'], ['field', 'Kolom', v => FIELD_LABEL[v] || v]],
+    audit: [['q', 'Kata kunci'], ['module', 'Modul'], ['actor', 'Pengguna', v => (v === 'Internal' ? 'Internal BRI' : 'Eksternal (email lain)')], ['range', 'Periode', v => ({ 1: '24 jam', 7: '7 hari', 30: '30 hari' }[v] || 'Semua waktu'), '30']],
+    reviews: [['q', 'Kata kunci'], ['status', 'Status', v => (v === 'replied' ? 'Sudah dibalas' : 'Belum dibalas')], ['rating', 'Rating', v => `${v}★`]],
+    report: [['region', 'Region'], ['account', 'Akun', v => (state.accounts.find(a => a.id === v) || {}).name || v], ['type', 'Tipe unit']],
+    access: [['q', 'Kata kunci']]
+  };
+  const chipBtn = (action, id, label, value) => `<button type="button" class="bs-chip" data-action="${action}" data-id="${esc(id)}" aria-label="Hapus filter ${esc(label)}: ${esc(value)}"><span>${esc(label)}: <b>${esc(value)}</b></span>${ic('x')}</button>`;
+  const chipRow = (chips, scope) => (chips.length ? `<div class="bs-chips" role="group" aria-label="Filter aktif">${chips.join('')}${btn('Reset filter', 'reset-filters', { id: scope, icon: 'x', variant: 'sm ghost' })}</div>` : '');
+  function filterChips(scope) {
+    const f = ui[scope];
+    return chipRow(CHIP_DEFS[scope].filter(([k, , , def = '']) => String(f[k] ?? '').trim() !== '' && String(f[k]) !== String(def))
+      .map(([k, l, fmt]) => chipBtn('unset-filter', `${scope}.${k}`, l, fmt ? fmt(String(f[k]).trim()) : String(f[k]).trim())), scope);
+  }
+  function resetFilters(scope) {
+    if (scope === 'loc') { FILTERS.forEach(([k]) => { ui.loc[k] = []; }); ui.loc.q = ''; ui.loc.page = 1; return; }
+    CHIP_DEFS[scope].forEach(([k, , , def = '']) => { ui[scope][k] = def; });
+    if (scope === 'reviews') ui.reviews.limit = 20;
+  }
   const opts = (xs, v, all) => (all ? `<option value="">${all}</option>` : '') + xs.map(x => { const [val, lab] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(val)}"${String(val) === String(v) ? ' selected' : ''}>${esc(lab)}</option>`; }).join('');
   const selectF = (bind, label, xs, v, all = 'Semua') => `<label class="bs-field"><span>${label}</span><select data-bind="${bind}">${opts(xs, v, all)}</select></label>`;
   const searchF = (bind, label, v, ph, id) => `<label class="bs-field bs-grow"><span>${label}</span><span class="bs-input-ic">${ic('search')}<input type="search" id="${id}" data-bind="${bind}" data-search value="${esc(v)}" placeholder="${esc(ph)}" autocomplete="off"></span></label>`;
@@ -926,7 +984,7 @@
   }
   function timeline(entries) {
     if (!entries.length) return emptyState('Belum ada aktivitas', 'Aktivitas akan muncul di sini.', '', 'history');
-    return `<ol class="bs-timeline">${entries.map(a => `<li><span class="bs-avatar sm" data-actor="${a.actor}" aria-hidden="true">${a.actor === 'Eksternal' ? '@' : initials(a.user)}</span><div><p><strong>${esc(a.user)}</strong> ${esc(a.action.toLowerCase())}${a.target ? ` <button type="button" class="bs-inline-link" data-action="open-target" data-id="${esc(a.target)}">${esc(locName(a.target))}</button>` : ''}</p><small>${esc(a.module)} · <time title="${fmtDate(a.time)}">${fmtRel(a.time)}</time>${a.actor === 'Eksternal' ? ' · ' + badge('Eksternal') : ''}</small></div></li>`).join('')}</ol>`;
+    return `<ol class="bs-timeline">${entries.map(a => `<li><span class="bs-avatar sm" data-actor="${a.actor}" aria-hidden="true">${a.actor === 'Eksternal' ? '@' : initials(a.user)}</span><div><p><strong>${esc(a.user)}</strong> ${esc(a.action.toLowerCase())}${a.target ? ` <button type="button" class="bs-inline-link" data-action="open-target" data-id="${esc(a.target)}">${esc(locName(a.target))}</button>` : ''}</p><small>${esc(a.module)} · ${when(a.time)}${a.actor === 'Eksternal' ? ' · ' + badge('Eksternal') : ''}</small></div></li>`).join('')}</ol>`;
   }
   function viewDashboard() {
     const L = state.locations, im = issueMap(), dups = duplicatePairs();
@@ -999,8 +1057,8 @@
     { key: 'phone', label: 'Telepon', cell: l => esc(l.phone || '—') },
     { key: 'hours', label: 'Jam operasional', wrap: true, cell: l => esc(l.hours || '—') },
     { key: 'address', label: 'Alamat', wrap: true, cell: l => esc(l.address || '—') },
-    { key: 'lastSync', label: 'Sinkron terakhir', sort: 'lastSync', cell: l => (l.lastSync ? `<span title="${fmtDate(l.lastSync)}">${fmtRel(l.lastSync)}</span>` : '<span class="bs-muted">Belum pernah</span>') },
-    { key: 'updated', label: 'Diperbarui', sort: 'updatedAt', cell: l => `<span title="${fmtDate(l.updatedAt)}">${fmtRel(l.updatedAt)}</span><small>${esc(l.updatedBy)}</small>` }
+    { key: 'lastSync', label: 'Sinkron terakhir', sort: 'lastSync', cell: l => (l.lastSync ? `${when(l.lastSync)}` : '<span class="bs-muted">Belum pernah</span>') },
+    { key: 'updated', label: 'Diperbarui', sort: 'updatedAt', cell: l => `${when(l.updatedAt)}<small>${esc(l.updatedBy)}</small>` }
   ];
   const LOC_COLS_DEFAULT = ['unit', 'location', 'status', 'gbp', 'google', 'updated'];
   const visibleCols = () => { const c = up().cols; const set = new Set(Array.isArray(c) && c.length ? c : LOC_COLS_DEFAULT); return LOC_COLS.filter(x => x.required || set.has(x.key)); };
@@ -1054,9 +1112,9 @@
   }
   // Menu ekspor CSV / Excel — dipakai di kepala halaman Unit Kerja ('all') dan bilah aksi massal ('sel').
   const exportMenu = scope => `<details class="bs-filter bs-export" data-pop="export-${scope}" ${ui.pop === `export-${scope}` ? 'open' : ''}><summary class="bs-btn${scope === 'sel' ? ' sm' : ''}">${ic('download')}<span>Ekspor</span>${ic('chevD')}</summary>
-    <div class="bs-popover bs-export-panel"><div class="bs-pop-head"><strong>${scope === 'sel' ? `Ekspor ${fmtNum(ui.loc.selected.size)} unit terpilih` : 'Ekspor hasil filter'}</strong></div>
-      <button type="button" class="bs-menu-item sm" data-action="export-xlsx" data-id="${scope}">${ic('file')}<span><strong>Excel (.xlsx)</strong><small>Kolom rapi, koordinat tersimpan sebagai angka</small></span></button>
-      <button type="button" class="bs-menu-item sm" data-action="export-csv" data-id="${scope}">${ic('file')}<span><strong>CSV</strong><small>Untuk Google Sheets dan sistem lain</small></span></button></div></details>`;
+    <div class="bs-popover bs-export-panel" role="menu" aria-label="Format ekspor"><div class="bs-pop-head" role="presentation"><strong>${scope === 'sel' ? `Ekspor ${fmtNum(ui.loc.selected.size)} unit terpilih` : 'Ekspor hasil filter'}</strong></div>
+      <button type="button" class="bs-menu-item sm" role="menuitem" data-action="export-xlsx" data-id="${scope}">${ic('file')}<span><strong>Excel (.xlsx)</strong><small>Kolom rapi, koordinat tersimpan sebagai angka</small></span></button>
+      <button type="button" class="bs-menu-item sm" role="menuitem" data-action="export-csv" data-id="${scope}">${ic('file')}<span><strong>CSV</strong><small>Untuk Google Sheets dan sistem lain</small></span></button></div></details>`;
   function viewLocations() {
     const f = ui.loc, all = locFiltered(), size = Number(prefs.pageSize) || 10, U = up(), cols = visibleCols(), dense = U.density === 'compact';
     const pages = Math.max(1, Math.ceil(all.length / size));
@@ -1074,7 +1132,7 @@
     const quickCounts = QUICK.map(([v, l, fn]) => [v, l, memo(`quick:${v}`, () => state.locations.filter(x => fn(x, im)).length)]);
     const optCount = (k, v) => memo('optcounts', () => { const m = {}; state.locations.forEach(x => FILTERS.forEach(([kk]) => { const key = `${kk}:${x[kk]}`; m[key] = (m[key] || 0) + 1; })); return m; })[`${k}:${v}`] || 0;
     const filterPanel = `<details class="bs-filter" data-pop="filter" ${ui.pop === 'filter' ? 'open' : ''}><summary class="bs-btn">${ic('filter')}<span>Filter${activeFilters.length ? ` (${activeFilters.length})` : ''}</span></summary>
-      <div class="bs-popover bs-filter-panel">${FILTERS.map(([k, l, xs]) => `<fieldset><legend>${l}</legend>${xs.map(v => `<label class="bs-checkline"><input type="checkbox" data-filter="${k}" value="${esc(v)}" ${f[k].includes(v) ? 'checked' : ''}><span>${esc(v)}</span><small>${fmtNum(optCount(k, v))}</small></label>`).join('')}</fieldset>`).join('')}
+      <div class="bs-popover bs-filter-panel">${FILTERS.map(([k, l, xs]) => `<fieldset><legend>${l}</legend>${xs.map(v => `<label class="bs-checkline"><input type="checkbox" data-filter="${k}" value="${esc(v)}" ${f[k].includes(v) ? 'checked' : ''}><span>${esc(SL(v))}</span><small>${fmtNum(optCount(k, v))}</small></label>`).join('')}</fieldset>`).join('')}
       <div class="bs-filter-foot">${btn('Hapus filter', 'clear-filters', { variant: 'sm ghost' })}${btn('Selesai', 'close-filter', { variant: 'sm primary' })}</div></div></details>`;
     const viewsPanel = `<details class="bs-filter" data-pop="views" ${ui.pop === 'views' ? 'open' : ''}><summary class="bs-btn${activeView ? ' is-current' : ''}">${ic('star')}<span>${activeView ? esc(activeView.name) : 'Tampilan'}</span>${ic('chevD')}</summary>
       <div class="bs-popover bs-views-panel"><div class="bs-pop-head"><strong>Tampilan tersimpan</strong><small>Simpan kombinasi filter untuk dipakai lagi</small></div>
@@ -1092,7 +1150,7 @@
       <strong>${fmtNum(f.selected.size)} dipilih</strong>
       ${f.selected.size < all.length ? btn(`Pilih semua ${fmtNum(all.length)} hasil`, 'select-all', { variant: 'sm ghost' }) : ''}
       <span class="bs-spacer"></span>
-      <label class="bs-inline-select"><span class="bs-sr">Ubah status</span><select data-action-change="bulk-status" ${can('locations.write') ? '' : `disabled title="${esc(deniedMsg('locations.write'))}"`}><option value="">Ubah status…</option>${opts(STATUSES)}</select></label>
+      <label class="bs-inline-select"><span class="bs-sr">Ubah status</span><select data-action-change="bulk-status" ${can('locations.write') ? '' : `disabled title="${esc(deniedMsg('locations.write'))}"`}><option value="">Ubah status…</option>${opts(labelled(STATUSES))}</select></label>
       ${btn('Sinkronkan', 'bulk-sync', { icon: 'refresh', variant: 'sm' })}${exportMenu('sel')}${btn('Hapus', 'bulk-delete', { icon: 'trash', variant: 'sm danger' })}
       ${btn('', 'clear-selection', { icon: 'x', variant: 'sm icon ghost', title: 'Batalkan pilihan' })}</div>` : '';
     const pageBtns = [];
@@ -1100,12 +1158,12 @@
     return head('Unit Kerja', navItem('locations').desc,
       btn('Impor data', 'import', { icon: 'upload', title: 'Impor dari Excel (.xlsx) atau CSV' }) + exportMenu('all') + btn('Tambah unit', 'add-loc', { icon: 'plus', variant: 'primary' })) +
       `<section class="bs-card bs-loc-card${f.selected.size ? ' has-bulk' : ''}"><div class="bs-card-body flush">
-        <div class="bs-segment" role="tablist" aria-label="Tampilan cepat">${quickCounts.map(([v, l, n]) => `<button type="button" role="tab" aria-selected="${f.quick === v && !activeView}" data-action="quick" data-id="${v}">${l}<span>${fmtNum(n)}</span></button>`).join('')}${pinned.map(v => `<button type="button" role="tab" class="bs-seg-pinned" aria-selected="${activeView === v}" data-action="view-apply" data-id="${esc(v.id)}">${ic('pin')}${esc(v.name)}<span>${fmtNum(viewCount(v.filters))}</span></button>`).join('')}</div>
+        <div class="bs-segment" role="tablist" aria-label="Tampilan cepat">${quickCounts.map(([v, l, n], i) => `<button type="button" role="tab" aria-selected="${f.quick === v && !activeView}" tabindex="${(activeView ? i === 0 && !pinned.includes(activeView) : f.quick === v) ? 0 : -1}" data-action="quick" data-id="${v}">${l}<span>${fmtNum(n)}</span></button>`).join('')}${pinned.map(v => `<button type="button" role="tab" class="bs-seg-pinned" aria-selected="${activeView === v}" tabindex="${activeView === v ? 0 : -1}" data-action="view-apply" data-id="${esc(v.id)}">${ic('pin')}${esc(v.name)}<span>${fmtNum(viewCount(v.filters))}</span></button>`).join('')}</div>
         <div class="bs-toolbar bs-loc-toolbar">${searchF('loc.q', 'Cari unit kerja', f.q, 'Nama, kode, kota, provinsi, atau alamat…  ( / )', 'bsLocQ')}${filterPanel}${viewsPanel}${colsPanel}
 </div>
         <div class="bs-loc-mobilebar bs-mobile-only"><label class="bs-field"><span>Urutkan</span><select data-action-change="loc-sort">${opts(sortOpts, `${f.sort}:${f.dir}`)}</select></label>
           <label class="bs-checkline bs-select-page"><input type="checkbox" class="bs-check" data-action="select-page" ${pageAllSel ? 'checked' : ''}><span>Pilih semua di halaman ini</span></label></div>
-        ${activeFilters.length ? `<div class="bs-chips">${activeFilters.map(([k, l, v]) => `<button type="button" class="bs-chip" data-action="unfilter" data-id="${k}:${esc(v)}" aria-label="Hapus filter ${esc(l)}: ${esc(v)}"><span>${esc(l)}: <b>${esc(v)}</b></span>${ic('x')}</button>`).join('')}${btn('Hapus semua', 'clear-filters', { variant: 'sm ghost' })}</div>` : ''}
+        ${chipRow([...(f.q.trim() ? [chipBtn('unset-filter', 'loc.q', 'Kata kunci', f.q.trim())] : []), ...activeFilters.map(([k, l, v]) => chipBtn('unfilter', `${k}:${v}`, l, SL(v)))], 'loc')}
         ${bulk}
         ${table(headCells, body, `<div class="bs-empty-inline">${ic('search')}<strong>Tidak ada unit yang cocok</strong><span>Ubah kata kunci atau ${f.q || activeFilters.length || f.quick !== 'all' ? '<button type="button" class="bs-inline-link" data-action="clear-all">hapus semua filter</button>' : 'tambahkan unit baru'}.</span></div>`, { cls: `bs-table-scroll${dense ? ' is-dense' : ''}` })}
         <div class="bs-pagination">
@@ -1128,10 +1186,10 @@
     const m = ui.map;
     return head('Peta Unit Kerja', navItem('map').desc, btn('Buka daftar', 'nav', { id: 'locations', icon: 'building' })) +
       `<div class="bs-map-layout"><section class="bs-card bs-map-card"><div class="bs-card-body flush">
-        <div class="bs-toolbar">${searchF('map.q', 'Cari di peta', m.q, 'Nama, kode, atau kota…', 'bsMapQ')}${selectF('map.status', 'Status', STATUSES, m.status)}${selectF('map.region', 'Region', REGIONS, m.region)}${selectF('map.gbp', 'Status GBP', GBP, m.gbp)}
-          <label class="bs-switch"><input type="checkbox" data-bind="map.showGoogle" ${m.showGoogle ? 'checked' : ''}><span></span>Tampilkan selisih titik Google</label></div>
+        <div class="bs-toolbar">${searchF('map.q', 'Cari di peta', m.q, 'Nama, kode, atau kota…', 'bsMapQ')}${selectF('map.status', 'Status', labelled(STATUSES), m.status)}${selectF('map.region', 'Region', REGIONS, m.region)}${selectF('map.gbp', 'Status GBP', labelled(GBP), m.gbp)}
+          <label class="bs-switch"><input type="checkbox" data-bind="map.showGoogle" ${m.showGoogle ? 'checked' : ''}><span></span>Tampilkan selisih titik Google</label></div><div id="bsMapChips">${filterChips('map')}</div>
         <div id="bsMap" class="bs-map" role="application" aria-label="Peta unit kerja"></div>
-        <div class="bs-map-legend">${STATUSES.map(s => `<span><i style="background:${MARKER[s]}"></i>${s}</span>`).join('')}<span><i class="hollow"></i>Titik di Google (beda)</span></div>
+        <div class="bs-map-legend">${STATUSES.map(s => `<span><i style="background:${MARKER[s]}"></i>${SL(s)}</span>`).join('')}<span><i class="hollow"></i>Titik di Google (beda)</span></div>
       </div></section>
       <section class="bs-card bs-map-list"><header class="bs-card-head"><div><h2 id="bsMapCount"></h2><p>Klik untuk menuju lokasi</p></div></header><div class="bs-card-body flush"><ol id="bsMapList" class="bs-list"></ol></div></section></div>`;
   }
@@ -1152,6 +1210,12 @@
   }
   function updateMap(fit) {
     const xs = mapFiltered(), im = issueMap();
+    // Peta tidak dirender ulang penuh: selaraskan kontrol filter & chip dengan ui.map.
+    const chips = $('bsMapChips');
+    if (chips) {
+      chips.innerHTML = filterChips('map');
+      shell.querySelectorAll('#bsPage [data-bind^="map."]').forEach(c => { const k = c.dataset.bind.slice(4); if (c.type === 'checkbox') c.checked = !!ui.map[k]; else if (c !== document.activeElement && c.value !== String(ui.map[k] ?? '')) c.value = ui.map[k] ?? ''; });
+    }
     if ($('bsMapCount')) $('bsMapCount').textContent = `${fmtNum(xs.length)} unit ditampilkan`;
     if ($('bsMapList')) {
       $('bsMapList').innerHTML = xs.slice(0, 300).map(l => `<li><button type="button" data-action="map-focus" data-id="${esc(l.code)}"><i style="background:${MARKER[l.status]}" aria-hidden="true"></i><span><strong>${esc(l.name)}</strong><small>${esc(l.code)} · ${esc(l.city)}</small></span>${im.has(l.code) ? `<span class="bs-issue sm" title="Beda dengan Google">${ic('alert')}</span>` : ''}</button></li>`).join('') +
@@ -1162,7 +1226,7 @@
     mapLayer.clearLayers(); mapMarkers = new Map();
     xs.forEach(l => {
       const mk = L.circleMarker([l.lat, l.lng], { radius: 7, color: '#fff', weight: 2, fillColor: MARKER[l.status], fillOpacity: 1 })
-        .bindPopup(`<div class="bs-popup"><strong>${esc(l.name)}</strong><span>${esc(l.code)} · ${esc(l.type)}</span><span>${esc(l.address)}</span><span>Status: ${esc(l.status)} · GBP: ${esc(l.gbp)}</span><button type="button" data-action="open-loc" data-id="${esc(l.code)}">Lihat detail →</button></div>`);
+        .bindPopup(`<div class="bs-popup"><strong>${esc(l.name)}</strong><span>${esc(l.code)} · ${esc(l.type)}</span><span>${esc(l.address)}</span><span>Status: ${esc(SL(l.status))} · GBP: ${esc(SL(l.gbp))}</span><button type="button" data-action="open-loc" data-id="${esc(l.code)}">Lihat detail →</button></div>`);
       mk.addTo(mapLayer); mapMarkers.set(l.code, mk);
       const coord = (im.get(l.code) || []).find(i => i.field === 'coords');
       if (ui.map.showGoogle && coord) {
@@ -1200,7 +1264,7 @@
     return head('Ketidaksesuaian Data', navItem('discrepancies').desc,
       (isLive() ? '' : btn('Simulasikan perubahan di Google', 'simulate-google', { icon: 'zap' })) + btn('Unduh laporan', 'export-disc', { icon: 'download' }) + btn('Pakai Dashboard untuk semua', 'disc-push-all', { icon: 'upload', variant: 'primary', attrs: rows.length ? '' : 'disabled' })) +
       `<div class="bs-metrics bs-metrics-5">${byField.map(([f, n]) => metric({ label: FIELD_LABEL[f], value: fmtNum(n), note: n ? 'perbedaan' : 'sesuai', tone: n ? 'warn' : 'good' })).join('')}</div>` +
-      card(`${fmtNum(total)} perbedaan pada ${fmtNum(issueMap().size)} unit`, `<div class="bs-toolbar">${searchF('disc.q', 'Cari unit', ui.disc.q, 'Nama, kode, atau kota…', 'bsDiscQ')}${selectF('disc.field', 'Kolom', Object.keys(FIELD_LABEL).slice(0, 5).map(f => [f, FIELD_LABEL[f]]), ui.disc.field)}</div>` +
+      card(`${fmtNum(total)} perbedaan pada ${fmtNum(issueMap().size)} unit`, `<div class="bs-toolbar">${searchF('disc.q', 'Cari unit', ui.disc.q, 'Nama, kode, atau kota…', 'bsDiscQ')}${selectF('disc.field', 'Kolom', Object.keys(FIELD_LABEL).slice(0, 5).map(f => [f, FIELD_LABEL[f]]), ui.disc.field)}</div>${filterChips('disc')}` +
         (rows.length ? table(['Unit kerja', 'Kolom', 'Di Dashboard', 'Di Google Maps', 'Catatan', '<span class="bs-sr">Aksi</span>'], body) : emptyState('Data sudah sesuai', 'Tidak ada perbedaan antara Dashboard dan Google Maps untuk filter ini.')),
       { sub: '“Pakai Dashboard” mengirim data BRI ke Google. “Pakai Google” memperbarui Dashboard. Setiap keputusan tercatat di Riwayat.' });
   }
@@ -1211,7 +1275,7 @@
   function viewDuplicates() {
     const pairs = duplicatePairs();
     const side = (l, keep) => `<div class="bs-dup-side"><button type="button" class="bs-cell-link" data-action="open-loc" data-id="${esc(l.code)}"><strong>${esc(l.name)}</strong><small>${esc(l.code)} · ${esc(l.type)}</small></button>
-      ${kv([['Alamat', esc(l.address)], ['Telepon', esc(l.phone)], ['Status', badge(l.status)], ['GBP', badge(l.gbp)], ['Diperbarui', fmtRel(l.updatedAt)]])}
+      ${kv([['Alamat', esc(l.address)], ['Telepon', esc(l.phone)], ['Status', badge(l.status)], ['GBP', badge(l.gbp)], ['Diperbarui', when(l.updatedAt)]])}
       ${btn('Pertahankan ini', 'dup-keep', { id: keep, icon: 'merge', variant: 'sm' })}</div>`;
     const list = pairs.map(p => `<article class="bs-dup">
       <header><span class="bs-score" data-high="${p.score >= 90}">${p.score}% mirip</span><span>${esc(p.reason)} · jarak ${fmtDist(p.d)}</span><span class="bs-spacer"></span>${btn('Bukan duplikat', 'dup-ignore', { id: p.key, variant: 'sm ghost' })}${btn('Laporkan ke Google', 'dup-report', { id: p.key, variant: 'sm ghost' })}</header>
@@ -1250,7 +1314,7 @@
         ['Titik baru', 'pin', 'Usulkan lokasi baru. Sistem memeriksa duplikat sebelum diajukan.']
       ].map(([t2, i, d]) => `<div>${ic(i)}<strong>${t2}</strong><p>${d}</p></div>`).join('')}</div>` +
       card('Daftar permintaan', tabs('claims.tab', [['active', 'Berjalan', count(claimActive)], ['done', 'Selesai', count(c => c.status === 'Selesai')], ['rejected', 'Ditolak', count(c => c.status === 'Ditolak')], ['all', 'Semua', all.length]], t) +
-        table(['ID / jenis', 'Unit kerja', 'Tahap', 'Proses internal', 'Verifikasi Google', 'Diajukan', '<span class="bs-sr">Aksi</span>'], rows, 'Tidak ada permintaan di tab ini.'),
+        tabPanel('claims.tab', t, table(['ID / jenis', 'Unit kerja', 'Tahap', 'Proses internal', 'Verifikasi Google', 'Diajukan', '<span class="bs-sr">Aksi</span>'], rows, 'Tidak ada permintaan di tab ini.')),
       { sub: `Target proses internal ≤ ${state.settings.slaInternal} jam. Waktu verifikasi Google dihitung terpisah.` });
   }
 
@@ -1261,15 +1325,15 @@
     const pending = state.approvals.filter(a => a.status === 'Menunggu'), done = state.approvals.filter(a => a.status !== 'Menunggu');
     const t = ui.approvals.tab;
     const cards = pending.map(a => `<article class="bs-approval">
-      <header><span class="bs-avatar sm" data-actor="Eksternal" aria-hidden="true">@</span><div><strong>${esc(a.by)}</strong><small>Email GBP tidak dikenal · ${fmtRel(a.time)} · ${esc(a.id)}</small></div>${badge('Menunggu')}</header>
+      <header><span class="bs-avatar sm" data-actor="Eksternal" aria-hidden="true">@</span><div><strong>${esc(a.by)}</strong><small>Email GBP tidak dikenal · ${when(a.time)} · ${esc(a.id)}</small></div>${badge('Menunggu')}</header>
       <p>Mengusulkan perubahan <b>${FIELD_LABEL[a.field]}</b> pada <button type="button" class="bs-inline-link" data-action="open-loc" data-id="${esc(a.code)}">${esc(locName(a.code))}</button></p>
       ${diffList([{ field: FIELD_LABEL[a.field], before: a.before, after: a.after }])}
       <footer>${btn('Tolak', 'cr-reject', { id: a.id, icon: 'x' })}${btn('Setujui', 'cr-approve', { id: a.id, icon: 'check', variant: 'primary' })}</footer></article>`).join('');
-    const hist = done.sort((a, b) => b.decidedAt - a.decidedAt).map(a => `<tr><td><strong>${esc(a.id)}</strong><small>${fmtDate(a.time)}</small></td><td>${esc(locName(a.code))}<small>${FIELD_LABEL[a.field]}</small></td><td class="bs-td-wrap">${diffList([{ field: '', before: a.before, after: a.after }])}</td><td>${esc(a.by)}</td><td>${badge(a.status)}<small>${esc(a.decidedBy)} · ${fmtRel(a.decidedAt)}</small></td></tr>`);
+    const hist = done.sort((a, b) => b.decidedAt - a.decidedAt).map(a => `<tr><td><strong>${esc(a.id)}</strong><small>Diterima ${when(a.time)}</small></td><td>${esc(locName(a.code))}<small>${FIELD_LABEL[a.field]}</small></td><td class="bs-td-wrap">${diffList([{ field: '', before: a.before, after: a.after }])}</td><td>${esc(a.by)}</td><td>${badge(a.status)}<small>${esc(a.decidedBy)} · ${when(a.decidedAt)}</small></td></tr>`);
     return head('Persetujuan Edit', navItem('approvals').desc, (isLive() ? btn('Muat ulang', 'live-retry', { icon: 'refresh' }) : btn('Simulasikan edit masuk', 'simulate-edit', { icon: 'zap' }))) +
       `<div class="bs-callout" data-tone="good">${ic('shield')}<p>Perubahan dari email GBP lain <b>tidak diterapkan</b> sampai BRI menyetujuinya. Jika ditolak, data unit kerja tetap seperti semula.</p></div>` +
-      tabs('approvals.tab', [['pending', 'Menunggu', pending.length], ['history', 'Riwayat keputusan', done.length]], t) +
-      (t === 'pending'
+      tabs('approvals.tab', [['pending', 'Menunggu', pending.length], ['history', 'Riwayat keputusan', done.length]], t, 'Persetujuan Edit') +
+      tabPanel('approvals.tab', t, t === 'pending'
         ? (pending.length ? `<div class="bs-approval-grid">${cards}</div>` : card('Tidak ada permintaan', emptyState('Kotak masuk kosong', 'Tidak ada edit eksternal yang menunggu persetujuan.', '', 'inbox')))
         : card('Riwayat keputusan', table(['ID', 'Unit / kolom', 'Perubahan', 'Diajukan oleh', 'Keputusan'], hist), { flush: false }));
   }
@@ -1282,9 +1346,9 @@
     const ok = sum(daily.map(d => d.ok)), fl = sum(daily.map(d => d.fail));
     const avgDur = runs.length ? sum(runs.slice(0, 20).map(r => r.durationMs)) / Math.min(20, runs.length) : 0;
     const prog = ui.running && ui.running.indeterminate ? `<div class="bs-progress is-indeterminate" role="progressbar" aria-label="Server sedang menyinkronkan"><span></span></div><p class="bs-muted">Server sedang menyinkronkan ${fmtNum(ui.running.total)} unit…</p>` : ui.running ? `<div class="bs-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${ui.running.total}" aria-valuenow="${ui.running.done}" aria-label="Kemajuan sinkronisasi"><span style="width:${pct(ui.running.done, ui.running.total)}%"></span></div><p class="bs-muted">Memproses ${fmtNum(ui.running.done)} dari ${fmtNum(ui.running.total)} unit…</p>` : '';
-    const failRows = fails.map(f => `<tr><td><button type="button" class="bs-cell-link" data-action="open-loc" data-id="${esc(f.code)}" data-tab="sync"><strong>${esc(locName(f.code))}</strong><small>${esc(f.code)}</small></button></td><td class="bs-td-wrap">${esc(f.reason)}</td><td>${esc(f.run)}<small>${fmtRel(f.time)}</small></td>
+    const failRows = fails.map(f => `<tr><td><button type="button" class="bs-cell-link" data-action="open-loc" data-id="${esc(f.code)}" data-tab="sync"><strong>${esc(locName(f.code))}</strong><small>${esc(f.code)}</small></button></td><td class="bs-td-wrap">${esc(f.reason)}</td><td>${esc(f.run)}<small>${when(f.time)}</small></td>
       <td class="bs-td-actions">${btn('Coba lagi', 'retry', { id: f.code, icon: 'refresh', variant: 'sm', attrs: ui.running ? 'disabled' : '' })}${btn('Tindak lanjut', 'resolve', { id: f.code, icon: 'note', variant: 'sm ghost' })}</td></tr>`);
-    const runRows = runs.slice(0, 50).map(r => `<tr><td><strong>${esc(r.id)}</strong><small>${esc(r.scope)}</small></td><td>${fmtDate(r.time)}<small>${esc(r.by)}</small></td><td>${fmtNum(r.total)}</td><td>${badge('Berhasil', fmtNum(r.ok))}</td><td>${r.fail ? badge('Gagal', fmtNum(r.fail)) : '0'}</td><td>${fmtNum(r.skip)}</td><td>${fmtDur(r.durationMs < MIN ? MIN : r.durationMs)}</td></tr>`);
+    const runRows = runs.slice(0, 50).map(r => `<tr><td><strong>${esc(r.id)}</strong><small>${esc(r.scope)}</small></td><td>${whenCell(r.time)}<small>${esc(r.by)}</small></td><td>${fmtNum(r.total)}</td><td>${badge('Berhasil', fmtNum(r.ok))}</td><td>${r.fail ? badge('Gagal', fmtNum(r.fail)) : '0'}</td><td>${fmtNum(r.skip)}</td><td>${fmtDur(r.durationMs < MIN ? MIN : r.durationMs)}</td></tr>`);
     return head('Sync Monitor', navItem('sync').desc, btn(ui.running ? 'Menyinkronkan…' : 'Sinkronkan semua', 'sync-all', { icon: 'refresh', variant: 'primary', attrs: ui.running ? 'disabled' : '' })) + prog +
       `<div class="bs-metrics">${[
         metric({ label: 'Tingkat keberhasilan · 7 hari', value: pct(ok, ok + fl) + '%', note: `${fmtNum(ok)} berhasil · ${fmtNum(fl)} gagal`, spark: daily.map(d => pct(d.ok, d.ok + d.fail)), tone: pct(ok, ok + fl) < 95 ? 'warn' : 'good' }),
@@ -1292,8 +1356,8 @@
         metric({ label: 'Rata-rata durasi job', value: fmtDur(Math.max(MIN, avgDur)), note: '20 job terakhir', icon: 'gauge' }),
         metric({ label: 'Sisa kuota API', value: fmtNum(state.api.quotaLimit - state.api.quotaUsed), note: `dari ${fmtNum(state.api.quotaLimit)} per hari`, icon: 'plug', view: 'integrations' })
       ].join('')}</div>` +
-      card('Detail sinkronisasi', tabs('sync.tab', [['failures', 'Kegagalan', fails.length], ['runs', 'Riwayat job', runs.length]], ui.sync.tab) +
-        (ui.sync.tab === 'failures'
+      card('Detail sinkronisasi', tabs('sync.tab', [['failures', 'Kegagalan', fails.length], ['runs', 'Riwayat job', runs.length]], ui.sync.tab, 'Detail sinkronisasi') +
+        tabPanel('sync.tab', ui.sync.tab, ui.sync.tab === 'failures'
           ? (fails.length ? `<div class="bs-table-actions">${btn(`Coba lagi semua (${fails.length})`, 'retry-all', { icon: 'refresh', variant: 'sm', attrs: ui.running ? 'disabled' : '' })}</div>` + table(['Unit kerja', 'Penyebab', 'Job', '<span class="bs-sr">Aksi</span>'], failRows) : emptyState('Tidak ada kegagalan', 'Semua unit berhasil diperbarui pada job terakhir.'))
           : table(['Job', 'Waktu', 'Total', 'Berhasil', 'Gagal', 'Dilewati', 'Durasi'], runRows)));
   }
@@ -1308,12 +1372,12 @@
   }
   function viewAudit() {
     const xs = auditFiltered(), a = ui.audit, modules = [...new Set(state.audit.map(x => x.module))].sort();
-    const rows = xs.slice(0, 200).map(x => `<tr><td><span title="${fmtDate(x.time)}">${fmtDate(x.time, { dateStyle: 'short', timeStyle: 'short' })}</span><small>${fmtRel(x.time)}</small></td>
+    const rows = xs.slice(0, 200).map(x => `<tr><td>${whenCell(x.time)}</td>
       <td><span class="bs-user"><span class="bs-avatar sm" data-actor="${x.actor}" aria-hidden="true">${x.actor === 'Eksternal' ? '@' : initials(x.user)}</span><span>${esc(x.user)}<small>${badge(x.actor)}</small></span></span></td>
       <td>${esc(x.module)}</td><td><strong>${esc(x.action)}</strong>${x.target ? `<small><button type="button" class="bs-inline-link" data-action="open-target" data-id="${esc(x.target)}">${esc(locName(x.target))}</button></small>` : ''}${x.detail ? `<small>${esc(x.detail)}</small>` : ''}</td>
       <td class="bs-td-wrap">${x.changes.length ? `<details class="bs-changes"><summary>${x.changes.length} perubahan</summary>${diffList(x.changes)}</details>` : '<span class="bs-muted">—</span>'}</td></tr>`);
     return head('Riwayat Perubahan', navItem('audit').desc, btn('Ekspor CSV', 'export-audit', { icon: 'download' })) +
-      card(`${fmtNum(xs.length)} aktivitas`, `<div class="bs-toolbar">${searchF('audit.q', 'Cari', a.q, 'Pengguna, unit, nilai sebelum/sesudah…', 'bsAuditQ')}${selectF('audit.module', 'Modul', modules, a.module)}${selectF('audit.actor', 'Pengguna', [['Internal', 'Internal BRI'], ['Eksternal', 'Eksternal (email lain)']], a.actor)}${selectF('audit.range', 'Periode', [['1', '24 jam'], ['7', '7 hari'], ['30', '30 hari']], a.range, 'Semua waktu')}</div>` +
+      card(`${fmtNum(xs.length)} aktivitas`, `<div class="bs-toolbar">${searchF('audit.q', 'Cari', a.q, 'Pengguna, unit, nilai sebelum/sesudah…', 'bsAuditQ')}${selectF('audit.module', 'Modul', modules, a.module)}${selectF('audit.actor', 'Pengguna', [['Internal', 'Internal BRI'], ['Eksternal', 'Eksternal (email lain)']], a.actor)}${selectF('audit.range', 'Periode', [['1', '24 jam'], ['7', '7 hari'], ['30', '30 hari']], a.range, 'Semua waktu')}</div>${filterChips('audit')}` +
         table(['Waktu', 'Pengguna', 'Modul', 'Aksi', 'Sebelum → sesudah'], rows, 'Tidak ada aktivitas untuk filter ini.', { cls: 'bs-table-scroll' }) + (xs.length > 200 ? `<p class="bs-muted bs-pad">Menampilkan 200 terbaru. Ekspor CSV untuk melihat semuanya.</p>` : ''));
   }
 
@@ -1330,7 +1394,7 @@
         <span class="bs-hbar-track"><span class="s1" style="width:${(t.internal / maxT) * 100}%"></span>${t.google ? `<span class="s2" style="width:${(t.google / maxT) * 100}%"></span>` : ''}<i class="bs-limit" style="left:${limitPct}%"></i></span>
         <span class="bs-hbar-val">${fmtDur(t.internal + (t.google || 0))}</span>
         <span class="bs-tip" role="tooltip"><strong>${esc(c.id)} · ${esc(c.kind)}</strong><span><i class="s1"></i>Internal <b>${fmtDur(t.internal)}${t.internalRunning ? ' (berjalan)' : ''}</b></span><span><i class="s2"></i>Google <b>${fmtDur(t.google)}${t.googleRunning ? ' (berjalan)' : ''}</b></span></span></div>`).join('')}</div>`;
-    const tableRows = rows.map(({ c, t }) => `<tr><td><strong>${esc(c.id)}</strong><small>${esc(c.kind)}</small></td><td>${esc(claimName(c))}</td><td>${fmtDate(c.submittedAt, { dateStyle: 'short', timeStyle: 'short' })}</td><td>${fmtDur(t.internal)}${t.internalRunning ? '<small>berjalan</small>' : ''}</td><td>${fmtDur(t.google)}${t.googleRunning ? '<small>berjalan</small>' : ''}</td><td>${badge(t.sla)}</td><td>${badge(c.status)}</td></tr>`);
+    const tableRows = rows.map(({ c, t }) => `<tr><td><strong>${esc(c.id)}</strong><small>${esc(c.kind)}</small></td><td>${esc(claimName(c))}</td><td>${whenCell(c.submittedAt)}</td><td>${fmtDur(t.internal)}${t.internalRunning ? '<small>berjalan</small>' : ''}</td><td>${fmtDur(t.google)}${t.googleRunning ? '<small>berjalan</small>' : ''}</td><td>${badge(t.sla)}</td><td>${badge(c.status)}</td></tr>`);
     return head('SLA & Kinerja', navItem('sla').desc, btn('Atur target SLA', 'nav', { id: 'settings', icon: 'sliders' }) + btn('Ekspor CSV', 'export-sla', { icon: 'download' })) +
       `<div class="bs-metrics">${[
         metric({ label: 'Rata-rata proses internal', value: fmtDur(s.avgInternal), note: `Target ≤ ${state.settings.slaInternal} jam`, icon: 'gauge', tone: s.avgInternal > state.settings.slaInternal * HOUR ? 'warn' : 'good' }),
@@ -1347,12 +1411,12 @@
   function viewAccess() {
     const t = ui.access.tab, q = ui.access.q.trim().toLowerCase();
     const users = state.users.filter(u => !q || `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(q));
-    const userRows = users.map(u => `<tr><td><span class="bs-user"><span class="bs-avatar sm" aria-hidden="true">${initials(u.name)}</span><span><strong>${esc(u.name)}</strong><small>${esc(u.email)}</small></span></span></td><td>${esc(u.role)}</td><td>${badge(u.status)}</td><td>${fmtRel(u.lastActive)}</td>
+    const userRows = users.map(u => `<tr><td><span class="bs-user"><span class="bs-avatar sm" aria-hidden="true">${initials(u.name)}</span><span><strong>${esc(u.name)}</strong><small>${esc(u.email)}</small></span></span></td><td>${esc(u.role)}</td><td>${badge(u.status)}</td><td>${when(u.lastActive)}</td>
       <td class="bs-td-actions">${btn('', 'edit-user', { id: u.id, icon: 'edit', variant: 'icon ghost sm', title: `Edit ${u.name}` })}${btn(u.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan', 'toggle-user', { id: u.id, variant: 'sm ghost', attrs: u.id === 1 ? 'disabled title="Akun Anda sendiri"' : '' })}</td></tr>`);
     const matrix = `<div class="bs-table-wrap" tabindex="0" role="region" aria-label="Matriks izin"><table class="bs-table bs-matrix"><thead><tr><th scope="col">Izin</th>${state.roles.map((r, i) => `<th scope="col">${esc(r.name)}<small>${state.users.filter(u => u.role === r.name).length} pengguna</small>${i ? btn('', 'edit-role', { id: r.name, icon: 'edit', variant: 'icon ghost sm', title: `Ubah nama ${r.name}` }) : ''}</th>`).join('')}</tr></thead><tbody>${PERMS.map(([p, l]) => `<tr><th scope="row">${l}<small>${p}</small></th>${state.roles.map((r, i) => `<td><input type="checkbox" class="bs-check" data-role="${i}" data-perm="${p}" aria-label="${esc(r.name)}: ${l}" ${r.permissions.includes(p) ? 'checked' : ''} ${i === 0 || !can('users.manage') ? 'disabled' : ''}></td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="bs-muted bs-pad">Administrator selalu memiliki semua izin agar workspace tidak terkunci. Pratinjau RBAC — tidak ada penegakan akses di backend.</p>`;
     return head('Pengguna & Akses', navItem('access').desc, t === 'users' ? btn('Tambah pengguna', 'add-user', { icon: 'plus', variant: 'primary' }) : btn('Tambah peran', 'add-role', { icon: 'plus', variant: 'primary' })) +
-      tabs('access.tab', [['users', 'Pengguna', state.users.length], ['roles', 'Peran & izin', state.roles.length]], t) +
-      (t === 'users' ? card('Pengguna', `<div class="bs-toolbar">${searchF('access.q', 'Cari pengguna', ui.access.q, 'Nama, email, atau peran…', 'bsUserQ')}</div>` + table(['Pengguna', 'Peran', 'Status', 'Aktif terakhir', '<span class="bs-sr">Aksi</span>'], userRows)) : card('Matriks izin', matrix, { sub: 'Centang untuk memberi izin. Perubahan langsung tersimpan dan tercatat di Riwayat.' }));
+      tabs('access.tab', [['users', 'Pengguna', state.users.length], ['roles', 'Peran & izin', state.roles.length]], t, 'Pengguna & Akses') +
+      tabPanel('access.tab', t, t === 'users' ? card('Pengguna', `<div class="bs-toolbar">${searchF('access.q', 'Cari pengguna', ui.access.q, 'Nama, email, atau peran…', 'bsUserQ')}</div>${filterChips('access')}` + table(['Pengguna', 'Peran', 'Status', 'Aktif terakhir', '<span class="bs-sr">Aksi</span>'], userRows)) : card('Matriks izin', matrix, { sub: 'Centang untuk memberi izin. Perubahan langsung tersimpan dan tercatat di Riwayat.' }));
   }
 
   /* ------------------------------------------------------------------ *
@@ -1371,7 +1435,7 @@
       return `<tr><td><strong>${esc(ac.name)}</strong><small>${esc(ac.email || '')}</small></td><td><code>${esc(ac.accountId || ac.id)}</code></td><td>${fmtNum(locs.length)}</td><td>${fmtNum(rvs.length)}${un ? `<small>${badge('Menunggu', `${un} belum dibalas`)}</small>` : ''}</td><td class="bs-td-actions">${btn('Lihat ulasan', 'review-account', { id: ac.id, icon: 'star', variant: 'sm' })}</td></tr>`;
     });
     const statusCard = card('Koneksi Google Business Profile', `<div class="bs-integration"><span class="bs-g-mark" aria-hidden="true">G</span><div><strong>${a.connected ? 'Terhubung' : 'Belum terhubung'}</strong><small>${live ? `Token OAuth disimpan di server BranchSync (${esc(MODE.host())}).` : 'Mode Demo — koneksi disimulasikan, tidak ada permintaan ke Google.'}</small></div>${badge(a.connected ? 'Aktif' : 'Nonaktif', a.connected ? 'Terhubung' : 'Terputus')}</div>` +
-      kv([['Akun utama', esc(a.account || '—')], ['Project Google Cloud', esc(a.project || '—')], ['Kredensial OAuth', ready ? badge('Berhasil', 'Lengkap') : badge('Menunggu', 'Belum lengkap')], ['Uji terakhir', a.lastTest ? fmtRel(a.lastTest) : '—']]) +
+      kv([['Akun utama', esc(a.account || '—')], ['Project Google Cloud', esc(a.project || '—')], ['Kredensial OAuth', ready ? badge('Berhasil', 'Lengkap') : badge('Menunggu', 'Belum lengkap')], ['Uji terakhir', whenFull(a.lastTest)]]) +
       `<div class="bs-btn-row">${a.connected ? btn('Putuskan', 'api-toggle', { icon: 'plug' }) : btn('Hubungkan akun Google', 'gbp-oauth', { icon: 'external', variant: 'primary' })}${btn('Uji koneksi', 'api-test', { icon: 'zap' })}</div>`);
     const quotaCard = card('Kuota API harian', `<div class="bs-quota"><strong>${fmtNum(a.quotaUsed)}</strong><span>dari ${fmtNum(a.quotaLimit)} permintaan (${used}%)</span></div>${bar(a.quotaUsed, a.quotaLimit, `Kuota terpakai ${used}%`)}<p class="bs-muted bs-gap">Setiap pembaruan unit atau balasan ulasan memakai 1 permintaan. Batas kuota diatur di bawah.</p>${live ? '' : btn('Reset kuota harian', 'api-reset', { variant: 'sm ghost' })}`);
     const secretPh = has => (has ? '•••••••• tersimpan — isi untuk mengganti' : 'Belum diisi');
@@ -1476,8 +1540,8 @@
   function composition(title, keys, counts) {
     const total = sum(keys.map(k => counts[k] || 0));
     return `<div class="bs-comp"><div class="bs-comp-head"><strong>${title}</strong><small>${fmtNum(total)} unit</small></div>
-      <div class="bs-comp-bar" role="img" aria-label="${esc(title)}: ${keys.map(k => `${k} ${counts[k] || 0}`).join(', ')}">${keys.map(k => (counts[k] ? `<span data-tone="${TONE[k] || 'neutral'}" style="flex:${counts[k]}" title="${esc(k)}: ${counts[k]}"></span>` : '')).join('')}</div>
-      <ul class="bs-comp-legend">${keys.map(k => `<li><i data-tone="${TONE[k] || 'neutral'}"></i><span>${esc(k)}</span><b>${fmtNum(counts[k] || 0)}</b><small>${pct(counts[k] || 0, total)}%</small></li>`).join('')}</ul></div>`;
+      <div class="bs-comp-bar" role="img" aria-label="${esc(title)}: ${esc(keys.map(k => `${SL(k)} ${counts[k] || 0}`).join(', '))}">${keys.map(k => (counts[k] ? `<span data-tone="${TONE[k] || 'neutral'}" style="flex:${counts[k]}" title="${esc(SL(k))}: ${counts[k]}"></span>` : '')).join('')}</div>
+      <ul class="bs-comp-legend">${keys.map(k => `<li><i data-tone="${TONE[k] || 'neutral'}"></i><span>${esc(SL(k))}</span><b>${fmtNum(counts[k] || 0)}</b><small>${pct(counts[k] || 0, total)}%</small></li>`).join('')}</ul></div>`;
   }
   function rankList(rows, emptyMsg, fixedMax) {
     if (!rows.length) return `<p class="bs-muted">${emptyMsg}</p>`;
@@ -1532,8 +1596,7 @@
         ${selectF('report.region', 'Region', REGIONS, f.region, 'Semua region')}
         ${selectF('report.account', 'Akun Google Business Profile', accounts.map(a => [a.id, a.name]), f.account, 'Semua akun')}
         ${selectF('report.type', 'Tipe unit', TYPES, f.type, 'Semua tipe')}
-        ${f.region || f.account || f.type ? btn('Reset', 'report-reset', { icon: 'x', variant: 'ghost' }) : ''}
-      </div><p class="bs-report-scope">${ic('info')}<span><b>${esc(periodTxt)}</b> · ${esc(scopeTxt)} · ${fmtNum(sc.locs.length)} unit. Perubahan dibandingkan dengan ${f.period} hari sebelumnya.</span></p></div></section>` +
+      </div>${filterChips('report')}<p class="bs-report-scope">${ic('info')}<span><b>${esc(periodTxt)}</b> · ${esc(scopeTxt)} · ${fmtNum(sc.locs.length)} unit. Perubahan dibandingkan dengan ${f.period} hari sebelumnya.</span></p></div></section>` +
       `<div class="bs-metrics bs-metrics-6">${[
         kpiTile('Keberhasilan sync', cur.rate, prev.rate, { fmt: pctTxt, delta: v => `${new Intl.NumberFormat(LOC(), { maximumFractionDigits: 1 }).format(v)} poin`, icon: 'refresh' }),
         kpiTile('Rata-rata rating', cur.avgRating, prev.avgRating, { fmt: v => `${ratingTxt(v)} ★`, delta: ratingTxt, icon: 'star' }),
@@ -1688,8 +1751,8 @@
         ${card(L2(['Informasi penguji', 'Tester information']), `<div class="bs-form-grid"><label class="bs-field"><span>${L2(['Nama penguji', 'Tester name'])}</span><input data-scn-meta="tester" value="${esc(scn.tester)}" maxlength="80" autocomplete="name"></label><label class="bs-field"><span>${L2(['Instansi / divisi', 'Organization / division'])}</span><input data-scn-meta="org" value="${esc(scn.org)}" maxlength="80"></label></div>
           <p class="bs-muted bs-gap">${L2(['Hasil disimpan di browser ini dan dapat diekspor sebagai bukti. Gunakan Mode Demo untuk latihan dan Live untuk pengujian resmi.', 'Results are saved in this browser and can be exported as evidence. Use Demo mode for practice and Live for official testing.'])}</p>${btn(esc(L2(['Reset hasil', 'Reset results'])), 'scn-reset', { icon: 'trash', variant: 'sm danger ghost' })}`)}</div>` +
       `<div class="bs-callout">${ic('info')}<p>${L2(['Cara memakai: buka skenario → klik <b>Mulai skenario</b> atau tombol di setiap langkah → lakukan pengujian → centang bukti, ambil bukti otomatis atau unggah foto → pilih hasil <b>Standar / Kurang standar / Tidak dapat dijalankan</b> dan tulis catatan.', 'How to use: open a scenario → click <b>Start scenario</b> or the button on each step → run the test → tick evidence, capture auto evidence or upload photos → choose <b>Standard / Partially standard / Cannot be run</b> and write notes.'])}</p></div>` +
-      tabs('scn.group', [['', L2(['Semua', 'All']), all.length], ...groups.map(g => [g.id, L2(g.title), all.filter(x => x.group === g.id).length])], ui.scn.group) +
-      groups.filter(g => list.some(x => x.group === g.id)).map(g => `<section class="bs-scn-group"><h2 class="bs-scn-group-title">${esc(L2(g.title))}</h2>${list.filter(x => x.group === g.id).map(cardOf).join('')}</section>`).join('') +
+      tabs('scn.group', [['', L2(['Semua', 'All']), all.length], ...groups.map(g => [g.id, L2(g.title), all.filter(x => x.group === g.id).length])], ui.scn.group, L2(['Kelompok skenario', 'Scenario groups'])) +
+      tabPanel('scn.group', ui.scn.group, groups.filter(g => list.some(x => x.group === g.id)).map(g => `<section class="bs-scn-group"><h2 class="bs-scn-group-title">${esc(L2(g.title))}</h2>${list.filter(x => x.group === g.id).map(cardOf).join('')}</section>`).join('')) +
       `</div>`;
   }
   function scnStart(x, act) {
@@ -1732,9 +1795,9 @@
           ${btn('Batal', 'review-cancel', { id: rv.id, variant: 'sm ghost' })}${btn(rv.reply ? 'Simpan balasan' : 'Kirim balasan', 'review-send', { id: rv.id, icon: 'send', variant: 'sm primary' })}
         </div>
         <p class="bs-reply-hint">Balasan tampil publik di Google Maps sebagai pemilik “${esc(l ? l.name : 'unit')}”.</p></div>`;
-    const reply = rv.reply && !editing ? `<div class="bs-reply"><div class="bs-reply-head"><strong>Balasan pemilik</strong><small>${esc(rv.reply.by || '')} · <time title="${fmtDate(rv.reply.time)}">${fmtRel(rv.reply.time)}</time></small><span class="bs-spacer"></span>${btn('', 'review-edit', { id: rv.id, icon: 'edit', variant: 'icon sm ghost', title: 'Ubah balasan' })}${btn('', 'review-delete', { id: rv.id, icon: 'trash', variant: 'icon sm ghost', title: 'Hapus balasan' })}</div><p>${esc(rv.reply.text)}</p></div>` : '';
+    const reply = rv.reply && !editing ? `<div class="bs-reply"><div class="bs-reply-head"><strong>Balasan pemilik</strong><small>${esc(rv.reply.by || '')} · ${when(rv.reply.time)}</small><span class="bs-spacer"></span>${btn('', 'review-edit', { id: rv.id, icon: 'edit', variant: 'icon sm ghost', title: 'Ubah balasan' })}${btn('', 'review-delete', { id: rv.id, icon: 'trash', variant: 'icon sm ghost', title: 'Hapus balasan' })}</div><p>${esc(rv.reply.text)}</p></div>` : '';
     return `<article class="bs-review" data-low="${rv.rating <= 2}" aria-label="Ulasan ${esc(rv.author)}, ${rv.rating} bintang">
-      <header><span class="bs-avatar sm" aria-hidden="true">${initials(rv.author)}</span><div class="bs-review-who"><strong>${esc(rv.author)}</strong><small>${stars(rv.rating)}<span>·</span><time title="${fmtDate(rv.time)}">${fmtRel(rv.time)}</time></small></div>
+      <header><span class="bs-avatar sm" aria-hidden="true">${initials(rv.author)}</span><div class="bs-review-who"><strong>${esc(rv.author)}</strong><small>${stars(rv.rating)}<span>·</span>${when(rv.time)}</small></div>
         ${showLoc && l ? `<button type="button" class="bs-review-loc" data-action="open-loc" data-id="${esc(l.code)}" data-tab="reviews">${ic('pin')}<span>${esc(l.name)}</span></button>` : ''}${rv.reply ? badge('Berhasil', 'Dibalas') : badge('Menunggu', 'Belum dibalas')}</header>
       <p class="bs-review-text${rv.text ? '' : ' bs-muted'}">${rv.text ? esc(rv.text) : '(Hanya memberi rating, tanpa komentar)'}</p>
       ${reply}${editing ? editor : rv.reply ? '' : `<div class="bs-review-actions">${btn('Balas', 'review-reply', { id: rv.id, icon: 'chat', variant: 'sm' })}</div>`}
@@ -1770,7 +1833,7 @@
         ${selectF('reviews.status', 'Status', [['unreplied', 'Belum dibalas'], ['replied', 'Sudah dibalas']], f.status)}
         ${selectF('reviews.sort', 'Urutkan', [['newest', 'Terbaru'], ['unreplied', 'Belum dibalas dulu'], ['lowest', 'Rating terendah'], ['highest', 'Rating tertinggi']], f.sort, '')}
       </div>
-      ${f.rating ? `<div class="bs-chips"><button type="button" class="bs-chip" data-action="review-rating" data-id="${f.rating}"><span>Rating: <b>${f.rating}★</b></span>${ic('x')}</button></div>` : ''}
+      ${filterChips('reviews')}
       <div class="bs-review-list">${shown.length ? shown.map(rv => reviewCard(rv)).join('') : emptyState('Tidak ada ulasan', 'Tidak ada ulasan yang cocok dengan pilihan akun, lokasi, atau filter ini.', '', 'star')}</div>
       ${list.length > shown.length ? `<div class="bs-more">${btn(`Tampilkan ${Math.min(20, list.length - shown.length)} lagi · ${fmtNum(list.length - shown.length)} tersisa`, 'review-more', { variant: 'sm' })}</div>` : ''}
       </div></section>`;
@@ -1821,7 +1884,7 @@
     if (t === 'overview') {
       body = kv([['Kode', esc(l.code)], ['Tipe', esc(l.type)], ['Alamat', esc(l.address)], ['Kota / provinsi', `${esc(l.city)}, ${esc(l.province)}`], ['Region', esc(l.region)], ['Telepon', esc(l.phone)], ['Jam operasional', esc(l.hours)],
         ['Koordinat', `${l.lat.toFixed(5)}, ${l.lng.toFixed(5)} <a class="bs-inline-link" href="https://www.google.com/maps?q=${l.lat},${l.lng}" target="_blank" rel="noopener noreferrer">Buka di Google Maps ${ic('external')}</a>`],
-        ['Sinkron terakhir', l.lastSync ? `${fmtRel(l.lastSync)}` : 'Belum pernah'], ['Diperbarui', `${fmtRel(l.updatedAt)} oleh ${esc(l.updatedBy)}`]]);
+        ['Sinkron terakhir', l.lastSync ? whenFull(l.lastSync) : 'Belum pernah'], ['Diperbarui', `${whenFull(l.updatedAt)}<small>oleh ${esc(l.updatedBy)}</small>`]]);
     } else if (t === 'compare') {
       const g = l.google;
       body = !g ? emptyState('Belum ada listing Google', 'Sinkronkan unit atau ajukan titik baru untuk membuat listing.', btn('Sinkronkan sekarang', 'sync-one', { id: l.code, icon: 'refresh', variant: 'sm' }), 'info') :
@@ -1833,14 +1896,14 @@
       const rvs = state.reviews.filter(rv => rv.code === l.code).sort((a, b) => b.time - a.time);
       body = rvs.length ? ratingSummary(rvs, false) + `<div class="bs-btn-row">${btn('Buka di halaman Ulasan', 'review-open-loc', { id: l.code, icon: 'star', variant: 'sm' })}</div><div class="bs-review-list in-drawer">${rvs.map(rv => reviewCard(rv, { showLoc: false })).join('')}</div>` : emptyState('Belum ada ulasan', 'Lokasi ini belum memiliki ulasan di Google Maps.', '', 'star');
     } else if (t === 'history') {
-      body = hist.length ? `<ol class="bs-timeline">${hist.map(a => `<li><span class="bs-avatar sm" data-actor="${a.actor}" aria-hidden="true">${a.actor === 'Eksternal' ? '@' : initials(a.user)}</span><div><p><strong>${esc(a.user)}</strong> ${esc(a.action.toLowerCase())}</p><small>${fmtDate(a.time)} · ${esc(a.module)}</small>${a.changes.length ? diffList(a.changes) : ''}${a.detail ? `<small>${esc(a.detail)}</small>` : ''}</div></li>`).join('')}</ol>` : emptyState('Belum ada riwayat', 'Perubahan pada unit ini akan tercatat di sini.', '', 'history');
+      body = hist.length ? `<ol class="bs-timeline">${hist.map(a => `<li><span class="bs-avatar sm" data-actor="${a.actor}" aria-hidden="true">${a.actor === 'Eksternal' ? '@' : initials(a.user)}</span><div><p><strong>${esc(a.user)}</strong> ${esc(a.action.toLowerCase())}</p><small>${whenFull(a.time)} · ${esc(a.module)}</small>${a.changes.length ? diffList(a.changes) : ''}${a.detail ? `<small>${esc(a.detail)}</small>` : ''}</div></li>`).join('')}</ol>` : emptyState('Belum ada riwayat', 'Perubahan pada unit ini akan tercatat di sini.', '', 'history');
     } else {
-      body = syncItems.length ? table(['Job', 'Hasil', 'Penyebab'], syncItems.map(i => `<tr><td>${esc(i.run)}<small>${fmtRel(i.time)}</small></td><td>${badge(i.status)}${i.resolved && i.status === 'Gagal' ? `<small>${badge('Ditangani')}</small>` : ''}</td><td class="bs-td-wrap">${esc(i.reason)}${i.note ? `<small>${esc(i.note)}</small>` : ''}</td></tr>`)) : emptyState('Tidak ada masalah sinkronisasi', l.lastSync ? `Sinkron terakhir ${fmtRel(l.lastSync)} berhasil.` : 'Unit belum pernah disinkronkan.');
+      body = syncItems.length ? table(['Job', 'Hasil', 'Penyebab'], syncItems.map(i => `<tr><td>${esc(i.run)}<small>${when(i.time)}</small></td><td>${badge(i.status)}${i.resolved && i.status === 'Gagal' ? `<small>${badge('Ditangani')}</small>` : ''}</td><td class="bs-td-wrap">${esc(i.reason)}${i.note ? `<small>${esc(i.note)}</small>` : ''}</td></tr>`)) : emptyState('Tidak ada masalah sinkronisasi', l.lastSync ? `Sinkron terakhir ${fmtRel(l.lastSync)} berhasil.` : 'Unit belum pernah disinkronkan.');
     }
     sheet.innerHTML = `<div class="bs-sheet-inner">
       <header class="bs-sheet-head"><div><p class="bs-eyebrow">${esc(l.code)} · ${esc(l.type)}</p><h2 id="bsDrawerTitle">${esc(l.name)}</h2><div class="bs-badges">${badge(l.status)}${badge(l.gbp)}${iss.length ? `<span class="bs-badge" data-tone="warn"><i></i>${iss.length} beda dengan Google</span>` : ''}</div></div>${btn('', 'sheet-close', { icon: 'x', variant: 'icon ghost', title: 'Tutup' })}</header>
-      ${tabs('drawer.tab', [['overview', 'Ringkasan'], ['compare', 'Bandingkan Google', iss.length || null], ['reviews', 'Ulasan', state.reviews.filter(rv => rv.code === l.code).length], ['history', 'Riwayat', hist.length], ['sync', 'Sinkronisasi']], t)}
-      <div class="bs-sheet-body">${body}</div>
+      ${tabs('drawer.tab', [['overview', 'Ringkasan'], ['compare', 'Bandingkan Google', iss.length || null], ['reviews', 'Ulasan', state.reviews.filter(rv => rv.code === l.code).length], ['history', 'Riwayat', hist.length], ['sync', 'Sinkronisasi']], t, 'Detail unit')}
+      ${tabPanel('drawer.tab', t, body, 'bs-sheet-body')}
       <footer class="bs-sheet-foot">${btn('Hapus', 'delete-loc', { id: l.code, icon: 'trash', variant: 'danger ghost' })}${btn('', 'copy-link', { icon: 'link', variant: 'icon ghost', title: 'Salin tautan unit ini' })}<span class="bs-spacer"></span>${btn('Sinkronkan', 'sync-one', { id: l.code, icon: 'refresh', attrs: ui.running ? 'disabled' : '' })}${btn('Edit', 'edit-loc', { id: l.code, icon: 'edit', variant: 'primary' })}</footer></div>`;
   }
 
@@ -1882,8 +1945,18 @@
     });
     first?.focus();
   }
-  function confirmModal(title, text, confirm, run, danger = true) {
-    openModal(title, `<p>${text}</p>`, { submit: confirm, danger, onSubmit: () => { run(); } });
+  /* Pola baku aksi berbahaya: judul menyebut objeknya (teks biasa, di-escape openModal),
+   * isi menjelaskan dampaknya (HTML — escape nama di pemanggil), lalu satu kalimat penutup
+   * apakah tindakan bisa diurungkan. Fokus awal di “Batal” supaya Enter tidak langsung menghapus.
+   *   undo: false   → “Tindakan ini tidak bisa dibatalkan.”
+   *         true    → bisa diurungkan lewat notifikasi (Mode Demo); di Live = tidak bisa
+   *         'any'   → bisa diurungkan di kedua mode (data lokal, mis. tampilan tersimpan)
+   *         string  → kalimat penutup khusus */
+  function confirmModal(title, text, confirm, run, { danger = true, undo = false } = {}) {
+    const canUndo = undo === 'any' || (undo === true && !isLive());
+    const note = typeof undo === 'string' && undo !== 'any' ? undo : canUndo ? 'Anda bisa mengurungkannya lewat tombol “Urungkan” di notifikasi.' : 'Tindakan ini tidak bisa dibatalkan.';
+    openModal(title, `${/^\s*</.test(text) ? text : `<p>${text}</p>`}${danger ? `<p class="bs-confirm-note" data-tone="${canUndo || typeof undo === 'string' ? 'info' : 'bad'}">${ic(canUndo ? 'undo' : 'alert')}<span>${note}</span></p>` : ''}`, { submit: confirm, danger, onSubmit: () => { run(); } });
+    if (danger) modal.querySelector('.bs-modal-foot [data-action="modal-close"]')?.focus();
   }
   const inIndonesia = (lat, lng) => lat >= -11.5 && lat <= 6.5 && lng >= 94 && lng <= 141.5;
   function validateLoc(p, self) {
@@ -2050,14 +2123,14 @@
       `<h3 class="bs-form-section">Informasi dasar</h3>` + formGrid([
         { name: 'name', label: 'Nama unit', value: l?.name, full: true, hint: 'Contoh: KCP Bandung Dago' },
         { name: 'type', label: 'Tipe', type: 'select', options: TYPES, value: l?.type || 'KCP' },
-        { name: 'status', label: 'Status operasional', type: 'select', options: STATUSES, value: l?.status || 'Belum Sync' },
+        { name: 'status', label: 'Status operasional', type: 'select', options: labelled(STATUSES), value: l?.status || 'Belum Sync' },
         { name: 'city', label: 'Kota', value: l?.city }, { name: 'province', label: 'Provinsi', value: l?.province },
         { name: 'address', label: 'Alamat', value: l?.address, full: true },
         { name: 'phone', label: 'Telepon', value: l?.phone, attrs: '' }
       ]) +
       `<h3 class="bs-form-section">Titik lokasi</h3><p class="bs-form-help">Klik peta atau geser penanda untuk menandai titik. Koordinat juga dapat diketik.</p>` + pickerBlock(l?.lat, l?.lng) +
       `<h3 class="bs-form-section">Jam operasional</h3><p class="bs-form-help">Atur jam buka setiap hari seperti di Google Business Profile.</p>` + hoursEditor(), {
-      wide: 'xl', desc: l ? 'Perubahan dicatat di Riwayat beserta nilai sebelum dan sesudahnya.' : 'Unit baru berstatus “Belum Sync” sampai disinkronkan ke Google.',
+      wide: 'xl', desc: l ? 'Perubahan dicatat di Riwayat beserta nilai sebelum dan sesudahnya.' : 'Unit baru berstatus “Belum sinkron” sampai disinkronkan ke Google.',
       submit: l ? 'Simpan perubahan' : 'Tambah unit',
       onSubmit: p => {
         const herr = hoursError(hoursDraft);
@@ -2160,7 +2233,7 @@
       p.lat = decimalText(p.lat); p.lng = decimalText(p.lng);
       const tv = p.type.toLowerCase().replace(/[_-]+/g, ' ').trim();
       p.type = TYPES.find(t => t.toLowerCase() === tv) || TYPE_ALIAS[tv] || p.type;
-      p.status = STATUSES.find(t => t.toLowerCase() === p.status.toLowerCase()) || p.status || 'Belum Sync';
+      p.status = STATUSES.find(t => t.toLowerCase() === p.status.toLowerCase() || SL(t).toLowerCase() === p.status.toLowerCase()) || p.status || 'Belum Sync';
       const existing = p.code ? byCode().get(p.code) : null;
       const e = validateLoc(p, existing);
       if (p.code && !existing && !/^[A-Za-z0-9._-]{1,40}$/.test(p.code)) e.code = 'Kode hanya boleh huruf, angka, titik, garis bawah, dan tanda hubung (maks. 40 karakter).';
@@ -2467,7 +2540,7 @@
     toast(url ? 'URL server disimpan.' : 'URL server dihapus.', { tone: 'good' });
   }
   function shortcutsModal() {
-    openModal('Pintasan keyboard', `<dl class="bs-shortcuts">${[[`${MOD} K`, 'Cari unit kerja, menu, atau aksi'], ['/', 'Fokus ke kolom pencarian di halaman'], ['N', 'Tambah unit kerja baru'], ['?', 'Tampilkan pintasan ini'], ['Esc', 'Tutup dialog atau panel']].map(([k, d]) => `<div><dt>${k.split(' ').map(x => `<kbd>${x}</kbd>`).join('')}</dt><dd>${d}</dd></div>`).join('')}</dl>`, { footer: btn('Tutup', 'modal-close', { variant: 'primary' }) });
+    openModal('Pintasan keyboard', `<dl class="bs-shortcuts">${[[`${MOD} K`, 'Cari unit kerja, menu, atau aksi'], ['/', 'Fokus ke kolom pencarian di halaman'], ['N', 'Tambah unit kerja baru'], ['← →', 'Pindah tab (saat tab terfokus)'], ['?', 'Tampilkan pintasan ini'], ['Esc', 'Tutup dialog atau panel']].map(([k, d]) => `<div><dt>${k.split(' ').map(x => `<kbd>${x}</kbd>`).join('')}</dt><dd>${d}</dd></div>`).join('')}</dl>`, { footer: btn('Tutup', 'modal-close', { variant: 'primary' }) });
   }
 
   /* ------------------------------------------------------------------ *
@@ -2854,7 +2927,7 @@
     const cands = state.locations.filter(l => l.gbp !== 'Terverifikasi' || l.code === code);
     openModal('Ajukan klaim', formGrid([
       { name: 'kind', label: 'Jenis permintaan', type: 'select', options: CLAIM_KINDS, value: byCode().get(code)?.gbp === 'Suspend' ? 'Banding suspend' : 'Klaim kepemilikan', full: true },
-      { name: 'code', label: 'Unit kerja', type: 'select', options: cands.map(l => [l.code, `${l.name} · ${l.gbp}`]), value: code, full: true, hint: 'Hanya unit yang belum terverifikasi ditampilkan.' },
+      { name: 'code', label: 'Unit kerja', type: 'select', options: cands.map(l => [l.code, `${l.name} · ${SL(l.gbp)}`]), value: code, full: true, hint: 'Hanya unit yang belum terverifikasi ditampilkan.' },
       { name: 'note', label: 'Catatan / dokumen pendukung', type: 'textarea', full: true, attrs: 'maxlength="500"' }
     ]), {
       submit: 'Ajukan', desc: 'Permintaan masuk ke tahap “Diajukan”. Waktu proses internal mulai dihitung.',
@@ -2970,6 +3043,12 @@
   /* ------------------------------------------------------------------ *
    * Event handler
    * ------------------------------------------------------------------ */
+  // Umumkan jumlah hasil setelah pencarian/filter berubah (dipanggil setelah render).
+  function announceResults() {
+    const n = { locations: () => [locFiltered().length, 'unit cocok'], map: () => [mapFiltered().length, 'unit di peta'], discrepancies: () => [discRows().length, 'perbedaan'],
+      audit: () => [auditFiltered().length, 'aktivitas'], reviews: () => [reviewFiltered().length, 'ulasan'] }[ui.view];
+    if (n) { const [c, l] = n(); announce(`${fmtNum(c)} ${l}.`); }
+  }
   function setBind(path, value) {
     const [a, b] = path.split('.');
     if (a === 'prefs') { prefs[b] = Number(value) || value; savePrefs(); ui.loc.page = 1; return; }
@@ -3010,7 +3089,10 @@
       case 'view-apply': applySavedView(id); break;
       case 'view-rename': saveViewModal(id); break;
       case 'view-pin': { const v = up().views.find(x => x.id === id); if (v) { v.pinned = !v.pinned; saveUP(); render(); toast(v.pinned ? `“${v.name}” disematkan di tampilan cepat.` : `Sematan “${v.name}” dilepas.`); } break; }
-      case 'view-delete': { const v = up().views.find(x => x.id === id); if (!v) break; confirmModal(`Hapus tampilan “${esc(v.name)}”?`, 'Hanya tampilan tersimpan yang dihapus; data unit kerja tidak berubah.', 'Hapus tampilan', () => { const U = up(); U.views = U.views.filter(x => x !== v); saveUP(); toast('Tampilan dihapus.'); }); break; }
+      case 'view-delete': { const v = up().views.find(x => x.id === id); if (!v) break; confirmModal(`Hapus tampilan “${v.name}”?`, 'Hanya tampilan tersimpan yang dihapus; data unit kerja tidak berubah.', 'Hapus tampilan', () => {
+        const U = up(), at = U.views.indexOf(v); U.views = U.views.filter(x => x !== v); saveUP();
+        toast(`Tampilan “${v.name}” dihapus.`, { action: { label: 'Urungkan', run: () => { const W = up(); if (!W.views.some(x => x.id === v.id)) W.views.splice(Math.min(at, W.views.length), 0, v); saveUP(); render(); toast(`Tampilan “${v.name}” dikembalikan.`); } } });
+      }, { undo: 'any' }); break; }
       case 'cols-reset': { const U = up(); U.cols = null; U.density = 'comfortable'; saveUP(); render(); break; }
       case 'mode-demo': toggleModeMenu(false); closeModal(); switchToDemo(); break;
       case 'mode-live': toggleModeMenu(false); closeModal(); switchToLive(); break;
@@ -3050,12 +3132,12 @@
       }
       case 'review-delete': {
         const rv = state.reviews.find(x => x.id === id); if (!rv || !rv.reply) break;
-        confirmModal('Hapus balasan?', `Balasan untuk ulasan ${esc(rv.author)} akan dihapus dari Google Maps.`, 'Hapus balasan', () => {
-          const before = rv.reply.text; rv.reply = null;
+        confirmModal(`Hapus balasan untuk ulasan ${rv.author}?`, `Balasan pemilik pada ulasan ${esc(rv.author)} (${rv.rating}★) akan dihapus dari Google Maps.`, 'Hapus balasan', () => {
+          const snap = snapshot(), before = rv.reply.text; rv.reply = null;
           log('Ulasan', 'Menghapus balasan ulasan', { target: rv.code, detail: `${rv.author} · ${rv.rating}★`, changes: [{ field: 'Balasan', before, after: '' }] });
           remote('DELETE', `/reviews/${encodeURIComponent(id)}/reply`);
-          toast('Balasan dihapus.');
-        });
+          toast('Balasan dihapus.', { undo: snap });
+        }, { undo: true });
         break;
       }
       case 'review-rating': ui.reviews.rating = String(ui.reviews.rating) === String(id) ? '' : String(id); ui.reviews.limit = 20; render(); break;
@@ -3081,24 +3163,37 @@
       case 'scn-go': navigate(id); break;
       case 'scn-act': { const [no, a] = id.split('|'); const x = CONTENT.scenarios.find(y => y.no === Number(no)); if (x) scnStart({ ...x, start: { view: { 'import-sample': 'locations', 'claim-new': 'claims', 'point-new': 'claims', 'simulate-google': 'discrepancies', 'simulate-edit': 'approvals' }[a] || x.start.view } }, a); break; }
       case 'scn-auto': { const it = scnItem(Number(id)); it.evidence.push({ type: 'auto', text: autoEvidence(Number(id)), time: Date.now() }); it.updatedAt = Date.now(); saveScn(); render(); toast(L2(['Bukti otomatis ditambahkan.', 'Auto evidence added.']), { tone: 'good' }); break; }
-      case 'scn-ev-del': { const [no, i] = id.split(':'); const it = scnItem(Number(no)); it.evidence.splice(Number(i), 1); it.updatedAt = Date.now(); saveScn(); render(); break; }
+      case 'scn-ev-del': {
+        const [no, i] = id.split(':'), it = scnItem(Number(no)), ev = it.evidence[Number(i)]; if (!ev) break;
+        confirmModal(L2([`Hapus bukti ${Number(i) + 1} skenario ${no}?`, `Delete evidence ${Number(i) + 1} of scenario ${no}?`]), esc(L2([ev.type === 'image' ? 'Foto bukti ini akan dihapus dari browser ini.' : 'Bukti otomatis ini akan dihapus dari browser ini.', ev.type === 'image' ? 'This evidence photo will be deleted from this browser.' : 'This auto evidence will be deleted from this browser.'])), L2(['Hapus bukti', 'Delete evidence']), () => {
+          const at = it.evidence.indexOf(ev); if (at < 0) return; it.evidence.splice(at, 1); it.updatedAt = Date.now(); saveScn();
+          toast(L2(['Bukti dihapus.', 'Evidence deleted.']), { action: { label: L2(['Urungkan', 'Undo']), run: () => { it.evidence.splice(Math.min(at, it.evidence.length), 0, ev); it.updatedAt = Date.now(); saveScn(); render(); } } });
+        }, { undo: 'any' });
+        break;
+      }
       case 'scn-ev-view': { const [no, i] = id.split(':'); const ev = scnPeek(Number(no)).evidence[Number(i)]; if (ev) openModal(`${L2(['Bukti skenario', 'Scenario evidence'])} ${no}`, `<img class="bs-scn-full" src="${ev.data}" alt="${esc(L2(['Foto bukti', 'Evidence photo']))}">`, { wide: true, footer: btn(L2(['Tutup', 'Close']), 'modal-close', { variant: 'primary' }) }); break; }
       case 'scn-export': {
         const rows = [['No', 'Kelompok', 'Skenario', 'Hasil yang diharapkan', 'Prioritas', 'Catatan dokumen', 'Hasil pengujian', 'Catatan penguji', 'Bukti dicentang', 'Bukti otomatis', 'Jumlah foto', 'Diperbarui', 'Penguji', 'Instansi', 'Mode']];
-        CONTENT.scenarios.forEach(x => { const it = scnPeek(x.no), res = SCN_RESULTS.find(y => y[0] === it.result); rows.push([x.no, (CONTENT.scenarioGroups.find(g => g.id === x.group) || {}).title?.[0] || x.group, x.title[0], x.expected[0], 'Mandatory', x.note[0], res ? res[1][0] : 'Belum diuji', it.notes || '', `${x.evidence.filter((_, i) => it.checks[i]).length}/${x.evidence.length}`, it.evidence.filter(e => e.type === 'auto').map(e => e.text).join('\n---\n'), it.evidence.filter(e => e.type === 'image').length, it.updatedAt ? fmtDate(it.updatedAt) : '', scn.tester, scn.org, isLive() ? 'Live' : 'Demo']); });
+        CONTENT.scenarios.forEach(x => { const it = scnPeek(x.no), res = SCN_RESULTS.find(y => y[0] === it.result); rows.push([x.no, (CONTENT.scenarioGroups.find(g => g.id === x.group) || {}).title?.[0] || x.group, x.title[0], x.expected[0], 'Mandatory', x.note[0], res ? res[1][0] : 'Belum diuji', it.notes || '', `${x.evidence.filter((_, i) => it.checks[i]).length}/${x.evidence.length}`, it.evidence.filter(e => e.type === 'auto').map(e => e.text).join('\n---\n'), it.evidence.filter(e => e.type === 'image').length, fmtStamp(it.updatedAt), scn.tester, scn.org, isLive() ? 'Live' : 'Demo']); });
         downloadCSV(`hasil-scenario-test-${new Date().toISOString().slice(0, 10)}.csv`, rows);
         toast(L2(['Laporan hasil Scenario Test diunduh.', 'Scenario Test results downloaded.']), { tone: 'good' });
         break;
       }
       case 'scn-print': { const prev = new Set(ui.scn.open), prevGroup = ui.scn.group; ui.scn.group = ''; CONTENT.scenarios.forEach(x => ui.scn.open.add(x.no)); render(); setTimeout(() => { window.print(); ui.scn.open = prev; ui.scn.group = prevGroup; render(); }, 60); break; }
-      case 'scn-reset': confirmModal(L2(['Reset semua hasil Scenario Test?', 'Reset all Scenario Test results?']), L2(['Semua hasil, catatan, dan bukti pengujian di browser ini akan dihapus. Tindakan ini tidak bisa dibatalkan.', 'All results, notes, and evidence in this browser will be deleted. This cannot be undone.']), L2(['Reset hasil', 'Reset results']), () => { scn = { tester: scn.tester, org: scn.org, items: {} }; saveScn(); toast(L2(['Hasil Scenario Test direset.', 'Scenario Test results reset.'])); }); break;
-      case 'report-reset': ui.report.region = ''; ui.report.account = ''; ui.report.type = ''; render(); break;
+      case 'scn-reset': confirmModal(L2(['Reset semua hasil Scenario Test?', 'Reset all Scenario Test results?']), L2(['Semua hasil, catatan, dan bukti pengujian di browser ini akan dihapus.', 'All results, notes, and evidence in this browser will be deleted.']), L2(['Reset hasil', 'Reset results']), () => { scn = { tester: scn.tester, org: scn.org, items: {} }; saveScn(); toast(L2(['Hasil Scenario Test direset.', 'Scenario Test results reset.'])); }); break;
+      case 'report-reset': resetFilters('report'); render(); break;
+      case 'reset-filters': { if (id !== 'loc' && !CHIP_DEFS[id]) break; resetFilters(id); render(); announceResults(); shell.querySelector('#bsPage [data-search]')?.focus(); break; }
+      case 'unset-filter': {
+        const [a, b] = id.split('.'), def = (CHIP_DEFS[a] || []).find(d => d[0] === b);
+        if (a === 'loc' && b === 'q') { ui.loc.q = ''; ui.loc.page = 1; } else if (def) { ui[a][b] = def[3] ?? ''; if (a === 'reviews') ui.reviews.limit = 20; } else break;
+        render(); (shell.querySelector('#bsPage .bs-chips .bs-chip') || shell.querySelector('#bsPage [data-search]'))?.focus(); break;
+      }
       case 'report-region': ui.report.region = ui.report.region === id ? '' : id; render(); $('bsMain').scrollTop = 0; break;
       case 'report-schedule': reportScheduleModal(); break;
-      case 'report-unschedule': { const x = state.reportSchedules.find(y => y.id === id); if (!x) break; confirmModal(`Hapus jadwal “${esc(x.name)}”?`, 'Laporan ini tidak akan dikirim lagi ke penerima.', 'Hapus jadwal', () => { state.reportSchedules = state.reportSchedules.filter(y => y !== x); log('Laporan & Analitik', 'Menghapus jadwal laporan', { detail: x.name }); remote('DELETE', `/reports/schedules/${encodeURIComponent(id)}`); toast('Jadwal dihapus.'); }); break; }
+      case 'report-unschedule': { const x = state.reportSchedules.find(y => y.id === id); if (!x) break; confirmModal(`Hapus jadwal “${x.name}”?`, 'Laporan ini tidak akan dikirim lagi ke penerima.', 'Hapus jadwal', () => { const snap = snapshot(); state.reportSchedules = state.reportSchedules.filter(y => y !== x); log('Laporan & Analitik', 'Menghapus jadwal laporan', { detail: x.name }); remote('DELETE', `/reports/schedules/${encodeURIComponent(id)}`); toast('Jadwal dihapus.', { undo: snap }); }, { undo: true }); break; }
       case 'report-export': {
         const sc = reportScope(), bk = reportBuckets(ui.report.period), cur = reportMetrics(bk.from, bk.to, sc), im = issueMap();
-        const rows = [['Laporan BranchSync'], ['Periode', fmtDate(bk.from, { dateStyle: 'medium' }), fmtDate(bk.to - DAY, { dateStyle: 'medium' })], ['Cakupan', [ui.report.region, ui.report.account, ui.report.type].filter(Boolean).join(' · ') || 'Seluruh jaringan'], [],
+        const rows = [['Laporan BranchSync'], ['Periode', fmtStamp(bk.from, true), fmtStamp(bk.to - DAY, true)], ['Cakupan', [ui.report.region, ui.report.account, ui.report.type].filter(Boolean).join(' · ') || 'Seluruh jaringan'], [],
           ['KPI', 'Nilai'], ['Keberhasilan sync (%)', cur.rate == null ? '' : cur.rate.toFixed(1)], ['Pembaruan berhasil', cur.ok], ['Pembaruan gagal', cur.fail], ['Rata-rata rating', cur.avgRating == null ? '' : cur.avgRating.toFixed(2)], ['Jumlah ulasan', cur.rvs.length], ['Tingkat balasan (%)', cur.replyRate == null ? '' : cur.replyRate.toFixed(1)], ['Waktu balas rata-rata (jam)', cur.avgResp == null ? '' : (cur.avgResp / HOUR).toFixed(1)], ['Kepatuhan SLA internal (%)', cur.sla == null ? '' : cur.sla.toFixed(1)], ['Ketidaksesuaian diselesaikan', cur.resolved], [],
           ['Region', 'Unit', 'Online (%)', 'Terverifikasi (%)', 'Beda data', 'Rata-rata rating', 'Ulasan dibalas (%)']];
         REGIONS.forEach(r => { const ls = sc.locs.filter(l => l.region === r); if (!ls.length) return; const codes = new Set(ls.map(l => l.code)), rv = cur.rvs.filter(x => codes.has(x.code)); rows.push([r, ls.length, pct(ls.filter(l => l.status === 'Online').length, ls.length), pct(ls.filter(l => l.gbp === 'Terverifikasi').length, ls.length), ls.filter(l => im.has(l.code)).length, rv.length ? (sum(rv.map(x => x.rating)) / rv.length).toFixed(2) : '', rv.length ? pct(rv.filter(x => x.reply).length, rv.length) : '']); });
@@ -3110,7 +3205,7 @@
       case 'review-account': ui.reviews.account = id; ui.reviews.location = ''; ui.reviews.limit = 20; navigate('reviews'); break;
       case 'review-open-loc': { const lo = byCode().get(id); if (!lo) break; ui.reviews.account = acctOf(lo); ui.reviews.location = id; ui.reviews.limit = 20; if (sheet.open) sheet.close(); navigate('reviews'); break; }
       case 'review-clear-loc': ui.reviews.location = ''; render(); break;
-      case 'export-reviews': { const xs = reviewFiltered(); downloadCSV('ulasan-google.csv', [['ID', 'Akun', 'Kode', 'Lokasi', 'Penulis', 'Rating', 'Ulasan', 'Waktu', 'Balasan', 'Dibalas oleh', 'Waktu balasan'], ...xs.map(rv => { const lo = byCode().get(rv.code); return [rv.id, (state.accounts.find(a => a.id === acctOf(lo)) || {}).name || '', rv.code, lo ? lo.name : '', rv.author, rv.rating, rv.text, fmtDate(rv.time), rv.reply ? rv.reply.text : '', rv.reply ? rv.reply.by : '', rv.reply ? fmtDate(rv.reply.time) : '']; })]); toast(`${fmtNum(xs.length)} ulasan diekspor.`, { tone: 'good' }); break; }
+      case 'export-reviews': { const xs = reviewFiltered(); downloadCSV('ulasan-google.csv', [['ID', 'Akun', 'Kode', 'Lokasi', 'Penulis', 'Rating', 'Ulasan', 'Waktu', 'Balasan', 'Dibalas oleh', 'Waktu balasan'], ...xs.map(rv => { const lo = byCode().get(rv.code); return [rv.id, (state.accounts.find(a => a.id === acctOf(lo)) || {}).name || '', rv.code, lo ? lo.name : '', rv.author, rv.rating, rv.text, fmtStamp(rv.time), rv.reply ? rv.reply.text : '', rv.reply ? rv.reply.by : '', rv.reply ? fmtStamp(rv.reply.time) : '']; })]); toast(`${fmtNum(xs.length)} ulasan diekspor.`, { tone: 'good' }); break; }
       case 'simulate-review': {
         const rr = rng(Date.now() % 1e6), lo = pick(rr, state.locations.filter(x => x.status !== 'Tidak Aktif')), x = rr(), rating = x < 0.35 ? 5 : x < 0.55 ? 4 : x < 0.7 ? 3 : x < 0.85 ? 2 : 1;
         const rv = { id: `RV-${String(++state.seq.review).padStart(4, '0')}`, code: lo.code, author: pick(rr, AUTHORS), rating, text: pick(rr, REVIEW_TEXTS[rating]), time: Date.now(), reply: null };
@@ -3139,10 +3234,10 @@
       case 'edit-loc': locationForm(id); break;
       case 'delete-loc': if (l) {
         const doDelete = () => { const snap = snapshot(); state.locations = state.locations.filter(x => x !== l); ui.loc.selected.delete(id); log('Unit Kerja', 'Menghapus unit', { target: id, detail: l.name }); touch(); if (sheet.open) sheet.close(); render(); toast(`${l.name} dihapus.`, { undo: snap }); remote('DELETE', `/locations/${encodeURIComponent(id)}`); };
-        if (isLive()) confirmModal(`Hapus ${l.name}?`, 'Unit kerja akan dihapus dari server. Tindakan ini tidak bisa dibatalkan.', 'Hapus unit', doDelete); else doDelete();
+        confirmModal(`Hapus “${l.name}”?`, `Unit ${esc(l.code)} · ${esc(l.type)} · ${esc(l.city)} akan dihapus dari Dashboard${isLive() ? ' dan server' : ''}.`, 'Hapus unit', doDelete, { undo: true });
       } break;
       case 'sort': ui.loc.dir = ui.loc.sort === id ? -ui.loc.dir : 1; ui.loc.sort = id; render(); break;
-      case 'quick': ui.loc.quick = id; ui.loc.page = 1; render(); break;
+      case 'quick': ui.loc.quick = id; ui.loc.page = 1; render(); announceResults(); break;
       case 'page': ui.loc.page = Number(id); render(); $('bsMain').querySelector('.bs-table-wrap')?.scrollIntoView({ block: 'nearest' }); break;
       case 'unfilter': { const [k, v] = id.split(/:(.*)/s); ui.loc[k] = ui.loc[k].filter(x => x !== v); ui.loc.page = 1; render(); break; }
       case 'clear-filters': FILTERS.forEach(([k]) => { ui.loc[k] = []; }); ui.loc.page = 1; render(); break;
@@ -3151,8 +3246,8 @@
       case 'goto-filter': { const [k, v] = id.split(/:(.*)/s); FILTERS.forEach(([f]) => { ui.loc[f] = []; }); ui.loc.q = ''; ui.loc.quick = 'all'; ui.loc[k] = [v]; navigate('locations'); break; }
       case 'select': ui.loc.selected[el.checked ? 'add' : 'delete'](id); render(); break;
       case 'select-page': { const size = Number(prefs.pageSize) || 10, rows = locFiltered().slice((ui.loc.page - 1) * size, ui.loc.page * size); rows.forEach(r => ui.loc.selected[el.checked ? 'add' : 'delete'](r.code)); render(); break; }
-      case 'select-all': locFiltered().forEach(r => ui.loc.selected.add(r.code)); render(); break;
-      case 'clear-selection': ui.loc.selected.clear(); render(); break;
+      case 'select-all': locFiltered().forEach(r => ui.loc.selected.add(r.code)); render(); announce(`${fmtNum(ui.loc.selected.size)} unit dipilih.`); break;
+      case 'clear-selection': ui.loc.selected.clear(); render(); announce('Pilihan dibatalkan.'); shell.querySelector('#bsPage [data-search]')?.focus(); break;
       case 'bulk-sync': runSync([...ui.loc.selected], { label: `${ui.loc.selected.size} unit terpilih` }); break;
       case 'bulk-export': exportLocations(state.locations.filter(x => ui.loc.selected.has(x.code)), 'branchsync-unit-terpilih'); break;
       case 'export-csv': case 'export-xlsx': {
@@ -3161,7 +3256,8 @@
         exportLocations(sel ? state.locations.filter(x => ui.loc.selected.has(x.code)) : locFiltered(), sel ? 'branchsync-unit-terpilih' : 'branchsync-unit-kerja', fmt);
         break;
       }
-      case 'bulk-delete': { const n = ui.loc.selected.size; confirmModal(`Hapus ${n} unit?`, `${n} unit kerja terpilih akan dihapus dari Dashboard. Anda bisa mengurungkannya dari notifikasi.`, `Hapus ${n} unit`, () => { const snap = snapshot(), codes = [...ui.loc.selected]; remote('POST', '/locations/bulk-delete', { codes }); state.locations = state.locations.filter(x => !ui.loc.selected.has(x.code)); log('Unit Kerja', 'Menghapus unit massal', { detail: `${n} unit` }); ui.loc.selected.clear(); touch(); toast(`${n} unit dihapus.`, { undo: snap }); }); break; }
+      case 'bulk-delete': { const n = ui.loc.selected.size; const names = state.locations.filter(x => ui.loc.selected.has(x.code)).slice(0, 5).map(x => `<li>${esc(x.name)} <small>${esc(x.code)}</small></li>`).join('');
+        confirmModal(`Hapus ${fmtNum(n)} unit terpilih?`, `<p>Unit kerja berikut akan dihapus dari Dashboard${isLive() ? ' dan server' : ''}:</p><ul class="bs-confirm-list">${names}${n > 5 ? `<li class="bs-muted">dan ${fmtNum(n - 5)} unit lainnya</li>` : ''}</ul>`, `Hapus ${fmtNum(n)} unit`, () => { const snap = snapshot(), codes = [...ui.loc.selected]; remote('POST', '/locations/bulk-delete', { codes }); state.locations = state.locations.filter(x => !ui.loc.selected.has(x.code)); log('Unit Kerja', 'Menghapus unit massal', { detail: `${n} unit` }); ui.loc.selected.clear(); touch(); toast(`${fmtNum(n)} unit dihapus.`, { undo: snap }); }, { undo: true }); break; }
       case 'export-locs': exportLocations(locFiltered()); break;
       case 'import': importDraft = null; importModal(); break;
       case 'import-template': download('template-impor-unit-kerja.csv', '\ufeff' + sampleCSV(3), 'text/csv;charset=utf-8'); break;
@@ -3188,7 +3284,7 @@
       case 'resolve': { const f = openFailures().find(x => x.code === id); if (f) noteModal('Catat tindak lanjut', `Tindak lanjut untuk ${locName(id)} — ${f.reason}`, t => { f.ref.resolved = true; f.ref.note = `${t} — ${ME.name}`; log('Sync Monitor', 'Mencatat tindak lanjut kegagalan', { target: id, detail: t }); remote('POST', '/sync/failures/resolve', { code: id, run: f.run, note: t }); toast('Kegagalan ditandai sudah ditangani.', { tone: 'good' }); }); break; }
       // Ketidaksesuaian
       case 'disc-push': case 'disc-pull': { const snap = snapshot(); resolveDisc(id, action === 'disc-push'); touch(); render(); toast(action === 'disc-push' ? 'Data Dashboard dikirim ke Google (simulasi).' : 'Data Google diterapkan ke Dashboard.', { tone: 'good', undo: snap }); break; }
-      case 'disc-push-all': { const rows = discRows(); confirmModal('Pakai data Dashboard untuk semua?', `${rows.length} perbedaan yang tampil akan diselesaikan dengan mengirim data Dashboard ke Google.`, `Kirim ${rows.length} perubahan`, () => { const snap = snapshot(); remote('POST', '/discrepancies/resolve-bulk', { source: 'dashboard', items: rows.map(r => ({ code: r.l.code, field: r.field })) }); rows.forEach(r => resolveDisc(`${r.l.code}|${r.field}`, true, false)); toast(`${rows.length} perbedaan diselesaikan.`, { tone: 'good', undo: snap }); }, false); break; }
+      case 'disc-push-all': { const rows = discRows(); confirmModal('Pakai data Dashboard untuk semua?', `${rows.length} perbedaan yang tampil akan diselesaikan dengan mengirim data Dashboard ke Google.`, `Kirim ${rows.length} perubahan`, () => { const snap = snapshot(); remote('POST', '/discrepancies/resolve-bulk', { source: 'dashboard', items: rows.map(r => ({ code: r.l.code, field: r.field })) }); rows.forEach(r => resolveDisc(`${r.l.code}|${r.field}`, true, false)); toast(`${rows.length} perbedaan diselesaikan.`, { tone: 'good', undo: snap }); }, { danger: false }); break; }
       case 'disc-note': noteModal('Catat temuan ketidaksesuaian', 'Catatan / dokumentasi', t => { state.discNotes[id] = { text: t, by: ME.name, time: Date.now() }; remote('PUT', '/discrepancies/notes', { code: id.split('|')[0], field: id.split('|')[1], text: t }); log('Ketidaksesuaian', 'Mendokumentasikan temuan', { target: id.split('|')[0], detail: `${FIELD_LABEL[id.split('|')[1]]}: ${t}` }); toast('Catatan disimpan.', { tone: 'good' }); }, state.discNotes[id]?.text || ''); break;
       case 'export-disc': { const rows = discRows(); downloadCSV('laporan-ketidaksesuaian.csv', [['Kode', 'Unit', 'Kota', 'Kolom', 'Dashboard', 'Google Maps', 'Selisih (m)', 'Catatan'], ...rows.map(r => [r.l.code, r.l.name, r.l.city, FIELD_LABEL[r.field], r.dash, r.google, r.dist ? Math.round(r.dist) : '', state.discNotes[`${r.l.code}|${r.field}`]?.text || ''])]); toast(`Laporan ${rows.length} perbedaan diunduh.`, { tone: 'good' }); break; }
       case 'simulate-google': simulateGoogleChange(); break;
@@ -3196,11 +3292,15 @@
       case 'dup-keep': {
         const parts = id.split('|'), side = parts.pop(), p = duplicatePairs().find(x => x.key === parts.join('|'));
         if (!p) break;
-        const keep = side === 'a' ? p.a : p.b, drop = side === 'a' ? p.b : p.a, snap = snapshot();
+        const keep = side === 'a' ? p.a : p.b, drop = side === 'a' ? p.b : p.a;
+        confirmModal(`Tandai “${drop.name}” sebagai duplikat?`, `<b>${esc(keep.name)}</b> (${esc(keep.code)}) dipertahankan. <b>${esc(drop.name)}</b> (${esc(drop.code)}) dinonaktifkan dan ditandai Duplikat${isLive() ? ' di Google Business Profile' : ''}.`, 'Tandai duplikat', () => {
+        const snap = snapshot();
         log('Duplikat', 'Menggabungkan titik ganda', { target: drop.code, detail: `Dipertahankan: ${keep.name}`, changes: diff(drop, { ...drop, status: 'Tidak Aktif', gbp: 'Duplikat' }, ['status', 'gbp']) });
         Object.assign(drop, { status: 'Tidak Aktif', gbp: 'Duplikat', updatedAt: Date.now(), updatedBy: ME.name });
         remote('POST', '/duplicates/merge', { keep: keep.code, drop: drop.code });
-        touch(); render(); toast(`${drop.name} ditandai duplikat dari ${keep.name}.`, { tone: 'good', undo: snap }); break;
+        touch(); render(); toast(`${drop.name} ditandai duplikat dari ${keep.name}.`, { tone: 'good', undo: snap });
+        }, { undo: true });
+        break;
       }
       case 'dup-ignore': state.dupIgnored.push(id); remote('POST', '/duplicates/ignore', { a: id.split('|')[0], b: id.split('|')[1] }); log('Duplikat', 'Menandai bukan duplikat', { detail: id.replace('|', ' & ') }); touch(); render(); toast('Pasangan ditandai bukan duplikat.'); break;
       case 'dup-report': { const [a, b] = id.split('|'); claimForm(byCode().get(b)?.gbp === 'Terverifikasi' ? a : b); setTimeout(() => { const s = modal.querySelector('[name=kind]'); if (s) s.value = 'Laporan duplikat'; }, 0); break; }
@@ -3214,23 +3314,27 @@
       case 'cr-reject': decide(id, false); break;
       case 'simulate-edit': simulateEdit(); break;
       // Riwayat & SLA
-      case 'export-audit': { const xs = auditFiltered(); downloadCSV('riwayat-perubahan.csv', [['Waktu', 'Pengguna', 'Jenis', 'Modul', 'Aksi', 'Target', 'Detail', 'Kolom', 'Sebelum', 'Sesudah'], ...xs.flatMap(x => (x.changes.length ? x.changes : [{ field: '', before: '', after: '' }]).map(c => [fmtDate(x.time), x.user, x.actor, x.module, x.action, x.target, x.detail, c.field, c.before, c.after]))]); toast(`${xs.length} aktivitas diekspor.`, { tone: 'good' }); break; }
-      case 'export-sla': downloadCSV('laporan-sla.csv', [['ID', 'Jenis', 'Unit', 'Diajukan', 'Proses internal (jam)', 'Verifikasi Google (jam)', 'SLA', 'Status'], ...slaStats().rows.map(({ c, t }) => [c.id, c.kind, claimName(c), fmtDate(c.submittedAt), (t.internal / HOUR).toFixed(1), t.google == null ? '' : (t.google / HOUR).toFixed(1), t.sla, c.status])]); toast('Laporan SLA diunduh.', { tone: 'good' }); break;
+      case 'export-audit': { const xs = auditFiltered(); downloadCSV('riwayat-perubahan.csv', [['Waktu', 'Pengguna', 'Jenis', 'Modul', 'Aksi', 'Target', 'Detail', 'Kolom', 'Sebelum', 'Sesudah'], ...xs.flatMap(x => (x.changes.length ? x.changes : [{ field: '', before: '', after: '' }]).map(c => [fmtStamp(x.time), x.user, x.actor, x.module, x.action, x.target, x.detail, c.field, c.before, c.after]))]); toast(`${xs.length} aktivitas diekspor.`, { tone: 'good' }); break; }
+      case 'export-sla': downloadCSV('laporan-sla.csv', [['ID', 'Jenis', 'Unit', 'Diajukan', 'Proses internal (jam)', 'Verifikasi Google (jam)', 'SLA', 'Status'], ...slaStats().rows.map(({ c, t }) => [c.id, c.kind, claimName(c), fmtStamp(c.submittedAt), (t.internal / HOUR).toFixed(1), t.google == null ? '' : (t.google / HOUR).toFixed(1), t.sla, c.status])]); toast('Laporan SLA diunduh.', { tone: 'good' }); break;
       // Akses
       case 'add-user': userForm(); break;
       case 'edit-user': userForm(id); break;
-      case 'toggle-user': { const u = state.users.find(x => x.id === Number(id)); if (!u || u.id === 1) break; u.status = u.status === 'Aktif' ? 'Nonaktif' : 'Aktif'; remote('PATCH', `/users/${encodeURIComponent(u.id)}`, { status: u.status }); log('Pengguna & Akses', `${u.status === 'Aktif' ? 'Mengaktifkan' : 'Menonaktifkan'} pengguna`, { detail: u.name }); touch(); render(); toast(`${u.name} ${u.status.toLowerCase()}.`); break; }
+      case 'toggle-user': { const u = state.users.find(x => x.id === Number(id)); if (!u || u.id === 1) break;
+        const apply = () => { const snap = snapshot(); u.status = u.status === 'Aktif' ? 'Nonaktif' : 'Aktif'; remote('PATCH', `/users/${encodeURIComponent(u.id)}`, { status: u.status }); log('Pengguna & Akses', `${u.status === 'Aktif' ? 'Mengaktifkan' : 'Menonaktifkan'} pengguna`, { detail: u.name }); touch(); render(); toast(`${u.name} ${u.status.toLowerCase()}.`, { undo: snap }); };
+        if (u.status === 'Aktif') confirmModal(`Nonaktifkan ${u.name}?`, `${esc(u.name)} (${esc(u.email)}) tidak bisa masuk ke BranchSync sampai diaktifkan kembali.`, 'Nonaktifkan', apply, { undo: true }); else apply();
+        break; }
       case 'add-role': roleForm(); break;
       case 'edit-role': roleForm(id); break;
       // Integrasi
-      case 'api-toggle': state.api.connected = !state.api.connected; remote('PATCH', '/integrations/google', { connected: state.api.connected }); log('Integrasi Google', state.api.connected ? 'Menghubungkan GBP' : 'Memutuskan GBP'); touch(); render(); toast(isLive() ? (state.api.connected ? 'Permintaan menghubungkan dikirim ke server.' : 'Permintaan memutus dikirim ke server.') : (state.api.connected ? 'Terhubung (simulasi).' : 'Koneksi diputus (simulasi).')); break;
+      case 'api-toggle': if (state.api.connected && el && !el.dataset.confirmed) { confirmModal('Putuskan Google Business Profile?', `Sinkronisasi dan balasan ulasan ke akun <b>${esc(state.api.account || 'Google')}</b> berhenti sampai akun dihubungkan lagi.`, 'Putuskan', () => act('api-toggle', '', { dataset: { confirmed: '1' } }), { undo: 'Anda bisa menghubungkannya lagi kapan saja dari halaman ini.' }); break; }
+        state.api.connected = !state.api.connected; remote('PATCH', '/integrations/google', { connected: state.api.connected }); log('Integrasi Google', state.api.connected ? 'Menghubungkan GBP' : 'Memutuskan GBP'); touch(); render(); toast(isLive() ? (state.api.connected ? 'Permintaan menghubungkan dikirim ke server.' : 'Permintaan memutus dikirim ke server.') : (state.api.connected ? 'Terhubung (simulasi).' : 'Koneksi diputus (simulasi).')); break;
       case 'api-test': if (isLive()) { remote('POST', '/integrations/google/test').then(res => { if (res) toast(res.ok === false ? `Uji gagal: ${res.message || 'tidak diketahui'}` : `Uji koneksi Google berhasil${res.latencyMs ? ` — ${res.latencyMs} ms` : ''}.`, { tone: res.ok === false ? 'bad' : 'good' }); }); break; }
         state.api.lastTest = Date.now(); log('Integrasi Google', 'Menguji koneksi', { detail: state.api.connected ? 'Berhasil' : 'Gagal: belum terhubung' }); touch(); render(); toast(state.api.connected ? 'Uji koneksi berhasil — 120 ms (simulasi).' : 'Uji gagal: hubungkan akun terlebih dahulu.', { tone: state.api.connected ? 'good' : 'bad' }); break;
       case 'api-reset': state.api.quotaUsed = 0; log('Integrasi Google', 'Mereset kuota harian'); touch(); render(); toast('Kuota direset.'); break;
       // Pengaturan
-      case 'generate': confirmModal('Buat 1.000 unit uji?', 'Seribu unit kerja sintetis akan ditambahkan untuk menguji performa. Anda bisa menghapusnya lewat “Reset data demo”.', 'Buat 1.000 unit', () => setTimeout(() => generateUnits(1000), 0), false); break;
+      case 'generate': confirmModal('Buat 1.000 unit uji?', 'Seribu unit kerja sintetis akan ditambahkan untuk menguji performa. Anda bisa menghapusnya lewat “Reset data demo”.', 'Buat 1.000 unit', () => setTimeout(() => generateUnits(1000), 0), { danger: false }); break;
       case 'backup': download(`branchsync-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2), 'application/json'); toast('Cadangan diunduh.', { tone: 'good' }); break;
-      case 'reset-data': confirmModal('Reset data demo?', 'Semua perubahan, impor, dan riwayat akan dikembalikan ke kondisi awal. Tindakan ini tidak bisa dibatalkan.', 'Reset data', () => { state = buildSeed(); ui.loc.selected.clear(); touch(); toast('Data demo dikembalikan ke kondisi awal.'); }); break;
+      case 'reset-data': confirmModal('Reset data demo?', 'Semua perubahan, impor, dan riwayat akan dikembalikan ke kondisi awal.', 'Reset data', () => { state = buildSeed(); ui.loc.selected.clear(); touch(); toast('Data demo dikembalikan ke kondisi awal.'); }); break;
     }
   }
 
@@ -3268,7 +3372,7 @@
     if (t.dataset.draft) { ui.reviews.drafts[t.dataset.draft] = t.value; const c = $(`rv-count-${t.dataset.draft}`); if (c) c.textContent = `${t.value.length}/${fmtNum(REPLY_MAX)}`; return; }
     if (!bind || t.type === 'checkbox' || t.tagName === 'SELECT') return;
     clearTimeout(inputTimer);
-    inputTimer = setTimeout(() => { setBind(bind, t.value); if (bind.startsWith('map.')) updateMap(true); else render(); }, 140);
+    inputTimer = setTimeout(() => { setBind(bind, t.value); if (bind.startsWith('map.')) updateMap(true); else render(); if (t.hasAttribute('data-search')) announceResults(); }, 140);
   });
   shell.addEventListener('change', e => {
     const t = e.target;
@@ -3325,7 +3429,7 @@
     if (t.dataset.filter) {
       const k = t.dataset.filter;
       ui.loc[k] = t.checked ? [...new Set([...ui.loc[k], t.value])] : ui.loc[k].filter(x => x !== t.value);
-      ui.loc.page = 1; ui.pop = 'filter'; render();
+      ui.loc.page = 1; ui.pop = 'filter'; render(); announceResults();
       return;
     }
     if (t.dataset.perm) {
@@ -3341,6 +3445,7 @@
     if (!bind || (t.type !== 'checkbox' && t.tagName !== 'SELECT')) return;
     setBind(bind, t.type === 'checkbox' ? t.checked : t.value);
     if (bind.startsWith('map.')) updateMap(bind !== 'map.showGoogle'); else render();
+    if (t.tagName === 'SELECT' && /^(map|disc|audit|reviews)\.(status|region|gbp|field|module|actor|range|account|location)$/.test(bind)) announceResults();
   });
   shell.addEventListener('submit', e => {
     e.preventDefault();
@@ -3431,6 +3536,30 @@
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); return; }
       if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); items[e.key === 'Home' ? 0 : items.length - 1].focus(); return; }
       if (e.key === 'Escape' || e.key === 'Tab') { if (e.key === 'Escape') e.preventDefault(); toggleModeMenu(false); if (e.key === 'Escape') $('bsModeBtn').focus(); return; }
+    }
+    // Tab & segmen: ←/→/Home/End memindahkan fokus sekaligus mengaktifkan tab (pola WAI-ARIA, aktivasi otomatis).
+    const tabEl = e.target.closest?.('[role="tab"]');
+    if (tabEl && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) && !e.altKey && !e.metaKey && !e.ctrlKey) {
+      const list = [...tabEl.closest('[role="tablist"]').querySelectorAll('[role="tab"]:not([disabled])')], i = list.indexOf(tabEl);
+      const next = list[e.key === 'Home' ? 0 : e.key === 'End' ? list.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + list.length) % list.length];
+      e.preventDefault();
+      if (!next || next === tabEl) return;
+      const { action, id } = next.dataset, root = next.closest('dialog') || shell;
+      next.focus(); next.click();
+      [...root.querySelectorAll(`[role="tab"][data-action="${action}"]`)].find(n => (n.dataset.id || '') === (id || ''))?.focus();
+      return;
+    }
+    // Menu di popover (mis. Ekspor): ↑/↓/Home/End; ↓ dari tombol pembuka masuk ke item pertama.
+    const pop = e.target.closest?.('details[data-pop]');
+    const menuEl = pop && pop.open ? pop.querySelector('[role="menu"]') : null;
+    if (menuEl && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+      const items = [...menuEl.querySelectorAll('[role="menuitem"]:not([disabled])')], i = items.indexOf(document.activeElement);
+      if (items.length) {
+        e.preventDefault();
+        const j = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : i < 0 ? (e.key === 'ArrowUp' ? items.length - 1 : 0) : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items[j].focus();
+        return;
+      }
     }
     if (e.key === 'Escape') {
       if (!$('bsNotif').hidden) { toggleNotif(false); $('bsNotifBtn').focus(); return; }

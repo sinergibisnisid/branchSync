@@ -33,6 +33,21 @@ window.BranchAdminContent = {
       links: [['act:copy-link', ['Salin tautan halaman ini', 'Copy link to this page']], ['access', ['Buka Pengguna & Akses', 'Open Users & Access']]]
     },
     {
+      id: 'patterns', icon: 'check', title: ['Filter, tanggal, konfirmasi & keyboard', 'Filters, dates, confirmations & keyboard'],
+      summary: ['Pola yang sama di semua halaman: cara melepas filter, membaca tanggal, menghapus dengan aman, dan bekerja dengan keyboard.', 'The same patterns on every page: clearing filters, reading dates, deleting safely, and working with the keyboard.'],
+      steps: [
+        ['Filter yang aktif tampil sebagai chip di bawah bilah filter (Unit Kerja, Peta, Ketidaksesuaian, Ulasan, Riwayat, Laporan, Pengguna). Klik × pada chip untuk melepas satu filter, atau “Reset filter” untuk melepas semuanya.', 'Active filters appear as chips below the filter bar (Locations, Map, Mismatches, Reviews, History, Reports, Users). Click × on a chip to remove one filter, or “Reset filters” to remove them all.'],
+        ['Di daftar dan tabel, waktu ditulis relatif (mis. “2 jam lalu”); arahkan kursor ke waktu itu untuk melihat tanggal lengkap. Kolom “Waktu” juga menampilkan tanggal singkat di bawahnya.', 'In lists and tables, times are relative (e.g. “2 h ago”); hover over them to see the full date. “Time” columns also show the short date below.'],
+        ['Panel detail unit menampilkan tanggal lengkap. File ekspor (CSV/Excel) memakai format YYYY-MM-DD HH:mm sesuai zona waktu di Pengaturan, sehingga mudah diurutkan di Excel.', 'The location panel shows full dates. Export files (CSV/Excel) use YYYY-MM-DD HH:mm in the time zone from Settings, so they sort easily in Excel.'],
+        ['Aksi berbahaya — hapus unit, hapus massal, tandai duplikat, nonaktifkan pengguna, putuskan Google, hapus balasan, jadwal, tampilan, atau bukti — selalu meminta konfirmasi yang menyebut nama objeknya. Tombol “Batal” terfokus lebih dulu, jadi menekan Enter tidak langsung menghapus.', 'Destructive actions — deleting a location, bulk delete, marking a duplicate, deactivating a user, disconnecting Google, deleting a reply, schedule, view, or evidence — always ask for confirmation naming the object. “Cancel” is focused first, so pressing Enter never deletes right away.'],
+        ['Kalimat di bawah konfirmasi menjelaskan apakah tindakan bisa diurungkan. Jika bisa, notifikasi menampilkan tombol “Urungkan” selama beberapa detik. Di mode Live, perubahan yang sudah terkirim ke server tidak bisa diurungkan dari browser.', 'The sentence below each confirmation says whether the action can be undone. If it can, the notification shows an “Undo” button for a few seconds. In Live mode, changes already sent to the server cannot be undone from the browser.'],
+        ['Keyboard: tekan Tab sampai ke deretan tab, lalu ←/→ untuk berpindah tab dan Home/End untuk tab pertama/terakhir. Di menu Ekspor, tekan ↓/↑ untuk memilih format.', 'Keyboard: press Tab to reach a row of tabs, then ←/→ to switch tabs and Home/End for the first/last tab. In the Export menu, press ↓/↑ to choose a format.'],
+        ['Pembaca layar mengumumkan jumlah hasil setelah pencarian atau filter berubah, serta progres sinkronisasi setiap 25%.', 'Screen readers announce the number of results after a search or filter changes, and sync progress every 25%.']
+      ],
+      tips: [['Label status ditulis seragam (mis. “Belum sinkron”, “Tidak aktif”). Nilai di file impor/ekspor tetap “Belum Sync”/“Tidak Aktif” agar cocok dengan sistem lain; impor menerima kedua bentuk.', 'Status labels are written consistently (e.g. “Not synced”, “Inactive”). Values in import/export files stay “Belum Sync”/“Tidak Aktif” to match other systems; import accepts both forms.']],
+      links: [['locations', ['Buka Unit Kerja', 'Open Locations']], ['act:shortcuts', ['Lihat pintasan keyboard', 'View keyboard shortcuts']]]
+    },
+    {
       id: 'dashboard', icon: 'grid', title: ['Dashboard', 'Dashboard'],
       summary: ['Ringkasan kondisi jaringan dan daftar pekerjaan yang paling mendesak.', 'Network overview and the most urgent work.'],
       steps: [
