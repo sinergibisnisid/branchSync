@@ -24,7 +24,7 @@ Hanya port 80 dan 443 yang dibuka ke internet. Database dan server API tidak bis
 
 ```bash
 sudo mkdir -p /opt/branchsync && sudo chown "$USER" /opt/branchsync
-git clone -b feat/react-frontend https://github.com/sinergibisnisid/branchSync.git /opt/branchsync
+git clone https://github.com/sinergibisnisid/branchSync.git /opt/branchsync
 cd /opt/branchsync/deploy
 cp .env.example .env
 chmod 600 .env
