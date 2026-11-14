@@ -65,7 +65,7 @@ const I18N = {
   adminWorkspace: ['Admin Workspace', 'Admin Workspace'], close: ['Tutup', 'Close'],
   loginTitle: ['Selamat datang kembali', 'Welcome back'],
   loginIntro: ['Masuk untuk mengelola jaringan kantor Anda.', 'Sign in to manage your office network.'],
-  loginHint: ['Mode demo: isi nama pengguna dan kata sandi apa saja. Jangan gunakan kredensial asli.', 'Demo mode: enter any username and password. Do not use real credentials.'],
+  loginHint: ['Mode Demo: isi nama pengguna dan kata sandi apa saja. Setelah masuk, Anda bisa beralih ke Live dari menu di header.', 'Demo mode: enter any username and password. After signing in, switch to Live from the header menu.'],
   loginUsername: ['Nama pengguna', 'Username'], loginPassword: ['Kata sandi', 'Password'], loginSubmit: ['Masuk', 'Sign in'],
   loginOr: ['atau', 'or'], loginGoogle: ['Masuk dengan Google', 'Sign in with Google'], loginOtp: ['Masuk dengan kode OTP email', 'Sign in with an email OTP code'],
   googleTitle: ['Masuk dengan Google (demo)', 'Sign in with Google (demo)'],
@@ -294,23 +294,24 @@ const header = document.querySelector('.site-header');
 window.addEventListener('scroll', () => header.classList.toggle('is-scrolled', window.scrollY > 8), { passive: true });
 
 /* ---------------------------------------------------------------- *
- * Login (pratinjau — kredensial tidak pernah dikirim/disimpan)
+ * Login — masuk ke workspace. Mode Demo/Live dipilih setelah masuk
+ * lewat menu di header admin. Kata sandi tidak pernah disimpan.
  * ---------------------------------------------------------------- */
 const dialog = $('loginDialog');
 const loginForm = $('loginForm'), username = $('loginUsername'), password = $('loginPassword'), passwordToggle = $('passwordToggle');
-const otpEmailForm = $('otpEmailForm'), otpCodeForm = $('otpCodeForm'), otpEmail = $('otpEmail'), otpCode = $('otpCode'), otpStatus = $('otpStatus');
-const googlePanel = $('googlePanel'), alternatives = $('loginAlternatives'), backToPassword = $('backToPassword');
+const otpEmailForm = $('otpEmailForm'), otpCodeForm = $('otpCodeForm'), otpEmail = $('otpEmail'), otpCode = $('otpCode');
+const googlePanel = $('googlePanel'), alternatives = $('loginAlternatives'), backToPassword = $('backToPassword'), loginError = $('loginError');
 let loginTrigger = null;
-let loginPanel = 'password';
 
+const errorEl = input => $((input.getAttribute('aria-describedby') || '').split(' ').find(id => /(Error|Status)$/.test(id)) || '');
 function setError(input, msg) {
-  const el = $(input.getAttribute('aria-describedby').split(' ').pop());
-  if (msg) { input.setAttribute('aria-invalid', 'true'); el.textContent = msg; }
+  const el = errorEl(input);
+  if (msg) { input.setAttribute('aria-invalid', 'true'); if (el) el.textContent = msg; }
   else { input.removeAttribute('aria-invalid'); if (el) el.textContent = ''; }
 }
-function clearErrors() { [username, password, otpEmail, otpCode].forEach(i => setError(i, '')); }
+const showLoginError = msg => { loginError.textContent = msg || ''; };
+function clearErrors() { [username, password, otpEmail, otpCode].forEach(i => setError(i, '')); showLoginError(''); }
 function setLoginPanel(panel, moveFocus = true) {
-  loginPanel = panel;
   [loginForm, otpEmailForm, otpCodeForm].forEach(f => f.reset());
   password.type = 'password';
   clearErrors();
@@ -330,10 +331,11 @@ function updateLoginCopy() {
   passwordToggle.setAttribute('aria-label', visible ? text('Sembunyikan kata sandi', 'Hide password') : text('Tampilkan kata sandi', 'Show password'));
   passwordToggle.setAttribute('aria-pressed', String(visible));
 }
-function openLogin(trigger) {
-  loginTrigger = trigger;
+function openLogin(trigger, message) {
+  loginTrigger = trigger || document.querySelector('.header-actions [data-login]');
   setLoginPanel('password', false);
   if (!dialog.open) dialog.showModal();
+  if (message) showLoginError(message);
   username.focus();
 }
 document.addEventListener('click', e => {
@@ -375,6 +377,7 @@ otpCodeForm.addEventListener('submit', e => {
   otpCode.value = '';
   enterAdmin();
 });
+window.BranchLogin = { open: message => openLogin(null, message) };
 
 /* ---------------------------------------------------------------- *
  * Terapkan bahasa
@@ -400,3 +403,25 @@ renderMap(false);
 
 // Admin diisolasi di admin.js; semua alur login masuk lewat sini.
 function enterAdmin() { window.BranchAdmin.enter(); }
+
+// Kembali dari OAuth Google lewat server (mode Live):
+//   #bs_token=…  → login Google berhasil   ·   #bs_error=… → login gagal
+//   #bs_gbp=connected | #bs_gbp=<pesan>    → hasil menghubungkan akun Google Business Profile
+(function handleOAuthReturn() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  const token = h.get('bs_token'), err = h.get('bs_error'), gbp = h.get('bs_gbp');
+  if (!token && !err && !gbp) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  if (gbp) {
+    if (!window.BranchMode.hasSession()) { openLogin(null, text('Sesi berakhir. Silakan masuk lagi.', 'Session expired. Please sign in again.')); return; }
+    window.BranchMode.setMode('live');
+    window.BranchAdmin.enter({ view: 'integrations', notice: gbp === 'connected' ? text('Akun Google berhasil dihubungkan.', 'Google account connected.') : text('Gagal menghubungkan akun Google: ', 'Failed to connect Google account: ') + gbp });
+    return;
+  }
+  if (err) { openLogin(null, text('Login Google gagal: ', 'Google sign-in failed: ') + err); return; }
+  window.BranchMode.setSession(token, null);
+  window.BranchMode.setMode('live');
+  window.BranchMode.request('GET', '/me')
+    .then(user => { window.BranchMode.setSession(token, user); enterAdmin(); })
+    .catch(e => { window.BranchMode.clearSession(); window.BranchMode.setMode('demo'); openLogin(null, e.message); });
+})();

@@ -142,7 +142,12 @@
     note: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
     merge: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="12" r="3"/><path d="M6 9v6M9 6c5 0 6 6 6 6"/>',
     arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
-    zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>'
+    zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+    star: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
+    chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
+    chevD: '<path d="m6 9 6 6 6-6"/>',
+    key: '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>'
   };
   const ic = (n, cls = '') => `<svg class="bs-ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[n] || ''}</svg>`;
 
@@ -172,11 +177,71 @@
     ['sync.run', 'Jalankan sinkronisasi'], ['claims.manage', 'Kelola klaim & titik baru'], ['approvals.decide', 'Putuskan edit eksternal'],
     ['audit.read', 'Lihat riwayat'], ['users.manage', 'Kelola pengguna'], ['settings.write', 'Ubah pengaturan']
   ];
-  const ME = { name: 'Admin Demo', email: 'admin@example.test' };
+  const DEMO_USER = { name: 'Admin Demo', email: 'admin@example.test', role: 'Administrator' };
+  let ME = DEMO_USER;
+  const MODE = window.BranchMode;
+  const isLive = () => !!(MODE && MODE.isLive());
+  function userFromSession() {
+    const u = (MODE && MODE.getUser()) || {};
+    return { name: u.name || u.username || u.email || 'Pengguna', email: u.email || '', role: u.role || 'Pengguna' };
+  }
   const STORE_KEY = 'branchSync.admin.v2', PREF_KEY = 'branchSync.admin.prefs';
   const STREETS = ['Sudirman', 'Ahmad Yani', 'Diponegoro', 'Gatot Subroto', 'Merdeka', 'Veteran', 'Pahlawan', 'Pemuda', 'Imam Bonjol', 'Gajah Mada'];
   const HOURS = ['Sen–Jum 08.00–15.00', 'Sen–Jum 08.00–16.00', 'Sen–Sab 08.00–14.00', 'Setiap hari 24 jam'];
   const EXT_EMAILS = ['pengguna.lain@gmail.com', 'local.guide.88@gmail.com', 'agency.seo@outlook.com', 'tidak.dikenal@yahoo.com'];
+  // Akun Google Business Profile (satu akun dapat mengelola banyak lokasi)
+  const ACCOUNT_LIST = [
+    { id: 'gbp-jawa', name: 'BRI Regional Jawa & Bali', email: 'gbp.jawa@example.test', accountId: 'accounts/1043920001' },
+    { id: 'gbp-sumatera', name: 'BRI Regional Sumatera', email: 'gbp.sumatera@example.test', accountId: 'accounts/1043920002' },
+    { id: 'gbp-timur', name: 'BRI Regional Kalimantan & Timur', email: 'gbp.timur@example.test', accountId: 'accounts/1043920003' }
+  ];
+  const accountOf = region => (region === 'Jawa' || region === 'Bali & Nusa Tenggara' ? 'gbp-jawa' : region === 'Sumatera' ? 'gbp-sumatera' : 'gbp-timur');
+  const acctOf = l => (l && (l.accountId || accountOf(l.region))) || '';
+  const REVIEW_TEXTS = {
+    5: ['Pelayanan cepat dan ramah, antrean tertib.', 'Teller sangat membantu menjelaskan produk tabungan.', 'Tempat bersih, nyaman, dan parkir luas.', 'Satpam sigap membantu nasabah lansia. Terima kasih!'],
+    4: ['Pelayanan baik, hanya antrean agak panjang di jam makan siang.', 'Staf ramah, tapi AC kurang dingin.', 'Proses buka rekening cepat, sekitar 20 menit.'],
+    3: ['Cukup baik, tapi jam buka di Google tidak sesuai.', 'Pelayanan standar, kursi tunggu kurang.', 'ATM sering antre panjang di sore hari.'],
+    2: ['Antrean lama, hanya dua teller yang buka.', 'ATM sering offline di akhir pekan.', 'Nomor telepon di Maps tidak bisa dihubungi.'],
+    1: ['Menunggu lebih dari satu jam tanpa kejelasan.', 'ATM menelan kartu dan belum ada tindak lanjut.', 'Lokasi di peta salah, saya sampai tersasar.']
+  };
+  const AUTHORS = ['Budi Santoso', 'Siti Rahmawati', 'Andi Pratama', 'Dewi Lestari', 'Rudi Hartono', 'Maya Sari', 'Agus Setiawan', 'Fitri Handayani', 'Joko Susilo', 'Nur Aini', 'Hendra Wijaya', 'Ratna Dewi', 'Yusuf Maulana', 'Indah Permata', 'Bayu Saputra'];
+  const REPLY_TEMPLATES = [
+    { label: 'Terima kasih (ulasan positif)', text: 'Halo {nama}, terima kasih atas ulasan dan kepercayaan Anda kepada {unit}. Kami senang dapat melayani Anda dan menantikan kunjungan berikutnya. Salam hangat, BRI.' },
+    { label: 'Permohonan maaf (ulasan negatif)', text: 'Halo {nama}, mohon maaf atas ketidaknyamanan yang Anda alami di {unit}. Masukan Anda sudah kami teruskan ke tim terkait untuk perbaikan. Silakan hubungi kanal resmi BRI agar kami dapat membantu lebih lanjut.' },
+    { label: 'Antrean / waktu tunggu', text: 'Halo {nama}, terima kasih atas masukannya. Kami sedang menambah petugas di jam sibuk agar waktu tunggu di {unit} lebih singkat. Mohon maaf atas ketidaknyamanannya.' },
+    { label: 'Informasi lokasi / jam salah', text: 'Halo {nama}, terima kasih telah memberi tahu kami. Informasi lokasi dan jam operasional {unit} sudah kami periksa dan perbarui di Google Maps.' },
+    { label: 'Masalah ATM', text: 'Halo {nama}, mohon maaf atas kendala ATM di {unit}. Tim kami sudah melakukan pengecekan. Untuk kartu tertelan atau transaksi gagal, silakan hubungi kanal pengaduan resmi BRI dengan menyiapkan data transaksi Anda.' }
+  ];
+  const REPLY_MAX = 4096; // batas panjang balasan Google Business Profile
+  const fillTemplate = (t, author, unit) => t.replace(/\{nama\}/g, String(author || '').split(' ')[0] || 'Bapak/Ibu').replace(/\{unit\}/g, unit || 'unit kami');
+  const GOOGLE_SCOPES = [
+    ['business.manage', 'Kelola profil bisnis, lokasi & ulasan', 'wajib'],
+    ['pubsub', 'Notifikasi real-time (Pub/Sub) untuk ulasan & edit baru', 'opsional'],
+    ['userinfo.email', 'Identitas akun Google yang menghubungkan', 'opsional']
+  ];
+  const SYNC_INTERVALS = [['0', 'Manual saja'], ['15', 'Setiap 15 menit'], ['60', 'Setiap jam'], ['360', 'Setiap 6 jam'], ['1440', 'Setiap hari']];
+  function buildReviews(locs) {
+    const r = rng(777), t0 = Date.now(), out = [];
+    let n = 0;
+    locs.slice(0, 200).forEach(l => {
+      const k = l.status === 'Tidak Aktif' ? Math.floor(r() * 2) : Math.floor(r() * 6);
+      for (let i = 0; i < k; i++) {
+        const x = r(), rating = x < 0.4 ? 5 : x < 0.68 ? 4 : x < 0.82 ? 3 : x < 0.92 ? 2 : 1;
+        const time = t0 - Math.floor(r() * 60 * DAY);
+        const author = pick(r, AUTHORS), replied = r() < (rating >= 4 ? 0.55 : 0.35);
+        out.push({ id: `RV-${String(++n).padStart(4, '0')}`, code: l.code, author, rating, text: r() < 0.1 ? '' : pick(r, REVIEW_TEXTS[rating]), time,
+          reply: replied ? { text: fillTemplate(REPLY_TEMPLATES[rating >= 4 ? 0 : 1].text, author, l.name), by: pick(r, ['Admin Demo', 'Operator Jawa', 'Operator Sumatera']), time: Math.min(t0, time + Math.floor((2 + r() * 46) * HOUR)) } : null });
+      }
+    });
+    return out;
+  }
+  function ensureExtras(s0) {
+    if (!Array.isArray(s0.accounts)) s0.accounts = ACCOUNT_LIST.map(a => ({ ...a }));
+    if (!Array.isArray(s0.reviews)) s0.reviews = buildReviews(s0.locations || []);
+    s0.api = { clientId: '', hasClientSecret: false, hasApiKey: false, scopes: ['business.manage'], syncInterval: '60', pubsubTopic: '', ...(s0.api || {}) };
+    s0.seq = { review: s0.reviews.length, ...(s0.seq || {}) };
+    return s0;
+  }
 
   const NAV = [
     { group: 'Monitoring', items: [
@@ -192,6 +257,7 @@
     ] },
     { group: 'Operasional', items: [
       { id: 'approvals', label: 'Persetujuan Edit', icon: 'inbox', count: () => state.approvals.filter(a => a.status === 'Menunggu').length, desc: 'Perubahan dari email GBP lain. Data tidak berubah sebelum BRI menyetujui.' },
+      { id: 'reviews', label: 'Ulasan', icon: 'star', count: () => state.reviews.filter(rv => !rv.reply).length, desc: 'Ulasan nasabah dari setiap akun dan lokasi Google Maps. Balas langsung dari sini.' },
       { id: 'sync', label: 'Sync Monitor', icon: 'refresh', count: () => openFailures().length, desc: 'Pantau job sinkronisasi dan tindak lanjuti data yang gagal diperbarui.' },
       { id: 'audit', label: 'Riwayat Perubahan', icon: 'history', desc: 'Jejak sebelum–sesudah setiap perubahan beserta pengguna internal maupun eksternal.' }
     ] },
@@ -304,7 +370,7 @@
     A(t0 - 2 * HOUR, 'Penjadwal otomatis', 'Internal', 'Sync Monitor', 'Menjalankan sinkronisasi', runs[0]?.id || '', [], `${runs[0]?.ok} berhasil, ${runs[0]?.fail} gagal`);
     audit.sort((a, b) => b.time - a.time);
 
-    return {
+    return ensureExtras({
       v: 2, locations: list, approvals, claims, runs, audit,
       users: [
         { id: 1, name: 'Admin Demo', email: 'admin@example.test', role: 'Administrator', status: 'Aktif', lastActive: t0 },
@@ -322,7 +388,7 @@
       settings: { workspace: 'BranchSync · Jaringan BRI', timezone: 'Asia/Jakarta', pageSize: 10, slaInternal: 24, slaGoogle: 120, dupRadius: 150, coordTol: 50 },
       discNotes: {}, dupIgnored: [],
       seq: { loc: seq, claim: claims.length, cr: approvals.length, job, audit: aid, user: 5 }
-    };
+    });
   }
 
   /* ------------------------------------------------------------------ *
@@ -331,16 +397,17 @@
   function loadState() {
     try {
       const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-      if (s && s.v === 2 && Array.isArray(s.locations)) return s;
+      if (s && s.v === 2 && Array.isArray(s.locations)) return ensureExtras(s);
     } catch (_) { /* penyimpanan tidak tersedia */ }
     return buildSeed();
   }
   let state = loadState();
-  let prefs = { theme: '', collapsed: false };
+  let prefs = { theme: '', collapsed: false, pageSize: 10 };
   try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREF_KEY) || '{}')); } catch (_) {}
   const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (_) {} };
   let saveTimer = 0;
-  const persist = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (_) {} }, 250); };
+  // Data Live tidak pernah ditulis ke penyimpanan demo.
+  const persist = () => { if (isLive()) return; clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (isLive()) return; try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (_) {} }, 250); };
   let cache = {};
   const touch = () => { cache = {}; persist(); };
   const memo = (k, fn) => (k in cache ? cache[k] : (cache[k] = fn()));
@@ -352,7 +419,9 @@
     map: { q: '', status: '', region: '', gbp: '', showGoogle: true },
     disc: { q: '', field: '' }, claims: { tab: 'active' }, approvals: { tab: 'pending' },
     sync: { tab: 'failures' }, audit: { q: '', module: '', actor: '', range: '30' }, access: { tab: 'users', q: '' },
-    drawer: null
+    drawer: null,
+    live: { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 },
+    reviews: { account: '', location: '', rating: '', status: '', sort: 'newest', q: '', limit: 20, editing: null, drafts: {} }
   };
 
   /* ------------------------------------------------------------------ *
@@ -442,13 +511,15 @@
     return out;
   }
   function notifications() {
+    const neg = state.reviews.filter(rv => !rv.reply && rv.rating <= 2).length;
     const pend = state.approvals.filter(a => a.status === 'Menunggu').length, f = openFailures().length, im = issueMap().size, dp = duplicatePairs().length, risk = slaStats().atRisk;
     return [
       pend && { icon: 'inbox', tone: 'warn', title: `${pend} edit dari email GBP lain menunggu persetujuan`, text: 'Data unit kerja tidak berubah sampai disetujui.', view: 'approvals' },
       f && { icon: 'refresh', tone: 'bad', title: `${f} unit gagal disinkronkan`, text: 'Coba ulang atau beri catatan tindak lanjut.', view: 'sync' },
       risk && { icon: 'gauge', tone: 'warn', title: `${risk} permintaan mendekati/lewat SLA`, text: `Target proses internal ${state.settings.slaInternal} jam.`, view: 'sla' },
       im && { icon: 'alert', tone: 'warn', title: `${im} unit berbeda dengan Google Maps`, text: 'Tentukan sumber data yang benar.', view: 'discrepancies' },
-      dp && { icon: 'copy', tone: 'info', title: `${dp} kemungkinan titik ganda`, text: 'Periksa dan gabungkan bila perlu.', view: 'duplicates' }
+      dp && { icon: 'copy', tone: 'info', title: `${dp} kemungkinan titik ganda`, text: 'Periksa dan gabungkan bila perlu.', view: 'duplicates' },
+      neg && { icon: 'star', tone: 'warn', title: `${neg} ulasan negatif belum dibalas`, text: 'Balas cepat agar nasabah merasa didengar.', view: 'reviews' }
     ].filter(Boolean);
   }
 
@@ -460,6 +531,103 @@
     if (state.audit.length > 3000) state.audit.length = 3000;
   }
   const diff = (before, after, keys) => keys.filter(k => String(before[k] ?? '') !== String(after[k] ?? '')).map(k => ({ field: FIELD_LABEL[k] || k, before: before[k] ?? '', after: after[k] ?? '' }));
+
+  /* ------------------------------------------------------------------ *
+   * Mode Live — data dari REST API (kontrak: API.md)
+   * ------------------------------------------------------------------ */
+  const toMs = v => (v == null || v === '' ? null : typeof v === 'number' ? v : (Date.parse(v) || null));
+  function blankState() {
+    return { v: 2, locations: [], approvals: [], claims: [], runs: [], audit: [], users: [], roles: [],
+      api: { connected: false, account: '', project: '', quotaLimit: 0, quotaUsed: 0, lastTest: null, webhook: false, clientId: '', hasClientSecret: false, hasApiKey: false, scopes: ['business.manage'], syncInterval: '60', pubsubTopic: '' },
+      accounts: [], reviews: [],
+      settings: { workspace: 'BranchSync', timezone: 'Asia/Jakarta', slaInternal: 24, slaGoogle: 120, dupRadius: 150, coordTol: 50 },
+      discNotes: {}, dupIgnored: [], seq: { loc: 0, claim: 0, cr: 0, job: 0, audit: 0, user: 0 } };
+  }
+  function normalizeSnapshot(d) {
+    if (!d || !Array.isArray(d.locations)) throw new MODE.ApiError('Respons /bootstrap tidak valid: daftar "locations" tidak ditemukan.', 0, 'bad-data');
+    const base = blankState(), s2 = { ...base, ...d, v: 2 };
+    s2.settings = { ...base.settings, ...(d.settings || {}) };
+    s2.api = { ...base.api, ...(d.api || {}) };
+    s2.api.lastTest = toMs(s2.api.lastTest);
+    s2.locations = d.locations.map(l => ({ ...l, region: l.region || regionOf(l.province || ''), lat: Number(l.lat), lng: Number(l.lng), updatedAt: toMs(l.updatedAt) || Date.now(), updatedBy: l.updatedBy || '—', lastSync: toMs(l.lastSync), google: l.google ? { ...l.google, lat: Number(l.google.lat), lng: Number(l.google.lng) } : null }));
+    s2.approvals = (d.approvals || []).map(a => ({ ...a, time: toMs(a.time), decidedAt: toMs(a.decidedAt) }));
+    s2.claims = (d.claims || []).map(c => ({ ...c, submittedAt: toMs(c.submittedAt), processedAt: toMs(c.processedAt), doneAt: toMs(c.doneAt) }));
+    s2.runs = (d.runs || []).map(r => ({ ...r, time: toMs(r.time), items: r.items || [] }));
+    s2.audit = (d.audit || []).map(a => ({ ...a, time: toMs(a.time), changes: a.changes || [] }));
+    s2.users = (d.users || []).map(u => ({ ...u, lastActive: toMs(u.lastActive) }));
+    s2.roles = (d.roles || []).map(r => ({ name: r.name, permissions: r.permissions || [] }));
+    s2.discNotes = d.discNotes || {};
+    s2.dupIgnored = d.dupIgnored || [];
+    s2.accounts = (d.accounts || []).map(a => ({ ...a }));
+    s2.reviews = (d.reviews || []).map(rv => ({ ...rv, rating: Number(rv.rating) || 0, time: toMs(rv.time), reply: rv.reply && rv.reply.text ? { ...rv.reply, time: toMs(rv.reply.time) } : null }));
+    // ID sementara untuk pembaruan optimistis; diganti data server saat dimuat ulang.
+    s2.seq = { loc: 90000, claim: 90000, cr: 90000, job: 90000, audit: 900000, user: 90000, review: 90000 };
+    return s2;
+  }
+  async function loadLive({ silent = false } = {}) {
+    if (!isLive()) return false;
+    if (!silent) { ui.live.loading = true; ui.live.error = null; render(); }
+    try {
+      const data = await MODE.request('GET', '/bootstrap');
+      if (!isLive()) return false;
+      state = normalizeSnapshot(data);
+      ui.live = { ...ui.live, ready: true, loading: false, error: null, syncedAt: Date.now() };
+      touch(); render();
+      return true;
+    } catch (e) {
+      ui.live.loading = false;
+      if (e.code === 'unauthorized') { sessionExpired(); return false; }
+      ui.live.error = e;
+      if (silent && ui.live.ready) { updateChrome(); return false; }
+      ui.live.ready = false; render();
+      return false;
+    }
+  }
+  let refreshTimer = 0;
+  // Kirim perubahan ke server. Tampilan sudah diperbarui secara optimistis;
+  // setelah selesai (berhasil/gagal) data dimuat ulang agar sama dengan server.
+  async function remote(method, path, body) {
+    if (!isLive()) return true;
+    ui.live.pending++; updateChrome();
+    try { const res = await MODE.request(method, path, body); ui.live.error = null; return res ?? true; }
+    catch (e) {
+      if (e.code === 'unauthorized') { sessionExpired(); return false; }
+      toast(`Gagal menyimpan ke server: ${e.message}`, { tone: 'bad', action: { label: 'Muat ulang', run: () => loadLive() } });
+      return false;
+    } finally {
+      ui.live.pending = Math.max(0, ui.live.pending - 1);
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => loadLive({ silent: true }), 200);
+    }
+  }
+  // Sesi Live tidak valid → kembali ke Mode Demo dan tawarkan masuk lagi (tetap di workspace).
+  function sessionExpired(message = 'Sesi Live berakhir atau tidak valid. Silakan masuk kembali.') {
+    MODE.clearSession();
+    if (isLive()) {
+      MODE.setMode('demo'); ME = DEMO_USER; state = loadState();
+      ui.live = { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 };
+      renderedView = null; touch();
+      if (!shell.hidden) render();
+    }
+    if (!shell.hidden) liveConnectModal(message);
+  }
+  function switchToDemo() {
+    if (!isLive()) { toast('Anda sudah berada di Mode Demo.'); return; }
+    MODE.setMode('demo');
+    ME = DEMO_USER;
+    state = loadState();
+    ui.live = { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 };
+    ui.loc.selected.clear(); renderedView = null;
+    ui.reviews = { account: '', location: '', rating: '', status: '', sort: 'newest', q: '', limit: 20, editing: null, drafts: {} };
+    touch(); navigate(ui.view);
+    toast('Beralih ke Mode Demo — data simulasi di browser ini.', { tone: 'good' });
+  }
+  function switchToLive() {
+    if (isLive()) { toast('Anda sudah berada di mode Live.'); return; }
+    if (MODE.hasSession() && MODE.getBaseUrl()) {
+      activateLive();
+    } else liveConnectModal();
+  }
 
   function syncOne(l, retry) {
     if (l.status === 'Tidak Aktif') return { status: 'Dilewati', reason: 'Unit tidak aktif' };
@@ -475,6 +643,17 @@
   }
   async function runSync(codes, { retry = false, label = 'Semua unit' } = {}) {
     if (ui.running) { toast('Sinkronisasi lain sedang berjalan.', { tone: 'warn' }); return; }
+    if (isLive()) {
+      ui.running = { done: 0, total: codes ? codes.length : state.locations.length, indeterminate: true };
+      render();
+      const run = await remote('POST', '/sync', { codes: codes || null, retry, label });
+      ui.running = null;
+      render();
+      if (run && typeof run === 'object' && 'ok' in run) {
+        toast(`Sinkronisasi selesai — ${fmtNum(run.ok)} berhasil, ${fmtNum(run.fail || 0)} gagal, ${fmtNum(run.skip || 0)} dilewati.`, { tone: run.fail ? 'warn' : 'good', action: run.fail ? { label: 'Lihat kegagalan', run: () => { ui.sync.tab = 'failures'; navigate('sync'); } } : null });
+      } else if (run) toast('Permintaan sinkronisasi diterima server.', { tone: 'good' });
+      return;
+    }
     if (!state.api.connected) { toast('Google API belum terhubung.', { tone: 'bad', action: { label: 'Buka Integrasi', run: () => navigate('integrations') } }); return; }
     const targets = codes ? codes.map(c => byCode().get(c)).filter(Boolean) : [...state.locations];
     if (!targets.length) return;
@@ -528,8 +707,8 @@
       <button type="button" class="bs-search-trigger" data-action="palette">${ic('search')}<span>Cari unit atau menu…</span><kbd>${MOD} K</kbd></button>
       <nav id="bsNav" class="bs-nav"></nav>
       <div class="bs-account">
-        <span class="bs-avatar" aria-hidden="true">AD</span>
-        <span class="bs-account-text"><strong>${esc(ME.name)}</strong><small>Administrator</small></span>
+        <span class="bs-avatar" aria-hidden="true" id="bsAccAvatar">AD</span>
+        <span class="bs-account-text"><strong id="bsAccName">${esc(ME.name)}</strong><small id="bsAccRole">Administrator</small></span>
         <button type="button" class="bs-icon-btn" data-action="logout" aria-label="Keluar ke halaman utama" title="Keluar">${ic('logout')}</button>
       </div>
     </aside>
@@ -540,7 +719,7 @@
         <nav class="bs-crumbs" aria-label="Lokasi halaman"><span>Workspace</span>${ic('chev')}<strong id="bsCrumb"></strong></nav>
         <div class="bs-top-end">
           <button type="button" class="bs-sync-pill" id="bsSyncPill" data-view="sync"></button>
-          <span class="bs-env" title="Data simulasi, tidak dikirim ke Google">Demo lokal</span>
+          <div class="bs-pop-wrap"><button type="button" class="bs-mode-btn" id="bsModeBtn" data-action="mode-menu" aria-haspopup="menu" aria-expanded="false" aria-controls="bsModeMenu"></button><div class="bs-popover bs-mode-menu" id="bsModeMenu" role="menu" aria-label="Mode aplikasi" hidden></div></div>
           <div class="bs-pop-wrap">
             <button type="button" class="bs-icon-btn" id="bsNotifBtn" data-action="notif" aria-haspopup="true" aria-expanded="false" aria-controls="bsNotif" aria-label="Notifikasi">${ic('bell')}<span class="bs-count-dot" id="bsNotifCount"></span></button>
             <div class="bs-popover bs-notif" id="bsNotif" hidden></div>
@@ -551,7 +730,7 @@
       </header>
       <main class="bs-main" id="bsMain" tabindex="-1">
         <div class="bs-page" id="bsPage"></div>
-        <footer class="bs-footer"><span id="bsFooterInfo"></span><span>Demo lokal — perubahan disimpan di browser ini dan tidak dikirim ke Google atau server.</span></footer>
+        <footer class="bs-footer"><span id="bsFooterInfo"></span><span id="bsFooterMode"></span></footer>
       </main>
     </div>
     <dialog class="bs-modal" id="bsModal" aria-labelledby="bsModalTitle"></dialog>
@@ -637,7 +816,8 @@
       { n: fails, icon: 'refresh', tone: 'bad', title: 'Gagal disinkronkan', text: 'Coba ulang atau catat tindak lanjut.', view: 'sync', cta: 'Tangani' },
       { n: im.size, icon: 'alert', tone: 'warn', title: 'Berbeda dengan Google Maps', text: 'Pilih sumber data yang benar.', view: 'discrepancies', cta: 'Bandingkan' },
       { n: dups.length, icon: 'copy', tone: 'info', title: 'Kemungkinan titik ganda', text: 'Gabungkan atau tandai bukan duplikat.', view: 'duplicates', cta: 'Periksa' },
-      { n: claimsN, icon: 'shield', tone: 'info', title: 'Klaim & titik baru berjalan', text: `${sla.atRisk} mendekati atau lewat SLA.`, view: 'claims', cta: 'Pantau' }
+      { n: claimsN, icon: 'shield', tone: 'info', title: 'Klaim & titik baru berjalan', text: `${sla.atRisk} mendekati atau lewat SLA.`, view: 'claims', cta: 'Pantau' },
+      { n: state.reviews.filter(rv => !rv.reply).length, icon: 'chat', tone: 'info', title: 'Ulasan Google belum dibalas', text: `${state.reviews.filter(rv => !rv.reply && rv.rating <= 2).length} di antaranya ulasan negatif (1–2★).`, view: 'reviews', cta: 'Balas' }
     ].filter(q => q.n);
     const queueHtml = queue.length
       ? `<ul class="bs-queue">${queue.map(q => `<li data-tone="${q.tone}"><span class="bs-queue-ic">${ic(q.icon)}</span><div><strong>${fmtNum(q.n)} ${q.title}</strong><p>${q.text}</p></div>${go(q.cta, q.view, 'sm')}</li>`).join('')}</ul>`
@@ -681,7 +861,7 @@
     return xs.sort((a, b) => { const va = val(a), vb = val(b); return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'id', { numeric: true })) * dir; });
   }
   function viewLocations() {
-    const f = ui.loc, all = locFiltered(), size = Number(state.settings.pageSize) || 10;
+    const f = ui.loc, all = locFiltered(), size = Number(prefs.pageSize) || 10;
     const pages = Math.max(1, Math.ceil(all.length / size));
     f.page = Math.min(Math.max(1, f.page), pages);
     const rows = all.slice((f.page - 1) * size, f.page * size), im = issueMap();
@@ -726,7 +906,7 @@
         ${table(headCells, body, `<div class="bs-empty-inline">${ic('search')}<strong>Tidak ada unit yang cocok</strong><span>Ubah kata kunci atau ${f.q || activeFilters.length || f.quick !== 'all' ? '<button type="button" class="bs-inline-link" data-action="clear-all">hapus semua filter</button>' : 'tambahkan unit baru'}.</span></div>`)}
         <div class="bs-pagination">
           <span>Menampilkan <b>${all.length ? (f.page - 1) * size + 1 : 0}–${Math.min(f.page * size, all.length)}</b> dari <b>${fmtNum(all.length)}</b> unit</span>
-          <label class="bs-inline-select"><span>Baris</span><select data-bind="settings.pageSize">${opts([10, 25, 50, 100], size)}</select></label>
+          <label class="bs-inline-select"><span>Baris</span><select data-bind="prefs.pageSize">${opts([10, 25, 50, 100], size)}</select></label>
           <div class="bs-pager">${btn('', 'page', { id: f.page - 1, icon: 'chevL', variant: 'icon sm', title: 'Halaman sebelumnya', attrs: f.page <= 1 ? 'disabled' : '' })}${pageBtns.map(p => p === '…' ? '<span class="bs-ellipsis">…</span>' : `<button type="button" class="bs-btn sm${p === f.page ? ' is-current' : ''}" data-action="page" data-id="${p}" ${p === f.page ? 'aria-current="page"' : ''}>${p}</button>`).join('')}${btn('', 'page', { id: f.page + 1, icon: 'chev', variant: 'icon sm', title: 'Halaman berikutnya', attrs: f.page >= pages ? 'disabled' : '' })}</div>
         </div></div></section>`;
   }
@@ -813,7 +993,7 @@
         <td class="bs-td-actions">${btn('Pakai Dashboard', 'disc-push', { id: key, variant: 'sm', title: 'Kirim data Dashboard ke Google' })}${btn('Pakai Google', 'disc-pull', { id: key, variant: 'sm ghost', title: 'Salin data Google ke Dashboard' })}${btn('', 'disc-note', { id: key, icon: 'note', variant: 'sm icon ghost', title: 'Catat temuan' })}</td></tr>`;
     });
     return head('Ketidaksesuaian Data', navItem('discrepancies').desc,
-      btn('Simulasikan perubahan di Google', 'simulate-google', { icon: 'zap' }) + btn('Unduh laporan', 'export-disc', { icon: 'download' }) + btn('Pakai Dashboard untuk semua', 'disc-push-all', { icon: 'upload', variant: 'primary', attrs: rows.length ? '' : 'disabled' })) +
+      (isLive() ? '' : btn('Simulasikan perubahan di Google', 'simulate-google', { icon: 'zap' })) + btn('Unduh laporan', 'export-disc', { icon: 'download' }) + btn('Pakai Dashboard untuk semua', 'disc-push-all', { icon: 'upload', variant: 'primary', attrs: rows.length ? '' : 'disabled' })) +
       `<div class="bs-metrics bs-metrics-5">${byField.map(([f, n]) => metric({ label: FIELD_LABEL[f], value: fmtNum(n), note: n ? 'perbedaan' : 'sesuai', tone: n ? 'warn' : 'good' })).join('')}</div>` +
       card(`${fmtNum(total)} perbedaan pada ${fmtNum(issueMap().size)} unit`, `<div class="bs-toolbar">${searchF('disc.q', 'Cari unit', ui.disc.q, 'Nama, kode, atau kota…', 'bsDiscQ')}${selectF('disc.field', 'Kolom', Object.keys(FIELD_LABEL).slice(0, 5).map(f => [f, FIELD_LABEL[f]]), ui.disc.field)}</div>` +
         (rows.length ? table(['Unit kerja', 'Kolom', 'Di Dashboard', 'Di Google Maps', 'Catatan', '<span class="bs-sr">Aksi</span>'], body) : emptyState('Data sudah sesuai', 'Tidak ada perbedaan antara Dashboard dan Google Maps untuk filter ini.')),
@@ -881,7 +1061,7 @@
       ${diffList([{ field: FIELD_LABEL[a.field], before: a.before, after: a.after }])}
       <footer>${btn('Tolak', 'cr-reject', { id: a.id, icon: 'x' })}${btn('Setujui', 'cr-approve', { id: a.id, icon: 'check', variant: 'primary' })}</footer></article>`).join('');
     const hist = done.sort((a, b) => b.decidedAt - a.decidedAt).map(a => `<tr><td><strong>${esc(a.id)}</strong><small>${fmtDate(a.time)}</small></td><td>${esc(locName(a.code))}<small>${FIELD_LABEL[a.field]}</small></td><td class="bs-td-wrap">${diffList([{ field: '', before: a.before, after: a.after }])}</td><td>${esc(a.by)}</td><td>${badge(a.status)}<small>${esc(a.decidedBy)} · ${fmtRel(a.decidedAt)}</small></td></tr>`);
-    return head('Persetujuan Edit', navItem('approvals').desc, btn('Simulasikan edit masuk', 'simulate-edit', { icon: 'zap' })) +
+    return head('Persetujuan Edit', navItem('approvals').desc, (isLive() ? btn('Muat ulang', 'live-retry', { icon: 'refresh' }) : btn('Simulasikan edit masuk', 'simulate-edit', { icon: 'zap' }))) +
       `<div class="bs-callout" data-tone="good">${ic('shield')}<p>Perubahan dari email GBP lain <b>tidak diterapkan</b> sampai BRI menyetujuinya. Jika ditolak, data unit kerja tetap seperti semula.</p></div>` +
       tabs('approvals.tab', [['pending', 'Menunggu', pending.length], ['history', 'Riwayat keputusan', done.length]], t) +
       (t === 'pending'
@@ -896,7 +1076,7 @@
     const fails = openFailures(), daily = dailySync(7), runs = state.runs;
     const ok = sum(daily.map(d => d.ok)), fl = sum(daily.map(d => d.fail));
     const avgDur = runs.length ? sum(runs.slice(0, 20).map(r => r.durationMs)) / Math.min(20, runs.length) : 0;
-    const prog = ui.running ? `<div class="bs-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${ui.running.total}" aria-valuenow="${ui.running.done}" aria-label="Kemajuan sinkronisasi"><span style="width:${pct(ui.running.done, ui.running.total)}%"></span></div><p class="bs-muted">Memproses ${fmtNum(ui.running.done)} dari ${fmtNum(ui.running.total)} unit…</p>` : '';
+    const prog = ui.running && ui.running.indeterminate ? `<div class="bs-progress is-indeterminate" role="progressbar" aria-label="Server sedang menyinkronkan"><span></span></div><p class="bs-muted">Server sedang menyinkronkan ${fmtNum(ui.running.total)} unit…</p>` : ui.running ? `<div class="bs-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${ui.running.total}" aria-valuenow="${ui.running.done}" aria-label="Kemajuan sinkronisasi"><span style="width:${pct(ui.running.done, ui.running.total)}%"></span></div><p class="bs-muted">Memproses ${fmtNum(ui.running.done)} dari ${fmtNum(ui.running.total)} unit…</p>` : '';
     const failRows = fails.map(f => `<tr><td><button type="button" class="bs-cell-link" data-action="open-loc" data-id="${esc(f.code)}" data-tab="sync"><strong>${esc(locName(f.code))}</strong><small>${esc(f.code)}</small></button></td><td class="bs-td-wrap">${esc(f.reason)}</td><td>${esc(f.run)}<small>${fmtRel(f.time)}</small></td>
       <td class="bs-td-actions">${btn('Coba lagi', 'retry', { id: f.code, icon: 'refresh', variant: 'sm', attrs: ui.running ? 'disabled' : '' })}${btn('Tindak lanjut', 'resolve', { id: f.code, icon: 'note', variant: 'sm ghost' })}</td></tr>`);
     const runRows = runs.slice(0, 50).map(r => `<tr><td><strong>${esc(r.id)}</strong><small>${esc(r.scope)}</small></td><td>${fmtDate(r.time)}<small>${esc(r.by)}</small></td><td>${fmtNum(r.total)}</td><td>${badge('Berhasil', fmtNum(r.ok))}</td><td>${r.fail ? badge('Gagal', fmtNum(r.fail)) : '0'}</td><td>${fmtNum(r.skip)}</td><td>${fmtDur(r.durationMs < MIN ? MIN : r.durationMs)}</td></tr>`);
@@ -973,16 +1153,115 @@
   /* ------------------------------------------------------------------ *
    * View: Integrasi Google
    * ------------------------------------------------------------------ */
+  const redirectUri = () => `${MODE.getBaseUrl() || 'https://<server-branchsync>'}/integrations/google/oauth/callback`;
+  function gField({ name, label, value = '', type = 'text', hint = '', full = false, attrs = '', placeholder = '' }) {
+    return `<div class="bs-field${full ? ' full' : ''}"><label for="g-${name}">${label}</label><input id="g-${name}" name="${name}" type="${type}" value="${esc(value)}" placeholder="${esc(placeholder)}" aria-describedby="gh-${name}" ${attrs}><small class="bs-field-hint" id="gh-${name}" data-hint="${esc(hint)}">${hint}</small></div>`;
+  }
   function viewIntegrations() {
-    const a = state.api, used = pct(a.quotaUsed, a.quotaLimit);
+    const a = state.api, used = pct(a.quotaUsed, a.quotaLimit), live = isLive(), accounts = state.accounts || [];
+    const ready = !!(a.clientId && a.hasClientSecret && a.project);
+    const acctRows = accounts.map(ac => {
+      const locs = state.locations.filter(l => acctOf(l) === ac.id), codes = new Set(locs.map(l => l.code));
+      const rvs = state.reviews.filter(rv => codes.has(rv.code)), un = rvs.filter(rv => !rv.reply).length;
+      return `<tr><td><strong>${esc(ac.name)}</strong><small>${esc(ac.email || '')}</small></td><td><code>${esc(ac.accountId || ac.id)}</code></td><td>${fmtNum(locs.length)}</td><td>${fmtNum(rvs.length)}${un ? `<small>${badge('Menunggu', `${un} belum dibalas`)}</small>` : ''}</td><td class="bs-td-actions">${btn('Lihat ulasan', 'review-account', { id: ac.id, icon: 'star', variant: 'sm' })}</td></tr>`;
+    });
+    const statusCard = card('Koneksi Google Business Profile', `<div class="bs-integration"><span class="bs-g-mark" aria-hidden="true">G</span><div><strong>${a.connected ? 'Terhubung' : 'Belum terhubung'}</strong><small>${live ? `Token OAuth disimpan di server BranchSync (${esc(MODE.host())}).` : 'Mode Demo — koneksi disimulasikan, tidak ada permintaan ke Google.'}</small></div>${badge(a.connected ? 'Aktif' : 'Nonaktif', a.connected ? 'Terhubung' : 'Terputus')}</div>` +
+      kv([['Akun utama', esc(a.account || '—')], ['Project Google Cloud', esc(a.project || '—')], ['Kredensial OAuth', ready ? badge('Berhasil', 'Lengkap') : badge('Menunggu', 'Belum lengkap')], ['Uji terakhir', a.lastTest ? fmtRel(a.lastTest) : '—']]) +
+      `<div class="bs-btn-row">${a.connected ? btn('Putuskan', 'api-toggle', { icon: 'plug' }) : btn('Hubungkan akun Google', 'gbp-oauth', { icon: 'external', variant: 'primary' })}${btn('Uji koneksi', 'api-test', { icon: 'zap' })}</div>`);
+    const quotaCard = card('Kuota API harian', `<div class="bs-quota"><strong>${fmtNum(a.quotaUsed)}</strong><span>dari ${fmtNum(a.quotaLimit)} permintaan (${used}%)</span></div>${bar(a.quotaUsed, a.quotaLimit, `Kuota terpakai ${used}%`)}<p class="bs-muted bs-gap">Setiap pembaruan unit atau balasan ulasan memakai 1 permintaan. Batas kuota diatur di bawah.</p>${live ? '' : btn('Reset kuota harian', 'api-reset', { variant: 'sm ghost' })}`);
+    const secretPh = has => (has ? '•••••••• tersimpan — isi untuk mengganti' : 'Belum diisi');
+    const form = `<form id="bsGoogleForm" novalidate>
+      <div class="bs-form-grid">
+        ${gField({ name: 'project', label: 'Project ID Google Cloud', value: a.project, hint: 'Mis. bri-branchsync-prod', attrs: 'autocomplete="off" spellcheck="false"' })}
+        ${gField({ name: 'account', label: 'Email akun utama GBP', value: a.account, type: 'email', hint: 'Akun yang memiliki/mengelola lokasi', attrs: 'autocomplete="off"' })}
+        ${gField({ name: 'clientId', label: 'OAuth Client ID', value: a.clientId, full: true, placeholder: '1234567890-abc123.apps.googleusercontent.com', hint: 'Dari Google Cloud Console › APIs & Services › Credentials', attrs: 'autocomplete="off" spellcheck="false"' })}
+        ${gField({ name: 'clientSecret', label: 'OAuth Client Secret', type: 'password', placeholder: secretPh(a.hasClientSecret), hint: live ? 'Dikirim ke server dan tidak pernah ditampilkan kembali.' : 'Mode Demo: rahasia tidak disimpan di browser.', attrs: 'autocomplete="new-password"' })}
+        ${gField({ name: 'apiKey', label: 'API key (opsional)', type: 'password', placeholder: secretPh(a.hasApiKey), hint: 'Untuk Places/Maps API. Diawali "AIza".', attrs: 'autocomplete="new-password"' })}
+        <div class="bs-field full"><span class="bs-field-label">Redirect URI (daftarkan di Google Cloud Console)</span><div class="bs-copy-row"><code id="bsRedirectUri">${esc(redirectUri())}</code>${btn('Salin', 'copy-redirect', { icon: 'copy', variant: 'sm' })}</div></div>
+        <fieldset class="bs-fieldset full" aria-describedby="gh-scopes"><legend>Scope OAuth</legend>${GOOGLE_SCOPES.map(([id, label, tag]) => `<label class="bs-checkline"><input type="checkbox" name="scopes" value="${id}" ${a.scopes.includes(id) ? 'checked' : ''}><span>${label} <code>${id}</code></span><small>${tag}</small></label>`).join('')}<small class="bs-field-hint" id="gh-scopes" data-hint=""></small></fieldset>
+        <div class="bs-field"><label for="g-syncInterval">Sinkronisasi otomatis</label><select id="g-syncInterval" name="syncInterval">${opts(SYNC_INTERVALS, a.syncInterval)}</select><small class="bs-field-hint">Termasuk menarik ulasan & perubahan dari Google.</small></div>
+        ${gField({ name: 'quotaLimit', label: 'Batas kuota harian', value: a.quotaLimit, type: 'number', hint: 'Jumlah permintaan API per hari', attrs: 'min="100" max="1000000" step="1"' })}
+        ${gField({ name: 'pubsubTopic', label: 'Topik Pub/Sub notifikasi (opsional)', value: a.pubsubTopic, full: true, placeholder: 'projects/bri-branchsync-prod/topics/gbp-notifications', hint: 'Agar ulasan baru & edit dari pihak lain langsung masuk.', attrs: 'spellcheck="false"' })}
+        <label class="bs-switch-row full"><span><strong>Notifikasi edit dari email GBP lain</strong><small>Masukkan usulan perubahan ke Persetujuan Edit dan beri notifikasi.</small></span><span class="bs-switch"><input type="checkbox" name="webhook" ${a.webhook ? 'checked' : ''}><span></span></span></label>
+      </div>
+      <p class="bs-form-error" id="bsGoogleError" role="alert"></p>
+      <div class="bs-form-actions">${btn('Uji koneksi', 'api-test', { icon: 'zap' })}<button type="submit" class="bs-btn primary">${ic('check')}<span>Simpan konfigurasi</span></button></div>
+    </form>`;
     return head('Integrasi Google', navItem('integrations').desc) +
-      `<div class="bs-grid bs-grid-main">` +
-      card('Google Business Profile', `<div class="bs-integration"><span class="bs-g-mark" aria-hidden="true">G</span><div><strong>${a.connected ? 'Terhubung' : 'Belum terhubung'}</strong><small>Mode simulasi — tidak ada kredensial atau koneksi jaringan yang dipakai.</small></div>${badge(a.connected ? 'Aktif' : 'Nonaktif', a.connected ? 'Terhubung' : 'Terputus')}</div>` +
-        kv([['Akun GBP', esc(a.account)], ['Project', esc(a.project)], ['Uji terakhir', a.lastTest ? fmtRel(a.lastTest) : '—'], ['Lokasi terkelola', fmtNum(state.locations.filter(l => l.google).length)]]) +
-        `<div class="bs-btn-row">${btn(a.connected ? 'Putuskan' : 'Hubungkan', 'api-toggle', { icon: 'plug', variant: a.connected ? '' : 'primary' })}${btn('Uji koneksi', 'api-test', { icon: 'zap' })}</div>`) +
-      card('Kuota API harian', `<div class="bs-quota"><strong>${fmtNum(a.quotaUsed)}</strong><span>dari ${fmtNum(a.quotaLimit)} permintaan (${used}%)</span></div>${bar(a.quotaUsed, a.quotaLimit, `Kuota terpakai ${used}%`)}<p class="bs-muted bs-gap">Setiap pembaruan unit memakai 1 permintaan. Sinkronisasi ditolak jika kuota tidak cukup.</p>${btn('Reset kuota harian', 'api-reset', { variant: 'sm ghost' })}`) +
-      `</div>` +
-      card('Notifikasi & keamanan', `<label class="bs-switch-row"><span><strong>Notifikasi edit dari email GBP lain</strong><small>Masukkan usulan perubahan ke Persetujuan Edit dan beri notifikasi.</small></span><span class="bs-switch"><input type="checkbox" data-bind="api.webhook" ${a.webhook ? 'checked' : ''}><span></span></span></label>`);
+      `<div class="bs-grid bs-grid-main">${statusCard}${quotaCard}</div>` +
+      card('Kredensial & konfigurasi Google API', form, { sub: 'Diperlukan agar BranchSync dapat mengelola lokasi dan membalas ulasan atas nama BRI.' }) +
+      card(`Akun Google Business Profile (${fmtNum(accounts.length)})`, accounts.length ? table(['Akun', 'Account ID', 'Lokasi', 'Ulasan', '<span class="bs-sr">Aksi</span>'], acctRows) : emptyState('Belum ada akun', 'Hubungkan akun Google untuk menampilkan akun dan lokasinya.', '', 'info'), { flush: !!accounts.length });
+  }
+
+  /* ------------------------------------------------------------------ *
+   * View: Ulasan Google
+   * ------------------------------------------------------------------ */
+  const stars = n => `<span class="bs-stars" role="img" aria-label="${n} dari 5 bintang">${'★'.repeat(n)}<span aria-hidden="true">${'★'.repeat(Math.max(0, 5 - n))}</span></span>`;
+  function reviewScope() {
+    const f = ui.reviews;
+    return state.reviews.filter(rv => { const l = byCode().get(rv.code); return l && (!f.account || acctOf(l) === f.account) && (!f.location || rv.code === f.location); });
+  }
+  function reviewFiltered() {
+    const f = ui.reviews, q = f.q.trim().toLowerCase();
+    const xs = reviewScope().filter(rv => (!f.rating || rv.rating === Number(f.rating)) && (!f.status || (f.status === 'replied' ? !!rv.reply : !rv.reply)) &&
+      (!q || `${rv.author} ${rv.text} ${rv.reply ? rv.reply.text : ''} ${locName(rv.code)}`.toLowerCase().includes(q)));
+    const sorters = { newest: (a, b) => b.time - a.time, unreplied: (a, b) => (!!a.reply - !!b.reply) || b.time - a.time, lowest: (a, b) => a.rating - b.rating || b.time - a.time, highest: (a, b) => b.rating - a.rating || b.time - a.time };
+    return xs.sort(sorters[f.sort] || sorters.newest);
+  }
+  function reviewCard(rv, { showLoc = true } = {}) {
+    const l = byCode().get(rv.code), editing = ui.reviews.editing === rv.id;
+    const draft = ui.reviews.drafts[rv.id] ?? (rv.reply ? rv.reply.text : '');
+    const editor = `<div class="bs-reply-editor">
+        <label class="bs-sr" for="rv-text-${esc(rv.id)}">Balasan untuk ${esc(rv.author)}</label>
+        <textarea id="rv-text-${esc(rv.id)}" data-draft="${esc(rv.id)}" rows="3" maxlength="${REPLY_MAX}" placeholder="Tulis balasan yang sopan dan membantu…">${esc(draft)}</textarea>
+        <div class="bs-reply-tools">
+          <label class="bs-inline-select"><span class="bs-sr">Template balasan</span><select data-action-change="review-template" data-id="${esc(rv.id)}"><option value="">Pakai template…</option>${REPLY_TEMPLATES.map((t, i) => `<option value="${i}">${esc(t.label)}</option>`).join('')}</select></label>
+          <small class="bs-char" id="rv-count-${esc(rv.id)}">${draft.length}/${fmtNum(REPLY_MAX)}</small><span class="bs-spacer"></span>
+          ${btn('Batal', 'review-cancel', { id: rv.id, variant: 'sm ghost' })}${btn(rv.reply ? 'Simpan balasan' : 'Kirim balasan', 'review-send', { id: rv.id, icon: 'send', variant: 'sm primary' })}
+        </div>
+        <p class="bs-reply-hint">Balasan tampil publik di Google Maps sebagai pemilik “${esc(l ? l.name : 'unit')}”.</p></div>`;
+    const reply = rv.reply && !editing ? `<div class="bs-reply"><div class="bs-reply-head"><strong>Balasan pemilik</strong><small>${esc(rv.reply.by || '')} · <time title="${fmtDate(rv.reply.time)}">${fmtRel(rv.reply.time)}</time></small><span class="bs-spacer"></span>${btn('', 'review-edit', { id: rv.id, icon: 'edit', variant: 'icon sm ghost', title: 'Ubah balasan' })}${btn('', 'review-delete', { id: rv.id, icon: 'trash', variant: 'icon sm ghost', title: 'Hapus balasan' })}</div><p>${esc(rv.reply.text)}</p></div>` : '';
+    return `<article class="bs-review" data-low="${rv.rating <= 2}" aria-label="Ulasan ${esc(rv.author)}, ${rv.rating} bintang">
+      <header><span class="bs-avatar sm" aria-hidden="true">${initials(rv.author)}</span><div class="bs-review-who"><strong>${esc(rv.author)}</strong><small>${stars(rv.rating)}<span>·</span><time title="${fmtDate(rv.time)}">${fmtRel(rv.time)}</time></small></div>
+        ${showLoc && l ? `<button type="button" class="bs-review-loc" data-action="open-loc" data-id="${esc(l.code)}" data-tab="reviews">${ic('pin')}<span>${esc(l.name)}</span></button>` : ''}${rv.reply ? badge('Berhasil', 'Dibalas') : badge('Menunggu', 'Belum dibalas')}</header>
+      <p class="bs-review-text${rv.text ? '' : ' bs-muted'}">${rv.text ? esc(rv.text) : '(Hanya memberi rating, tanpa komentar)'}</p>
+      ${reply}${editing ? editor : rv.reply ? '' : `<div class="bs-review-actions">${btn('Balas', 'review-reply', { id: rv.id, icon: 'chat', variant: 'sm' })}</div>`}
+    </article>`;
+  }
+  function ratingSummary(scope, clickable = true) {
+    const avg = scope.length ? sum(scope.map(r => r.rating)) / scope.length : 0, replied = scope.filter(r => r.reply).length;
+    const dist = [5, 4, 3, 2, 1].map(n => [n, scope.filter(r => r.rating === n).length]), maxD = Math.max(1, ...dist.map(d => d[1]));
+    const neg = scope.filter(r => r.rating <= 2 && !r.reply).length;
+    return `<div class="bs-rating-summary"><div class="bs-rating-big"><strong>${avg ? avg.toFixed(1).replace('.', ',') : '—'}</strong>${stars(Math.round(avg))}<small>${fmtNum(scope.length)} ulasan</small></div>
+      <div class="bs-rating-dist">${dist.map(([n, c]) => { const on = String(ui.reviews.rating) === String(n); return clickable ? `<button type="button" class="bs-rating-row${on ? ' is-active' : ''}" data-action="review-rating" data-id="${n}" aria-pressed="${on}" aria-label="Saring ${n} bintang: ${c} ulasan"><span>${n}★</span><span class="bs-bar-track"><span style="width:${(c / maxD) * 100}%"></span></span><small>${fmtNum(c)}</small></button>` : `<div class="bs-rating-row"><span>${n}★</span><span class="bs-bar-track"><span style="width:${(c / maxD) * 100}%"></span></span><small>${fmtNum(c)}</small></div>`; }).join('')}</div>
+      <div class="bs-rating-kpis"><div><strong>${fmtNum(scope.length - replied)}</strong><small>Belum dibalas</small></div><div><strong>${pct(replied, scope.length)}%</strong><small>Tingkat balasan</small></div><div data-tone="${neg ? 'warn' : ''}"><strong>${fmtNum(neg)}</strong><small>Negatif belum dibalas</small></div></div></div>`;
+  }
+  function viewReviews() {
+    // Bersihkan filter yang merujuk akun/lokasi yang tidak ada (mis. setelah ganti mode).
+    if (ui.reviews.account && !(state.accounts || []).some(a => a.id === ui.reviews.account)) ui.reviews.account = '';
+    if (ui.reviews.location && !byCode().has(ui.reviews.location)) ui.reviews.location = '';
+    const f = ui.reviews, accounts = state.accounts || [], scope = reviewScope(), list = reviewFiltered(), shown = list.slice(0, f.limit);
+    const perCode = new Map();
+    state.reviews.forEach(rv => perCode.set(rv.code, (perCode.get(rv.code) || 0) + 1));
+    const acctCount = id => state.reviews.filter(rv => acctOf(byCode().get(rv.code)) === id).length;
+    const locOpts = state.locations.filter(l => perCode.has(l.code) && (!f.account || acctOf(l) === f.account)).sort((a, b) => a.name.localeCompare(b.name, 'id')).map(l => [l.code, `${l.name} (${perCode.get(l.code)})`]);
+    const loc = f.location && byCode().get(f.location);
+    const ctx = loc ? `<div class="bs-review-context">${ic('pin')}<div><strong>${esc(loc.name)}</strong><small>${esc(loc.address)} · ${esc((accounts.find(a => a.id === acctOf(loc)) || {}).name || '')}</small></div>${btn('Detail lokasi', 'open-loc', { id: loc.code, variant: 'sm' })}${btn('', 'review-clear-loc', { icon: 'x', variant: 'icon sm ghost', title: 'Tampilkan semua lokasi' })}</div>` : '';
+    return head('Ulasan Google', navItem('reviews').desc, (isLive() ? btn('Muat ulang', 'live-retry', { icon: 'refresh' }) : btn('Simulasikan ulasan baru', 'simulate-review', { icon: 'zap' })) + btn('Ekspor CSV', 'export-reviews', { icon: 'download' })) +
+      `<section class="bs-card"><div class="bs-card-body flush"><div class="bs-toolbar bs-review-pickers">
+        ${selectF('reviews.account', 'Akun Google Business Profile', accounts.map(a => [a.id, `${a.name} (${acctCount(a.id)})`]), f.account, 'Semua akun')}
+        ${selectF('reviews.location', 'Lokasi Maps', locOpts, f.location, 'Semua lokasi')}
+      </div></div></section>` + ctx +
+      card('Ringkasan rating', ratingSummary(scope), { sub: loc ? `Untuk ${esc(loc.name)}` : f.account ? `Untuk ${esc((accounts.find(a => a.id === f.account) || {}).name || '')}` : 'Semua akun dan lokasi · klik baris bintang untuk menyaring' }) +
+      `<section class="bs-card"><div class="bs-card-body flush"><div class="bs-toolbar">
+        ${searchF('reviews.q', 'Cari ulasan', f.q, 'Nama, isi ulasan, atau balasan…', 'bsReviewQ')}
+        ${selectF('reviews.status', 'Status', [['unreplied', 'Belum dibalas'], ['replied', 'Sudah dibalas']], f.status)}
+        ${selectF('reviews.sort', 'Urutkan', [['newest', 'Terbaru'], ['unreplied', 'Belum dibalas dulu'], ['lowest', 'Rating terendah'], ['highest', 'Rating tertinggi']], f.sort, '')}
+      </div>
+      ${f.rating ? `<div class="bs-chips"><button type="button" class="bs-chip" data-action="review-rating" data-id="${f.rating}"><span>Rating: <b>${f.rating}★</b></span>${ic('x')}</button></div>` : ''}
+      <div class="bs-review-list">${shown.length ? shown.map(rv => reviewCard(rv)).join('') : emptyState('Tidak ada ulasan', 'Tidak ada ulasan yang cocok dengan pilihan akun, lokasi, atau filter ini.', '', 'star')}</div>
+      ${list.length > shown.length ? `<div class="bs-more">${btn(`Tampilkan ${Math.min(20, list.length - shown.length)} lagi · ${fmtNum(list.length - shown.length)} tersisa`, 'review-more', { variant: 'sm' })}</div>` : ''}
+      </div></section>`;
   }
 
   /* ------------------------------------------------------------------ *
@@ -992,15 +1271,18 @@
     const s = state.settings;
     const f = (name, label, value, type = 'number', hint = '', extra = '') => `<label class="bs-field"><span>${label}</span><input name="${name}" type="${type}" value="${esc(value)}" required ${extra}>${hint ? `<small>${hint}</small>` : ''}</label>`;
     return head('Pengaturan', navItem('settings').desc) +
+      card('Mode & koneksi server', `<div class="bs-mode-row"><span class="bs-mode-badge" data-state="${isLive() ? 'online' : 'demo'}">${ic(isLive() ? 'plug' : 'zap')}</span><div><strong>${isLive() ? 'Live' : 'Mode Demo'}</strong><small>${isLive() ? `Masuk sebagai ${esc(ME.name)} · ${esc(MODE.host())}` : 'Data simulasi di browser ini. Tidak ada yang dikirim ke server.'}</small></div><div class="bs-seg-btns" role="group" aria-label="Pilih mode">${btn('Demo', 'mode-demo', { icon: 'zap', variant: `sm${isLive() ? '' : ' is-current'}`, attrs: `aria-pressed="${!isLive()}"` })}${btn('Live', 'mode-live', { icon: 'plug', variant: `sm${isLive() ? ' is-current' : ''}`, attrs: `aria-pressed="${isLive()}"` })}</div></div>
+        <div class="bs-form-grid bs-gap"><label class="bs-field full"><span>URL server API</span><input id="bsApiUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" value="${esc(MODE.getBaseUrl())}" placeholder="https://api.branchsync.co.id/v1"><small>Dipakai pada mode Live. Daftar endpoint ada di API.md.</small></label></div>
+        <div class="bs-btn-row">${btn('Uji koneksi', 'api-health', { icon: 'zap' })}${btn('Simpan URL', 'api-url-save', { icon: 'check' })}<span id="bsHealth" class="bs-health-msg" role="status" aria-live="polite"></span></div>`) +
       `<form id="bsSettingsForm" class="bs-stack" novalidate>` +
       card('Workspace', `<div class="bs-form-grid">${f('workspace', 'Nama workspace', s.workspace, 'text', '', 'maxlength="80"')}<label class="bs-field"><span>Zona waktu</span><select name="timezone">${opts([['Asia/Jakarta', 'WIB — Asia/Jakarta'], ['Asia/Makassar', 'WITA — Asia/Makassar'], ['Asia/Jayapura', 'WIT — Asia/Jayapura']], s.timezone)}</select></label></div>`) +
       card('Target SLA', `<div class="bs-form-grid">${f('slaInternal', 'Proses internal (jam)', s.slaInternal, 'number', 'Waktu tim BRI memproses permintaan.', 'min="1" max="720"')}${f('slaGoogle', 'Acuan verifikasi Google (jam)', s.slaGoogle, 'number', 'Dipantau terpisah, di luar kendali BRI.', 'min="1" max="2000"')}</div>`) +
       card('Aturan deteksi', `<div class="bs-form-grid">${f('dupRadius', 'Radius duplikat (meter)', s.dupRadius, 'number', 'Unit bertipe sama dalam radius ini dianggap kemungkinan duplikat.', 'min="10" max="2000"')}${f('coordTol', 'Toleransi selisih koordinat (meter)', s.coordTol, 'number', 'Selisih titik di atas nilai ini dianggap tidak sesuai.', 'min="5" max="2000"')}</div>`) +
       `<div class="bs-form-actions"><button type="submit" class="bs-btn primary">${ic('check')}<span>Simpan pengaturan</span></button></div></form>` +
-      card('Data demo & uji performa', `<div class="bs-danger-list">
-        <div><span><strong>Buat 1.000 unit uji</strong><small>Uji performa dashboard dengan data besar (skenario 4). Waktu proses ditampilkan.</small></span>${btn('Buat 1.000 unit', 'generate', { icon: 'zap' })}</div>
+      card(isLive() ? 'Data' : 'Data demo & uji performa', `<div class="bs-danger-list">
+        ${isLive() ? '' : `<div><span><strong>Buat 1.000 unit uji</strong><small>Uji performa dashboard dengan data besar (skenario 4). Waktu proses ditampilkan.</small></span>${btn('Buat 1.000 unit', 'generate', { icon: 'zap' })}</div>`}
         <div><span><strong>Cadangkan data</strong><small>Unduh seluruh data workspace sebagai JSON.</small></span>${btn('Unduh JSON', 'backup', { icon: 'download' })}</div>
-        <div><span><strong>Reset data demo</strong><small>Kembalikan semua data ke kondisi awal. Tidak bisa dibatalkan.</small></span>${btn('Reset data', 'reset-data', { icon: 'trash', variant: 'danger' })}</div></div>`);
+        ${isLive() ? '' : `<div><span><strong>Reset data demo</strong><small>Kembalikan semua data ke kondisi awal. Tidak bisa dibatalkan.</small></span>${btn('Reset data', 'reset-data', { icon: 'trash', variant: 'danger' })}</div>`}</div>`);
   }
 
   /* ------------------------------------------------------------------ *
@@ -1032,6 +1314,9 @@
           const i = iss.find(x => x.field === f), dv = f === 'coords' ? `${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}` : l[f], gv = f === 'coords' ? `${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}` : g[f];
           return `<tr class="${i ? 'is-diff' : ''}"><th scope="row">${FIELD_LABEL[f]}${i ? `<small class="bs-diff-flag">${ic('alert')}Beda${i.dist ? ' ' + fmtDist(i.dist) : ''}</small>` : `<small class="bs-ok">${ic('check')}Sesuai</small>`}</th><td>${esc(dv)}</td><td>${esc(gv)}${i ? `<div class="bs-btn-row">${btn('Pakai Dashboard', 'disc-push', { id: `${l.code}|${f}`, variant: 'sm' })}${btn('Pakai Google', 'disc-pull', { id: `${l.code}|${f}`, variant: 'sm ghost' })}</div>` : ''}</td></tr>`;
         }).join('')}</tbody></table>`;
+    } else if (t === 'reviews') {
+      const rvs = state.reviews.filter(rv => rv.code === l.code).sort((a, b) => b.time - a.time);
+      body = rvs.length ? ratingSummary(rvs, false) + `<div class="bs-btn-row">${btn('Buka di halaman Ulasan', 'review-open-loc', { id: l.code, icon: 'star', variant: 'sm' })}</div><div class="bs-review-list in-drawer">${rvs.map(rv => reviewCard(rv, { showLoc: false })).join('')}</div>` : emptyState('Belum ada ulasan', 'Lokasi ini belum memiliki ulasan di Google Maps.', '', 'star');
     } else if (t === 'history') {
       body = hist.length ? `<ol class="bs-timeline">${hist.map(a => `<li><span class="bs-avatar sm" data-actor="${a.actor}" aria-hidden="true">${a.actor === 'Eksternal' ? '@' : initials(a.user)}</span><div><p><strong>${esc(a.user)}</strong> ${esc(a.action.toLowerCase())}</p><small>${fmtDate(a.time)} · ${esc(a.module)}</small>${a.changes.length ? diffList(a.changes) : ''}${a.detail ? `<small>${esc(a.detail)}</small>` : ''}</div></li>`).join('')}</ol>` : emptyState('Belum ada riwayat', 'Perubahan pada unit ini akan tercatat di sini.', '', 'history');
     } else {
@@ -1039,7 +1324,7 @@
     }
     sheet.innerHTML = `<div class="bs-sheet-inner">
       <header class="bs-sheet-head"><div><p class="bs-eyebrow">${esc(l.code)} · ${esc(l.type)}</p><h2 id="bsDrawerTitle">${esc(l.name)}</h2><div class="bs-badges">${badge(l.status)}${badge(l.gbp)}${iss.length ? `<span class="bs-badge" data-tone="warn"><i></i>${iss.length} beda dengan Google</span>` : ''}</div></div>${btn('', 'sheet-close', { icon: 'x', variant: 'icon ghost', title: 'Tutup' })}</header>
-      ${tabs('drawer.tab', [['overview', 'Ringkasan'], ['compare', 'Bandingkan Google', iss.length || null], ['history', 'Riwayat', hist.length], ['sync', 'Sinkronisasi']], t)}
+      ${tabs('drawer.tab', [['overview', 'Ringkasan'], ['compare', 'Bandingkan Google', iss.length || null], ['reviews', 'Ulasan', state.reviews.filter(rv => rv.code === l.code).length], ['history', 'Riwayat', hist.length], ['sync', 'Sinkronisasi']], t)}
       <div class="bs-sheet-body">${body}</div>
       <footer class="bs-sheet-foot">${btn('Hapus', 'delete-loc', { id: l.code, icon: 'trash', variant: 'danger ghost' })}<span class="bs-spacer"></span>${btn('Sinkronkan', 'sync-one', { id: l.code, icon: 'refresh', attrs: ui.running ? 'disabled' : '' })}${btn('Edit', 'edit-loc', { id: l.code, icon: 'edit', variant: 'primary' })}</footer></div>`;
   }
@@ -1121,12 +1406,14 @@
           if (!changes.length) return 'Tidak ada perubahan untuk disimpan.';
           Object.assign(l, p, { updatedAt: Date.now(), updatedBy: ME.name });
           log('Unit Kerja', 'Memperbarui unit', { target: l.code, changes });
-          toast(`${l.name} diperbarui (${changes.length} kolom).`, { tone: 'good', action: issuesOf(l).length ? { label: 'Sinkronkan', run: () => runSync([l.code], { label: l.name }) } : null });
+          const done = () => toast(`${l.name} diperbarui (${changes.length} kolom).`, { tone: 'good', action: issuesOf(l).length ? { label: 'Sinkronkan', run: () => runSync([l.code], { label: l.name }) } : null });
+          if (isLive()) remote('PATCH', `/locations/${encodeURIComponent(l.code)}`, p).then(ok => ok && toast(`${p.name} tersimpan di server.`, { tone: 'good' })); else done();
         } else {
           const code2 = `DM-${String(++state.seq.loc).padStart(3, '0')}`;
           state.locations.unshift({ ...p, code: code2, status: p.status || 'Belum Sync', gbp: 'Belum Diklaim', google: null, updatedAt: Date.now(), updatedBy: ME.name, lastSync: null });
           log('Unit Kerja', 'Menambahkan unit', { target: code2, detail: p.name });
-          toast(`${p.name} ditambahkan.`, { tone: 'good', action: { label: 'Lihat', run: () => openDrawer(code2) } });
+          if (isLive()) remote('POST', '/locations', p).then(ok => ok && toast(`${p.name} ditambahkan ke server.`, { tone: 'good' }));
+          else toast(`${p.name} ditambahkan.`, { tone: 'good', action: { label: 'Lihat', run: () => openDrawer(code2) } });
         }
       }
     });
@@ -1197,9 +1484,11 @@
     const ok = importDraft.items.filter(x => !x.errors.length);
     const snap = snapshot(), t0 = performance.now();
     let added = 0, updated = 0;
+    const payload = [];
     ok.forEach(({ p, existing }) => {
       p.region = regionOf(p.province);
       const clean = { name: p.name, type: p.type, city: p.city, province: p.province, region: p.region, address: p.address, phone: p.phone, hours: p.hours || HOURS[0], lat: p.lat, lng: p.lng, status: p.status };
+      payload.push({ ...clean, code: existing ? existing.code : null });
       if (existing) {
         const changes = diff(existing, clean, Object.keys(clean));
         if (changes.length) { Object.assign(existing, clean, { updatedAt: Date.now(), updatedBy: ME.name }); log('Unit Kerja', 'Memperbarui unit via impor', { target: existing.code, changes }); updated++; }
@@ -1210,6 +1499,7 @@
       }
     });
     log('Unit Kerja', 'Mengimpor data massal', { detail: `${added} unit baru, ${updated} diperbarui` });
+    remote('POST', '/locations/import', { items: payload });
     importDraft = null; closeModal(); touch();
     ui.loc.quick = 'all'; ui.loc.sort = 'updatedAt'; ui.loc.dir = -1; ui.loc.page = 1;
     navigate('locations');
@@ -1262,6 +1552,87 @@
   });
   palette.addEventListener('click', e => { const it = e.target.closest('[data-pal]'); if (it) runPalette(Number(it.dataset.pal)); else if (e.target === palette) palette.close(); });
 
+  function viewLiveState() {
+    const e = ui.live.error, url = MODE.getBaseUrl();
+    if (!e) return `<div class="bs-live-state" aria-busy="true"><span class="bs-spinner" aria-hidden="true"></span><h1 id="bsTitle" tabindex="-1">Memuat data dari server…</h1><p>${esc(url)}</p></div>`;
+    return `<div class="bs-live-state is-error">${ic('alert')}<h1 id="bsTitle" tabindex="-1">Data Live tidak dapat dimuat</h1><p>${esc(e.message)}</p><p class="bs-muted">Server: ${esc(url || 'belum diatur')}</p>
+      <div class="bs-btn-row">${btn('Coba lagi', 'live-retry', { icon: 'refresh', variant: 'primary' })}${btn('Ubah server / masuk ulang', 'live-relogin', { icon: 'plug' })}${btn('Beralih ke Mode Demo', 'mode-demo', { icon: 'zap', variant: 'ghost' })}</div></div>`;
+  }
+  function toggleModeMenu(force) {
+    const pop = $('bsModeMenu'), open = force ?? pop.hidden;
+    pop.hidden = !open;
+    $('bsModeBtn').setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    if (!$('bsNotif').hidden) toggleNotif(false);
+    const live = isLive(), host = MODE.host(), hasSession = MODE.hasSession() && MODE.getBaseUrl();
+    const st = !live ? '' : ui.live.error ? 'Terputus' : ui.live.ready ? 'Terhubung' : 'Menghubungkan…';
+    pop.innerHTML = `<div class="bs-menu-head">Mode aplikasi</div>
+      <button type="button" class="bs-menu-item" role="menuitemradio" aria-checked="${!live}" data-action="mode-demo"><span class="bs-mode-badge" data-state="demo">${ic('zap')}</span><span><strong>Mode Demo</strong><small>Data simulasi di browser ini — aman untuk mencoba</small></span>${!live ? ic('check', 'bs-menu-check') : ''}</button>
+      <button type="button" class="bs-menu-item" role="menuitemradio" aria-checked="${live}" data-action="mode-live"><span class="bs-mode-badge" data-state="online">${ic('plug')}</span><span><strong>Live</strong><small>${live ? `${st} · ${esc(host)}` : hasSession ? `Sesi aktif · ${esc(host)}` : 'Data asli dari server BranchSync — perlu masuk'}</small></span>${live ? ic('check', 'bs-menu-check') : ''}</button>
+      <div class="bs-menu-sep" role="separator"></div>
+      ${live ? `<button type="button" class="bs-menu-item sm" role="menuitem" data-action="live-retry">${ic('refresh')}<span>Muat ulang data</span></button>` : ''}
+      <button type="button" class="bs-menu-item sm" role="menuitem" data-view="settings">${ic('sliders')}<span>Pengaturan koneksi</span></button>`;
+    (pop.querySelector('[aria-checked="true"]') || pop.querySelector('[role^="menuitem"]')).focus();
+  }
+  const resetReviewUi = () => { ui.reviews = { account: '', location: '', rating: '', status: '', sort: 'newest', q: '', limit: 20, editing: null, drafts: {} }; };
+  function activateLive() {
+    resetReviewUi();
+    MODE.setMode('live');
+    ME = userFromSession();
+    ui.live = { ready: false, loading: true, error: null, syncedAt: 0, pending: 0 };
+    ui.loc.selected.clear(); ui.reviews.editing = null; renderedView = null;
+    navigate(ui.view);
+    loadLive().then(ok => ok && toast(`Terhubung ke ${MODE.host()}. Selamat datang, ${ME.name}!`, { tone: 'good' }));
+  }
+  function liveConnectModal(message = '') {
+    openModal('Sambungkan ke Live', `${message ? `<p class="bs-form-error bs-form-top">${esc(message)}</p>` : ''}
+      <p class="bs-muted bs-gap-b">Masuk dengan akun BranchSync untuk memakai data asli dari server. Data Mode Demo tetap tersimpan di browser ini.</p>
+      ${formGrid([
+        { name: 'url', label: 'URL server API', type: 'url', value: MODE.getBaseUrl(), full: true, hint: 'Contoh: https://api.branchsync.co.id/v1', attrs: 'required autocomplete="url" spellcheck="false" autocapitalize="none"' },
+        { name: 'username', label: 'Nama pengguna', full: true, attrs: 'required autocomplete="username" autocapitalize="none" spellcheck="false"' },
+        { name: 'password', label: 'Kata sandi', type: 'password', full: true, attrs: 'required autocomplete="current-password"' }
+      ])}
+      <div class="bs-divider"><span>atau</span></div>
+      ${btn('Masuk dengan Google', 'live-google', { icon: 'external', variant: 'block' })}`, {
+      submit: 'Sambungkan',
+      onSubmit: async p => {
+        const e = {};
+        let url = '';
+        try { url = MODE.normalizeUrl(p.url); if (!url) e.url = 'Isi URL server API.'; } catch (err) { e.url = err.message; }
+        if (!String(p.username || '').trim()) e.username = 'Isi nama pengguna.';
+        if (!p.password) e.password = 'Isi kata sandi.';
+        if (Object.keys(e).length) return e;
+        try {
+          const res = await MODE.request('POST', '/auth/login', { username: p.username.trim(), password: p.password }, { auth: false, baseUrl: url });
+          MODE.setBaseUrl(url);
+          MODE.setSession(res && res.token, res && res.user);
+        } catch (err) { return err.status === 401 ? { password: 'Nama pengguna atau kata sandi salah.' } : err.message; }
+        setTimeout(activateLive, 0);
+      }
+    });
+    modal.querySelector(MODE.getBaseUrl() ? '[name="username"]' : '[name="url"]')?.focus();
+  }
+  async function checkHealth() {
+    const out = $('bsHealth'), input = $('bsApiUrl');
+    let url;
+    try { url = MODE.normalizeUrl(input.value); } catch (e) { out.dataset.tone = 'bad'; out.textContent = e.message; return; }
+    if (!url) { out.dataset.tone = 'bad'; out.textContent = 'Isi URL server terlebih dahulu.'; return; }
+    out.dataset.tone = ''; out.textContent = 'Menguji…';
+    const t0 = performance.now();
+    try {
+      const res = await MODE.request('GET', '/health', undefined, { auth: false, baseUrl: url, timeout: 8000 });
+      out.dataset.tone = 'good';
+      out.textContent = `Terhubung · ${Math.round(performance.now() - t0)} ms${res && res.version ? ` · versi ${res.version}` : ''}`;
+    } catch (e) { out.dataset.tone = 'bad'; out.textContent = e.message; }
+  }
+  function saveApiUrl() {
+    const input = $('bsApiUrl'), before = MODE.getBaseUrl();
+    let url;
+    try { url = MODE.setBaseUrl(input.value); } catch (e) { toast(e.message, { tone: 'bad' }); input.focus(); return; }
+    input.value = url;
+    if (isLive() && url !== before) { sessionExpired('URL server diubah. Silakan masuk ke server yang baru.'); return; }
+    toast(url ? 'URL server disimpan.' : 'URL server dihapus.', { tone: 'good' });
+  }
   function shortcutsModal() {
     openModal('Pintasan keyboard', `<dl class="bs-shortcuts">${[[`${MOD} K`, 'Cari unit kerja, menu, atau aksi'], ['/', 'Fokus ke kolom pencarian di halaman'], ['N', 'Tambah unit kerja baru'], ['?', 'Tampilkan pintasan ini'], ['Esc', 'Tutup dialog atau panel']].map(([k, d]) => `<div><dt>${k.split(' ').map(x => `<kbd>${x}</kbd>`).join('')}</dt><dd>${d}</dd></div>`).join('')}</dl>`, { footer: btn('Tutup', 'modal-close', { variant: 'primary' }) });
   }
@@ -1273,6 +1644,7 @@
   let toastSeq = 0;
   function toast(msg, { tone = 'info', action = null, undo = null } = {}) {
     const id = ++toastSeq;
+    if (undo && isLive()) undo = null; // perubahan Live sudah tersimpan di server
     if (undo) action = { label: 'Urungkan', run: () => { state = JSON.parse(undo); ui.loc.selected.clear(); touch(); render(); renderDrawer(); toast('Perubahan dibatalkan.'); } };
     if (action) toastActions.set(id, action.run);
     const el = document.createElement('div');
@@ -1289,14 +1661,26 @@
    * Render
    * ------------------------------------------------------------------ */
   let renderedView = null;
-  const VIEWS = { dashboard: viewDashboard, map: viewMap, locations: viewLocations, discrepancies: viewDiscrepancies, duplicates: viewDuplicates, claims: viewClaims, approvals: viewApprovals, sync: viewSync, audit: viewAudit, sla: viewSla, access: viewAccess, integrations: viewIntegrations, settings: viewSettings };
+  const VIEWS = { dashboard: viewDashboard, map: viewMap, locations: viewLocations, discrepancies: viewDiscrepancies, duplicates: viewDuplicates, claims: viewClaims, approvals: viewApprovals, sync: viewSync, audit: viewAudit, sla: viewSla, access: viewAccess, integrations: viewIntegrations, settings: viewSettings, reviews: viewReviews };
   function renderNav() {
     $('bsNav').innerHTML = NAV.map(g => `<p class="bs-nav-label">${g.group}</p>${g.items.map(n => { const c = n.count ? n.count() : 0; return `<button type="button" data-view="${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''} title="${esc(n.label)}">${ic(n.icon)}<span class="bs-nav-text">${n.label}</span>${c ? `<span class="bs-nav-count" aria-label="${c} perlu perhatian">${c > 99 ? '99+' : c}</span>` : ''}</button>`; }).join('')}`).join('');
   }
   function updateChrome() {
     const last = state.runs[0];
+    const live = isLive(), host = MODE ? MODE.host() : '';
+    const mstate = !live ? 'demo' : ui.live.error ? 'offline' : (ui.live.pending || ui.live.loading) ? 'busy' : ui.live.ready ? 'online' : 'busy';
+    const mb = $('bsModeBtn');
+    mb.dataset.state = mstate;
+    mb.innerHTML = (live ? `<span class="bs-dot"></span><span>Live</span>${host ? `<small>${esc(host)}</small>` : ''}` : `${ic('zap')}<span>Mode Demo</span>`) + ic('chevD', 'bs-caret');
+    const mlabel = live ? `Mode Live — ${{ online: 'terhubung', offline: 'terputus', busy: 'menghubungkan' }[mstate]}${host ? ' ke ' + host : ''}` : 'Mode Demo — data simulasi';
+    mb.title = mlabel; mb.setAttribute('aria-label', `${mlabel}. Pilih mode`);
+    $('bsFooterMode').textContent = live
+      ? (mstate === 'offline' ? `Live — tidak dapat terhubung ke ${host || 'server'}.` : mstate === 'busy' && !ui.live.ready ? `Live — menghubungkan ke ${host || 'server'}…` : `Live — terhubung ke ${host || 'server'}. Perubahan dikirim ke server${ui.live.syncedAt ? ` · data dimuat ${fmtRel(ui.live.syncedAt)}` : ''}.`)
+      : 'Mode Demo — perubahan disimpan di browser ini dan tidak dikirim ke Google atau server.';
+    $('bsAccName').textContent = ME.name; $('bsAccRole').textContent = ME.role || 'Pengguna'; $('bsAccAvatar').textContent = initials(ME.name);
     $('bsSyncPill').innerHTML = ui.running
-      ? `<span class="bs-pulse"></span>Menyinkronkan ${pct(ui.running.done, ui.running.total)}%`
+      ? `<span class="bs-pulse"></span>${ui.running.indeterminate ? 'Menyinkronkan…' : `Menyinkronkan ${pct(ui.running.done, ui.running.total)}%`}`
+      : live && !ui.live.ready ? `<span class="bs-dot" data-tone="neutral"></span>Sinkron terakhir —`
       : `<span class="bs-dot" data-tone="${openFailures().length ? 'warn' : 'good'}"></span>Sinkron terakhir ${last ? fmtRel(last.time) : '—'}`;
     const n = notifications().length;
     $('bsNotifCount').textContent = n || '';
@@ -1305,7 +1689,7 @@
     $('bsThemeBtn').title = shell.dataset.theme === 'dark' ? 'Mode terang' : 'Mode gelap';
     $('bsFooterInfo').textContent = `${fmtNum(state.locations.length)} unit · render ${ui.renderMs} ms`;
     const prog = shell.querySelector('.bs-progress');
-    if (prog && ui.running) { prog.firstElementChild.style.width = pct(ui.running.done, ui.running.total) + '%'; prog.setAttribute('aria-valuenow', ui.running.done); }
+    if (prog && ui.running && !ui.running.indeterminate) { prog.firstElementChild.style.width = pct(ui.running.done, ui.running.total) + '%'; prog.setAttribute('aria-valuenow', ui.running.done); }
   }
   function captureFocus() {
     const a = document.activeElement;
@@ -1331,13 +1715,14 @@
     renderNav();
     const item = navItem(ui.view);
     $('bsCrumb').textContent = item.label;
-    if (ui.view === 'map' && renderedView === 'map' && $('bsMap')) {
+    const gate = isLive() && !ui.live.ready;
+    if (!gate && ui.view === 'map' && renderedView === 'map' && $('bsMap')) {
       updateMap(false);
     } else {
-      if (mapObj && ui.view !== 'map') { mapObj.remove(); mapObj = null; }
-      $('bsPage').innerHTML = VIEWS[ui.view]();
-      renderedView = ui.view;
-      if (ui.view === 'map') mountMap();
+      if (mapObj && (gate || ui.view !== 'map')) { mapObj.remove(); mapObj = null; }
+      $('bsPage').innerHTML = gate ? viewLiveState() : VIEWS[ui.view]();
+      renderedView = gate ? null : ui.view;
+      if (!gate && ui.view === 'map') mountMap();
     }
     if (sheet.open) renderDrawer();
     restoreFocus(f);
@@ -1386,8 +1771,9 @@
   /* ------------------------------------------------------------------ *
    * Aksi domain
    * ------------------------------------------------------------------ */
-  function resolveDisc(key, useDashboard) {
+  function resolveDisc(key, useDashboard, send = true) {
     const [code, f] = key.split('|'), l = byCode().get(code);
+    if (send) remote('POST', '/discrepancies/resolve', { code, field: f, source: useDashboard ? 'dashboard' : 'google' });
     if (!l || !l.google) return;
     const before = f === 'coords' ? (useDashboard ? `${l.google.lat}, ${l.google.lng}` : `${l.lat}, ${l.lng}`) : useDashboard ? l.google[f] : l[f];
     if (f === 'coords') { if (useDashboard) Object.assign(l.google, { lat: l.lat, lng: l.lng }); else Object.assign(l, { lat: l.google.lat, lng: l.google.lng }); }
@@ -1429,6 +1815,7 @@
       l[a.field] = a.after; if (l.google) l.google[a.field] = a.after;
       l.updatedAt = Date.now(); l.updatedBy = `${a.by} (disetujui ${ME.name})`;
     }
+    remote('POST', `/approvals/${encodeURIComponent(id)}/${approve ? 'approve' : 'reject'}`);
     log('Persetujuan Edit', approve ? 'Menyetujui edit eksternal' : 'Menolak edit eksternal', { target: a.code, detail: `${a.id} dari ${a.by}`, changes: approve ? [{ field: FIELD_LABEL[a.field], before: a.before, after: a.after }] : [] });
     touch(); render();
     toast(approve ? `${a.id} disetujui — data diperbarui.` : `${a.id} ditolak — data unit kerja tidak berubah.`, { tone: approve ? 'good' : 'info', undo: snap });
@@ -1450,6 +1837,7 @@
     }
     c.status = next;
     log('Klaim & Titik Baru', `Memindahkan ${c.id} ke “${next}”`, { target: c.code || c.id, detail: c.kind });
+    remote('POST', `/claims/${encodeURIComponent(id)}/advance`, { to: next });
     touch(); render();
     toast(`${c.id} → ${next}.`, { tone: next === 'Selesai' ? 'good' : 'info' });
   }
@@ -1467,6 +1855,7 @@
         const id = `KL-${String(++state.seq.claim).padStart(3, '0')}`;
         state.claims.unshift({ id, kind: p.kind, code: p.code, submittedAt: Date.now(), processedAt: null, doneAt: null, status: 'Diajukan', note: String(p.note || '').trim() });
         log('Klaim & Titik Baru', `Mengajukan ${p.kind.toLowerCase()}`, { target: p.code, detail: id });
+        remote('POST', '/claims', { kind: p.kind, code: p.code, note: String(p.note || '').trim() });
         ui.claims.tab = 'active';
         toast(`${id} diajukan.`, { tone: 'good', action: ui.view !== 'claims' ? { label: 'Lihat', run: () => navigate('claims') } : null });
       }
@@ -1490,6 +1879,7 @@
         const proposal = { name: p.name, type: p.type, city: p.city, province: p.province, address: p.address, phone: p.phone, hours: p.hours || HOURS[0], lat: p.lat, lng: p.lng };
         state.claims.unshift({ id, kind: 'Titik baru', proposal, submittedAt: Date.now(), processedAt: null, doneAt: null, status: 'Diajukan', note: near ? `Dekat ${near[0].name} (${fmtDist(near[1])})` : '' });
         log('Klaim & Titik Baru', 'Mengajukan titik baru', { target: id, detail: p.name });
+        remote('POST', '/claims', { kind: 'Titik baru', proposal, note: near ? `Dekat ${near[0].name} (${fmtDist(near[1])})` : '' });
         ui.claims.tab = 'active';
         toast(`${id} diajukan untuk ${p.name}.`, { tone: 'good', action: ui.view !== 'claims' ? { label: 'Lihat', run: () => navigate('claims') } : null });
       }
@@ -1511,8 +1901,8 @@
         else if (state.users.some(x => x !== u && x.email === p.email)) e.email = 'Email sudah terdaftar.';
         if (Object.keys(e).length) return e;
         if (u?.id === 1) p.status = 'Aktif';
-        if (u) { const ch = diff(u, p, ['name', 'email', 'role', 'status']); Object.assign(u, p); log('Pengguna & Akses', 'Memperbarui pengguna', { detail: p.name, changes: ch }); }
-        else { state.users.push({ ...p, id: ++state.seq.user, lastActive: Date.now() }); log('Pengguna & Akses', 'Menambahkan pengguna', { detail: `${p.name} (${p.role})` }); }
+        if (u) { const ch = diff(u, p, ['name', 'email', 'role', 'status']); Object.assign(u, p); log('Pengguna & Akses', 'Memperbarui pengguna', { detail: p.name, changes: ch }); remote('PATCH', `/users/${encodeURIComponent(u.id)}`, p); }
+        else { state.users.push({ ...p, id: ++state.seq.user, lastActive: Date.now() }); log('Pengguna & Akses', 'Menambahkan pengguna', { detail: `${p.name} (${p.role})` }); remote('POST', '/users', p); }
         toast('Pengguna disimpan.', { tone: 'good' });
       }
     });
@@ -1525,8 +1915,8 @@
         const n = String(p.name || '').trim();
         if (!n) return { name: 'Wajib diisi.' };
         if (state.roles.some(x => x !== r && x.name.toLowerCase() === n.toLowerCase())) return { name: 'Nama peran sudah ada.' };
-        if (r) { state.users.filter(u => u.role === r.name).forEach(u => { u.role = n; }); log('Pengguna & Akses', 'Mengubah nama peran', { changes: [{ field: 'Peran', before: r.name, after: n }] }); r.name = n; }
-        else { state.roles.push({ name: n, permissions: fd.getAll('perm') }); log('Pengguna & Akses', 'Menambahkan peran', { detail: n }); }
+        if (r) { remote('PATCH', `/roles/${encodeURIComponent(r.name)}`, { name: n }); state.users.filter(u => u.role === r.name).forEach(u => { u.role = n; }); log('Pengguna & Akses', 'Mengubah nama peran', { changes: [{ field: 'Peran', before: r.name, after: n }] }); r.name = n; }
+        else { state.roles.push({ name: n, permissions: fd.getAll('perm') }); remote('POST', '/roles', { name: n, permissions: fd.getAll('perm') }); log('Pengguna & Akses', 'Menambahkan peran', { detail: n }); }
         ui.access.tab = 'roles';
         toast('Peran disimpan.', { tone: 'good' });
       }
@@ -1559,10 +1949,11 @@
    * ------------------------------------------------------------------ */
   function setBind(path, value) {
     const [a, b] = path.split('.');
-    if (a === 'settings') { state.settings[b] = Number(value) || value; ui.loc.page = 1; touch(); return; }
-    if (a === 'api') { state.api[b] = value; log('Integrasi Google', `${value ? 'Mengaktifkan' : 'Menonaktifkan'} notifikasi edit eksternal`); touch(); toast(value ? 'Notifikasi edit eksternal aktif.' : 'Notifikasi edit eksternal nonaktif.'); return; }
+    if (a === 'prefs') { prefs[b] = Number(value) || value; savePrefs(); ui.loc.page = 1; return; }
+    if (a === 'api') { state.api[b] = value; log('Integrasi Google', `${value ? 'Mengaktifkan' : 'Menonaktifkan'} notifikasi edit eksternal`); touch(); toast(value ? 'Notifikasi edit eksternal aktif.' : 'Notifikasi edit eksternal nonaktif.'); remote('PATCH', '/integrations/google', { [b]: value }); return; }
     ui[a][b] = value;
     if (a === 'loc') ui.loc.page = 1;
+    if (a === 'reviews') { ui.reviews.limit = 20; if (b === 'account') ui.reviews.location = ''; }
   }
   function act(action, id, el) {
     const l = id ? byCode().get(id) : null;
@@ -1578,6 +1969,71 @@
       case 'logout': logout(); break;
       case 'tab': { const [path, v] = id.split(':'); const [a, b] = path.split('.'); ui[a][b] = v; if (a === 'drawer') renderDrawer(); else render(); break; }
       case 'modal-close': closeModal(); break;
+      case 'mode-menu': toggleModeMenu(); break;
+      case 'mode-demo': toggleModeMenu(false); closeModal(); switchToDemo(); break;
+      case 'mode-live': toggleModeMenu(false); closeModal(); switchToLive(); break;
+      case 'live-retry': toggleModeMenu(false); closeModal(); loadLive(); break;
+      case 'live-relogin': liveConnectModal(); break;
+      case 'live-google': {
+        let url = '';
+        try { url = MODE.normalizeUrl(modal.querySelector('[name="url"]')?.value || MODE.getBaseUrl()); } catch (err) { showErrors({ url: err.message }); break; }
+        if (!url) { showErrors({ url: 'Isi URL server API terlebih dahulu.' }); break; }
+        MODE.setBaseUrl(url);
+        location.assign(`${url}/auth/google/start?redirect_uri=${encodeURIComponent(location.href.split('#')[0])}`);
+        break;
+      }
+      // Ulasan
+      case 'review-reply': ui.reviews.editing = id; ui.reviews.drafts[id] ??= ''; render(); $(`rv-text-${id}`)?.focus(); break;
+      case 'review-edit': { const rv = state.reviews.find(x => x.id === id); if (!rv) break; ui.reviews.editing = id; ui.reviews.drafts[id] = rv.reply ? rv.reply.text : ''; render(); $(`rv-text-${id}`)?.focus(); break; }
+      case 'review-cancel': ui.reviews.editing = null; delete ui.reviews.drafts[id]; render(); break;
+      case 'review-send': {
+        const rv = state.reviews.find(x => x.id === id); if (!rv) break;
+        const text = String(ui.reviews.drafts[id] ?? $(`rv-text-${id}`)?.value ?? '').trim();
+        if (!text) { toast('Balasan tidak boleh kosong.', { tone: 'warn' }); $(`rv-text-${id}`)?.focus(); break; }
+        if (text.length > REPLY_MAX) { toast(`Balasan maksimal ${fmtNum(REPLY_MAX)} karakter.`, { tone: 'warn' }); break; }
+        const before = rv.reply ? rv.reply.text : '';
+        rv.reply = { text, by: ME.name, time: Date.now() };
+        ui.reviews.editing = null; delete ui.reviews.drafts[id];
+        log('Ulasan', before ? 'Mengubah balasan ulasan' : 'Membalas ulasan', { target: rv.code, detail: `${rv.author} · ${rv.rating}★`, changes: [{ field: 'Balasan', before, after: text }] });
+        touch(); render();
+        if (isLive()) remote('PUT', `/reviews/${encodeURIComponent(id)}/reply`, { text }).then(ok => ok && toast('Balasan terkirim ke Google.', { tone: 'good' }));
+        else toast('Balasan disimpan (simulasi — tidak dikirim ke Google).', { tone: 'good' });
+        break;
+      }
+      case 'review-delete': {
+        const rv = state.reviews.find(x => x.id === id); if (!rv || !rv.reply) break;
+        confirmModal('Hapus balasan?', `Balasan untuk ulasan ${esc(rv.author)} akan dihapus dari Google Maps.`, 'Hapus balasan', () => {
+          const before = rv.reply.text; rv.reply = null;
+          log('Ulasan', 'Menghapus balasan ulasan', { target: rv.code, detail: `${rv.author} · ${rv.rating}★`, changes: [{ field: 'Balasan', before, after: '' }] });
+          remote('DELETE', `/reviews/${encodeURIComponent(id)}/reply`);
+          toast('Balasan dihapus.');
+        });
+        break;
+      }
+      case 'review-rating': ui.reviews.rating = String(ui.reviews.rating) === String(id) ? '' : String(id); ui.reviews.limit = 20; render(); break;
+      case 'review-more': ui.reviews.limit += 20; render(); break;
+      case 'review-account': ui.reviews.account = id; ui.reviews.location = ''; ui.reviews.limit = 20; navigate('reviews'); break;
+      case 'review-open-loc': { const lo = byCode().get(id); if (!lo) break; ui.reviews.account = acctOf(lo); ui.reviews.location = id; ui.reviews.limit = 20; if (sheet.open) sheet.close(); navigate('reviews'); break; }
+      case 'review-clear-loc': ui.reviews.location = ''; render(); break;
+      case 'export-reviews': { const xs = reviewFiltered(); downloadCSV('ulasan-google.csv', [['ID', 'Akun', 'Kode', 'Lokasi', 'Penulis', 'Rating', 'Ulasan', 'Waktu', 'Balasan', 'Dibalas oleh', 'Waktu balasan'], ...xs.map(rv => { const lo = byCode().get(rv.code); return [rv.id, (state.accounts.find(a => a.id === acctOf(lo)) || {}).name || '', rv.code, lo ? lo.name : '', rv.author, rv.rating, rv.text, fmtDate(rv.time), rv.reply ? rv.reply.text : '', rv.reply ? rv.reply.by : '', rv.reply ? fmtDate(rv.reply.time) : '']; })]); toast(`${fmtNum(xs.length)} ulasan diekspor.`, { tone: 'good' }); break; }
+      case 'simulate-review': {
+        const rr = rng(Date.now() % 1e6), lo = pick(rr, state.locations.filter(x => x.status !== 'Tidak Aktif')), x = rr(), rating = x < 0.35 ? 5 : x < 0.55 ? 4 : x < 0.7 ? 3 : x < 0.85 ? 2 : 1;
+        const rv = { id: `RV-${String(++state.seq.review).padStart(4, '0')}`, code: lo.code, author: pick(rr, AUTHORS), rating, text: pick(rr, REVIEW_TEXTS[rating]), time: Date.now(), reply: null };
+        state.reviews.unshift(rv);
+        log('Ulasan', 'Ulasan baru masuk dari Google Maps', { target: lo.code, user: rv.author, actor: 'Eksternal', detail: `${rating}★` });
+        touch(); render();
+        toast(`Ulasan baru ${rating}★ untuk ${lo.name}.`, { tone: rating <= 2 ? 'warn' : 'info', action: { label: 'Balas', run: () => { ui.reviews.account = acctOf(lo); ui.reviews.location = lo.code; ui.reviews.editing = rv.id; ui.reviews.drafts[rv.id] = ''; navigate('reviews'); } } });
+        break;
+      }
+      // Integrasi Google
+      case 'gbp-oauth':
+        if (isLive()) { location.assign(`${MODE.getBaseUrl()}/integrations/google/oauth/start?redirect_uri=${encodeURIComponent(location.href.split('#')[0])}`); break; }
+        if (!state.api.clientId || !state.api.hasClientSecret) { toast('Isi OAuth Client ID dan Client Secret lalu simpan konfigurasi terlebih dahulu.', { tone: 'warn' }); $('g-clientId')?.focus(); break; }
+        state.api.connected = true; state.api.lastTest = Date.now(); log('Integrasi Google', 'Menghubungkan akun Google (simulasi)', { detail: state.api.account }); touch(); render(); toast('Akun Google terhubung (simulasi).', { tone: 'good' });
+        break;
+      case 'copy-redirect': (navigator.clipboard ? navigator.clipboard.writeText(redirectUri()) : Promise.reject()).then(() => toast('Redirect URI disalin.', { tone: 'good' }), () => toast('Tidak dapat menyalin — salin manual dari kolom.', { tone: 'warn' })); break;
+      case 'api-health': checkHealth(); break;
+      case 'api-url-save': saveApiUrl(); break;
       case 'sheet-close': sheet.close(); break;
       case 'toast-act': { const run = toastActions.get(Number(id)); dismissToast(id); run && run(); break; }
       case 'toast-close': dismissToast(id); break;
@@ -1586,7 +2042,10 @@
       case 'open-target': if (byCode().has(id)) openDrawer(id); else if (id.startsWith('KL-')) navigate('claims'); else if (id.startsWith('JOB-')) { ui.sync.tab = 'runs'; navigate('sync'); } break;
       case 'add-loc': locationForm(); break;
       case 'edit-loc': locationForm(id); break;
-      case 'delete-loc': if (l) { const snap = snapshot(); state.locations = state.locations.filter(x => x !== l); ui.loc.selected.delete(id); log('Unit Kerja', 'Menghapus unit', { target: id, detail: l.name }); touch(); sheet.open && sheet.close(); render(); toast(`${l.name} dihapus.`, { undo: snap }); } break;
+      case 'delete-loc': if (l) {
+        const doDelete = () => { const snap = snapshot(); state.locations = state.locations.filter(x => x !== l); ui.loc.selected.delete(id); log('Unit Kerja', 'Menghapus unit', { target: id, detail: l.name }); touch(); if (sheet.open) sheet.close(); render(); toast(`${l.name} dihapus.`, { undo: snap }); remote('DELETE', `/locations/${encodeURIComponent(id)}`); };
+        if (isLive()) confirmModal(`Hapus ${l.name}?`, 'Unit kerja akan dihapus dari server. Tindakan ini tidak bisa dibatalkan.', 'Hapus unit', doDelete); else doDelete();
+      } break;
       case 'sort': ui.loc.dir = ui.loc.sort === id ? -ui.loc.dir : 1; ui.loc.sort = id; render(); break;
       case 'quick': ui.loc.quick = id; ui.loc.page = 1; render(); break;
       case 'page': ui.loc.page = Number(id); render(); $('bsMain').querySelector('.bs-table-wrap')?.scrollIntoView({ block: 'nearest' }); break;
@@ -1596,12 +2055,12 @@
       case 'close-filter': ui.filterOpen = false; render(); break;
       case 'goto-filter': { const [k, v] = id.split(/:(.*)/s); FILTERS.forEach(([f]) => { ui.loc[f] = []; }); ui.loc.q = ''; ui.loc.quick = 'all'; ui.loc[k] = [v]; navigate('locations'); break; }
       case 'select': ui.loc.selected[el.checked ? 'add' : 'delete'](id); render(); break;
-      case 'select-page': { const size = Number(state.settings.pageSize) || 10, rows = locFiltered().slice((ui.loc.page - 1) * size, ui.loc.page * size); rows.forEach(r => ui.loc.selected[el.checked ? 'add' : 'delete'](r.code)); render(); break; }
+      case 'select-page': { const size = Number(prefs.pageSize) || 10, rows = locFiltered().slice((ui.loc.page - 1) * size, ui.loc.page * size); rows.forEach(r => ui.loc.selected[el.checked ? 'add' : 'delete'](r.code)); render(); break; }
       case 'select-all': locFiltered().forEach(r => ui.loc.selected.add(r.code)); render(); break;
       case 'clear-selection': ui.loc.selected.clear(); render(); break;
       case 'bulk-sync': runSync([...ui.loc.selected], { label: `${ui.loc.selected.size} unit terpilih` }); break;
       case 'bulk-export': exportLocations(state.locations.filter(x => ui.loc.selected.has(x.code)), 'branchsync-unit-terpilih.csv'); break;
-      case 'bulk-delete': { const n = ui.loc.selected.size; confirmModal(`Hapus ${n} unit?`, `${n} unit kerja terpilih akan dihapus dari Dashboard. Anda bisa mengurungkannya dari notifikasi.`, `Hapus ${n} unit`, () => { const snap = snapshot(); state.locations = state.locations.filter(x => !ui.loc.selected.has(x.code)); log('Unit Kerja', 'Menghapus unit massal', { detail: `${n} unit` }); ui.loc.selected.clear(); touch(); toast(`${n} unit dihapus.`, { undo: snap }); }); break; }
+      case 'bulk-delete': { const n = ui.loc.selected.size; confirmModal(`Hapus ${n} unit?`, `${n} unit kerja terpilih akan dihapus dari Dashboard. Anda bisa mengurungkannya dari notifikasi.`, `Hapus ${n} unit`, () => { const snap = snapshot(), codes = [...ui.loc.selected]; remote('POST', '/locations/bulk-delete', { codes }); state.locations = state.locations.filter(x => !ui.loc.selected.has(x.code)); log('Unit Kerja', 'Menghapus unit massal', { detail: `${n} unit` }); ui.loc.selected.clear(); touch(); toast(`${n} unit dihapus.`, { undo: snap }); }); break; }
       case 'export-locs': exportLocations(locFiltered()); break;
       case 'import': importDraft = null; importModal(); break;
       case 'import-template': download('template-impor-unit-kerja.csv', '﻿' + sampleCSV(3), 'text/csv;charset=utf-8'); break;
@@ -1615,11 +2074,11 @@
       case 'sync-one': if (l) runSync([id], { label: l.name, retry: true }); break;
       case 'retry': runSync([id], { retry: true, label: `Coba ulang ${id}` }); break;
       case 'retry-all': runSync(openFailures().map(f => f.code), { retry: true, label: 'Coba ulang kegagalan' }); break;
-      case 'resolve': { const f = openFailures().find(x => x.code === id); if (f) noteModal('Catat tindak lanjut', `Tindak lanjut untuk ${locName(id)} — ${f.reason}`, t => { f.ref.resolved = true; f.ref.note = `${t} — ${ME.name}`; log('Sync Monitor', 'Mencatat tindak lanjut kegagalan', { target: id, detail: t }); toast('Kegagalan ditandai sudah ditangani.', { tone: 'good' }); }); break; }
+      case 'resolve': { const f = openFailures().find(x => x.code === id); if (f) noteModal('Catat tindak lanjut', `Tindak lanjut untuk ${locName(id)} — ${f.reason}`, t => { f.ref.resolved = true; f.ref.note = `${t} — ${ME.name}`; log('Sync Monitor', 'Mencatat tindak lanjut kegagalan', { target: id, detail: t }); remote('POST', '/sync/failures/resolve', { code: id, run: f.run, note: t }); toast('Kegagalan ditandai sudah ditangani.', { tone: 'good' }); }); break; }
       // Ketidaksesuaian
       case 'disc-push': case 'disc-pull': { const snap = snapshot(); resolveDisc(id, action === 'disc-push'); touch(); render(); toast(action === 'disc-push' ? 'Data Dashboard dikirim ke Google (simulasi).' : 'Data Google diterapkan ke Dashboard.', { tone: 'good', undo: snap }); break; }
-      case 'disc-push-all': { const rows = discRows(); confirmModal('Pakai data Dashboard untuk semua?', `${rows.length} perbedaan yang tampil akan diselesaikan dengan mengirim data Dashboard ke Google.`, `Kirim ${rows.length} perubahan`, () => { const snap = snapshot(); rows.forEach(r => resolveDisc(`${r.l.code}|${r.field}`, true)); toast(`${rows.length} perbedaan diselesaikan.`, { tone: 'good', undo: snap }); }, false); break; }
-      case 'disc-note': noteModal('Catat temuan ketidaksesuaian', 'Catatan / dokumentasi', t => { state.discNotes[id] = { text: t, by: ME.name, time: Date.now() }; log('Ketidaksesuaian', 'Mendokumentasikan temuan', { target: id.split('|')[0], detail: `${FIELD_LABEL[id.split('|')[1]]}: ${t}` }); toast('Catatan disimpan.', { tone: 'good' }); }, state.discNotes[id]?.text || ''); break;
+      case 'disc-push-all': { const rows = discRows(); confirmModal('Pakai data Dashboard untuk semua?', `${rows.length} perbedaan yang tampil akan diselesaikan dengan mengirim data Dashboard ke Google.`, `Kirim ${rows.length} perubahan`, () => { const snap = snapshot(); remote('POST', '/discrepancies/resolve-bulk', { source: 'dashboard', items: rows.map(r => ({ code: r.l.code, field: r.field })) }); rows.forEach(r => resolveDisc(`${r.l.code}|${r.field}`, true, false)); toast(`${rows.length} perbedaan diselesaikan.`, { tone: 'good', undo: snap }); }, false); break; }
+      case 'disc-note': noteModal('Catat temuan ketidaksesuaian', 'Catatan / dokumentasi', t => { state.discNotes[id] = { text: t, by: ME.name, time: Date.now() }; remote('PUT', '/discrepancies/notes', { code: id.split('|')[0], field: id.split('|')[1], text: t }); log('Ketidaksesuaian', 'Mendokumentasikan temuan', { target: id.split('|')[0], detail: `${FIELD_LABEL[id.split('|')[1]]}: ${t}` }); toast('Catatan disimpan.', { tone: 'good' }); }, state.discNotes[id]?.text || ''); break;
       case 'export-disc': { const rows = discRows(); downloadCSV('laporan-ketidaksesuaian.csv', [['Kode', 'Unit', 'Kota', 'Kolom', 'Dashboard', 'Google Maps', 'Selisih (m)', 'Catatan'], ...rows.map(r => [r.l.code, r.l.name, r.l.city, FIELD_LABEL[r.field], r.dash, r.google, r.dist ? Math.round(r.dist) : '', state.discNotes[`${r.l.code}|${r.field}`]?.text || ''])]); toast(`Laporan ${rows.length} perbedaan diunduh.`, { tone: 'good' }); break; }
       case 'simulate-google': simulateGoogleChange(); break;
       // Duplikat
@@ -1629,15 +2088,16 @@
         const keep = side === 'a' ? p.a : p.b, drop = side === 'a' ? p.b : p.a, snap = snapshot();
         log('Duplikat', 'Menggabungkan titik ganda', { target: drop.code, detail: `Dipertahankan: ${keep.name}`, changes: diff(drop, { ...drop, status: 'Tidak Aktif', gbp: 'Duplikat' }, ['status', 'gbp']) });
         Object.assign(drop, { status: 'Tidak Aktif', gbp: 'Duplikat', updatedAt: Date.now(), updatedBy: ME.name });
+        remote('POST', '/duplicates/merge', { keep: keep.code, drop: drop.code });
         touch(); render(); toast(`${drop.name} ditandai duplikat dari ${keep.name}.`, { tone: 'good', undo: snap }); break;
       }
-      case 'dup-ignore': state.dupIgnored.push(id); log('Duplikat', 'Menandai bukan duplikat', { detail: id.replace('|', ' & ') }); touch(); render(); toast('Pasangan ditandai bukan duplikat.'); break;
+      case 'dup-ignore': state.dupIgnored.push(id); remote('POST', '/duplicates/ignore', { a: id.split('|')[0], b: id.split('|')[1] }); log('Duplikat', 'Menandai bukan duplikat', { detail: id.replace('|', ' & ') }); touch(); render(); toast('Pasangan ditandai bukan duplikat.'); break;
       case 'dup-report': { const [a, b] = id.split('|'); claimForm(byCode().get(b)?.gbp === 'Terverifikasi' ? a : b); setTimeout(() => { const s = modal.querySelector('[name=kind]'); if (s) s.value = 'Laporan duplikat'; }, 0); break; }
       // Klaim
       case 'claim-new': claimForm(); break;
       case 'point-new': pointForm(); break;
       case 'claim-next': advanceClaim(id); break;
-      case 'claim-reject': noteModal('Tolak permintaan', 'Alasan penolakan', t => { const c = state.claims.find(x => x.id === id); c.status = 'Ditolak'; c.note = t; c.doneAt = Date.now(); log('Klaim & Titik Baru', `Menolak ${c.id}`, { target: c.code || c.id, detail: t }); toast(`${c.id} ditolak.`); }); break;
+      case 'claim-reject': noteModal('Tolak permintaan', 'Alasan penolakan', t => { const c = state.claims.find(x => x.id === id); c.status = 'Ditolak'; c.note = t; c.doneAt = Date.now(); log('Klaim & Titik Baru', `Menolak ${c.id}`, { target: c.code || c.id, detail: t }); remote('POST', `/claims/${encodeURIComponent(id)}/reject`, { note: t }); toast(`${c.id} ditolak.`); }); break;
       // Persetujuan
       case 'cr-approve': decide(id, true); break;
       case 'cr-reject': decide(id, false); break;
@@ -1648,12 +2108,13 @@
       // Akses
       case 'add-user': userForm(); break;
       case 'edit-user': userForm(id); break;
-      case 'toggle-user': { const u = state.users.find(x => x.id === Number(id)); if (!u || u.id === 1) break; u.status = u.status === 'Aktif' ? 'Nonaktif' : 'Aktif'; log('Pengguna & Akses', `${u.status === 'Aktif' ? 'Mengaktifkan' : 'Menonaktifkan'} pengguna`, { detail: u.name }); touch(); render(); toast(`${u.name} ${u.status.toLowerCase()}.`); break; }
+      case 'toggle-user': { const u = state.users.find(x => x.id === Number(id)); if (!u || u.id === 1) break; u.status = u.status === 'Aktif' ? 'Nonaktif' : 'Aktif'; remote('PATCH', `/users/${encodeURIComponent(u.id)}`, { status: u.status }); log('Pengguna & Akses', `${u.status === 'Aktif' ? 'Mengaktifkan' : 'Menonaktifkan'} pengguna`, { detail: u.name }); touch(); render(); toast(`${u.name} ${u.status.toLowerCase()}.`); break; }
       case 'add-role': roleForm(); break;
       case 'edit-role': roleForm(id); break;
       // Integrasi
-      case 'api-toggle': state.api.connected = !state.api.connected; log('Integrasi Google', state.api.connected ? 'Menghubungkan GBP' : 'Memutuskan GBP'); touch(); render(); toast(state.api.connected ? 'Terhubung (simulasi).' : 'Koneksi diputus (simulasi).'); break;
-      case 'api-test': state.api.lastTest = Date.now(); log('Integrasi Google', 'Menguji koneksi', { detail: state.api.connected ? 'Berhasil' : 'Gagal: belum terhubung' }); touch(); render(); toast(state.api.connected ? 'Uji koneksi berhasil — 120 ms (simulasi).' : 'Uji gagal: hubungkan akun terlebih dahulu.', { tone: state.api.connected ? 'good' : 'bad' }); break;
+      case 'api-toggle': state.api.connected = !state.api.connected; remote('PATCH', '/integrations/google', { connected: state.api.connected }); log('Integrasi Google', state.api.connected ? 'Menghubungkan GBP' : 'Memutuskan GBP'); touch(); render(); toast(isLive() ? (state.api.connected ? 'Permintaan menghubungkan dikirim ke server.' : 'Permintaan memutus dikirim ke server.') : (state.api.connected ? 'Terhubung (simulasi).' : 'Koneksi diputus (simulasi).')); break;
+      case 'api-test': if (isLive()) { remote('POST', '/integrations/google/test').then(res => { if (res) toast(res.ok === false ? `Uji gagal: ${res.message || 'tidak diketahui'}` : `Uji koneksi Google berhasil${res.latencyMs ? ` — ${res.latencyMs} ms` : ''}.`, { tone: res.ok === false ? 'bad' : 'good' }); }); break; }
+        state.api.lastTest = Date.now(); log('Integrasi Google', 'Menguji koneksi', { detail: state.api.connected ? 'Berhasil' : 'Gagal: belum terhubung' }); touch(); render(); toast(state.api.connected ? 'Uji koneksi berhasil — 120 ms (simulasi).' : 'Uji gagal: hubungkan akun terlebih dahulu.', { tone: state.api.connected ? 'good' : 'bad' }); break;
       case 'api-reset': state.api.quotaUsed = 0; log('Integrasi Google', 'Mereset kuota harian'); touch(); render(); toast('Kuota direset.'); break;
       // Pengaturan
       case 'generate': confirmModal('Buat 1.000 unit uji?', 'Seribu unit kerja sintetis akan ditambahkan untuk menguji performa. Anda bisa menghapusnya lewat “Reset data demo”.', 'Buat 1.000 unit', () => setTimeout(() => generateUnits(1000), 0), false); break;
@@ -1667,10 +2128,11 @@
     if (t === modal) { closeModal(); return; }
     if (t === sheet) { sheet.close(); return; }
     // Tutup popover saat klik di luar
-    if (!$('bsNotif').hidden && !t.closest('.bs-pop-wrap')) toggleNotif(false);
+    if (!$('bsNotif').hidden && !t.closest('#bsNotif, #bsNotifBtn')) toggleNotif(false);
+    if (!$('bsModeMenu').hidden && !t.closest('#bsModeMenu, #bsModeBtn')) toggleModeMenu(false);
     if (ui.filterOpen && !t.closest('[data-filter-pop]')) { ui.filterOpen = false; shell.querySelector('[data-filter-pop]')?.removeAttribute('open'); }
     const v = t.closest('[data-view]');
-    if (v && !v.disabled) { if (!$('bsNotif').hidden) toggleNotif(false); if (sheet.open) sheet.close(); closeModal(); navigate(v.dataset.view); return; }
+    if (v && !v.disabled) { if (!$('bsNotif').hidden) toggleNotif(false); if (!$('bsModeMenu').hidden) toggleModeMenu(false); if (sheet.open) sheet.close(); closeModal(); navigate(v.dataset.view); return; }
     const a = t.closest('[data-action]');
     if (!a || a.disabled) return;
     if (a.tagName === 'INPUT' && !['select', 'select-page'].includes(a.dataset.action)) return;
@@ -1680,6 +2142,7 @@
   let inputTimer = 0;
   shell.addEventListener('input', e => {
     const t = e.target, bind = t.dataset.bind;
+    if (t.dataset.draft) { ui.reviews.drafts[t.dataset.draft] = t.value; const c = $(`rv-count-${t.dataset.draft}`); if (c) c.textContent = `${t.value.length}/${fmtNum(REPLY_MAX)}`; return; }
     if (!bind || t.type === 'checkbox' || t.tagName === 'SELECT') return;
     clearTimeout(inputTimer);
     inputTimer = setTimeout(() => { setBind(bind, t.value); if (bind.startsWith('map.')) updateMap(true); else render(); }, 140);
@@ -1692,9 +2155,21 @@
       reader.readAsText(t.files[0]);
       return;
     }
+    if (t.dataset.actionChange === 'review-template') {
+      const tpl = REPLY_TEMPLATES[Number(t.value)], rv = state.reviews.find(x => x.id === t.dataset.id);
+      if (tpl && rv) {
+        const text = fillTemplate(tpl.text, rv.author, locName(rv.code)), ta = $(`rv-text-${rv.id}`);
+        ui.reviews.drafts[rv.id] = text;
+        if (ta) { ta.value = text; ta.focus(); }
+        const c = $(`rv-count-${rv.id}`); if (c) c.textContent = `${text.length}/${fmtNum(REPLY_MAX)}`;
+      }
+      t.value = '';
+      return;
+    }
     if (t.dataset.actionChange === 'bulk-status' && t.value) {
       const status = t.value, n = ui.loc.selected.size, snap = snapshot();
       state.locations.forEach(l => { if (ui.loc.selected.has(l.code) && l.status !== status) { log('Unit Kerja', 'Mengubah status (massal)', { target: l.code, changes: [{ field: 'Status', before: l.status, after: status }] }); l.status = status; l.updatedAt = Date.now(); l.updatedBy = ME.name; } });
+      remote('POST', '/locations/bulk-update', { codes: [...ui.loc.selected], patch: { status } });
       touch(); render(); toast(`Status ${n} unit diubah menjadi ${status}.`, { tone: 'good', undo: snap });
       return;
     }
@@ -1708,6 +2183,7 @@
       const r = state.roles[Number(t.dataset.role)], p = t.dataset.perm;
       r.permissions = t.checked ? [...new Set([...r.permissions, p])] : r.permissions.filter(x => x !== p);
       log('Pengguna & Akses', `${t.checked ? 'Memberi' : 'Mencabut'} izin`, { detail: `${r.name}: ${p}` });
+      remote('PATCH', `/roles/${encodeURIComponent(r.name)}`, { permissions: r.permissions });
       touch(); toast(`${r.name}: izin “${PERMS.find(x => x[0] === p)[1]}” ${t.checked ? 'diberikan' : 'dicabut'}.`);
       return;
     }
@@ -1723,9 +2199,49 @@
       if (!modalSubmit) { closeModal(); return; }
       const fd = new FormData(form), p = Object.fromEntries(fd);
       form.querySelectorAll('input[type=checkbox][name]').forEach(c => { if (c.name !== 'perm') p[c.name] = c.checked; });
+      const finish = r => { if (r && (typeof r === 'string' || Object.keys(r).length)) { showErrors(r); return; } modalSubmit = null; closeModal(); touch(); render(); };
       const res = modalSubmit(p, fd);
-      if (res && (typeof res === 'string' || Object.keys(res).length)) { showErrors(res); return; }
-      modalSubmit = null; closeModal(); touch(); render();
+      if (res && typeof res.then === 'function') {
+        const sb = form.querySelector('[type="submit"]'), label = sb ? sb.textContent : '';
+        if (sb) { sb.disabled = true; sb.setAttribute('aria-busy', 'true'); sb.textContent = 'Menghubungkan…'; }
+        const done = () => { if (sb && sb.isConnected) { sb.disabled = false; sb.removeAttribute('aria-busy'); sb.textContent = label; } };
+        res.then(r => { done(); finish(r); }, err => { done(); showErrors(err && err.message ? err.message : 'Terjadi kesalahan.'); });
+        return;
+      }
+      finish(res);
+      return;
+    }
+    if (form.id === 'bsGoogleForm') {
+      const fd = new FormData(form), p = Object.fromEntries(fd), errs = {};
+      const next = { project: String(p.project || '').trim(), account: String(p.account || '').trim(), clientId: String(p.clientId || '').trim(), scopes: fd.getAll('scopes'), syncInterval: String(p.syncInterval || '60'), quotaLimit: Number(p.quotaLimit), pubsubTopic: String(p.pubsubTopic || '').trim(), webhook: fd.has('webhook') };
+      const secret = String(p.clientSecret || ''), apiKey = String(p.apiKey || '').trim();
+      if (next.project && !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(next.project)) errs.project = 'Format: 6–30 karakter huruf kecil, angka, atau tanda hubung.';
+      if (next.account && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next.account)) errs.account = 'Email tidak valid.';
+      if (next.clientId && !/^[\w-]+\.apps\.googleusercontent\.com$/.test(next.clientId)) errs.clientId = 'Client ID harus berakhiran .apps.googleusercontent.com';
+      if (apiKey && !/^AIza[0-9A-Za-z_-]{35}$/.test(apiKey)) errs.apiKey = 'API key Google diawali "AIza" dan terdiri dari 39 karakter.';
+      if (!next.scopes.includes('business.manage')) errs.scopes = 'Scope business.manage wajib untuk mengelola lokasi dan ulasan.';
+      if (!Number.isFinite(next.quotaLimit) || next.quotaLimit < 100 || next.quotaLimit > 1000000) errs.quotaLimit = 'Isi angka 100–1.000.000.';
+      if (next.pubsubTopic && !/^projects\/[^/]+\/topics\/[^/]+$/.test(next.pubsubTopic)) errs.pubsubTopic = 'Format: projects/<project>/topics/<nama-topik>';
+      form.querySelectorAll('[aria-invalid]').forEach(n => n.removeAttribute('aria-invalid'));
+      form.querySelectorAll('.bs-field-hint').forEach(h => { h.classList.remove('is-error'); if (h.dataset.hint != null) h.textContent = h.dataset.hint; });
+      if (Object.keys(errs).length) {
+        Object.entries(errs).forEach(([k, msg]) => { const inp = form.querySelector(`[name="${k}"]`), h = $(`gh-${k}`); if (inp && k !== 'scopes') inp.setAttribute('aria-invalid', 'true'); if (h) { h.textContent = msg; h.classList.add('is-error'); } });
+        $('bsGoogleError').textContent = 'Periksa kembali isian yang ditandai.';
+        (form.querySelector('[aria-invalid="true"]') || form.querySelector('[name="scopes"]')).focus();
+        return;
+      }
+      $('bsGoogleError').textContent = '';
+      const changes = diff({ ...state.api, scopes: state.api.scopes.join(', ') }, { ...next, scopes: next.scopes.join(', ') }, ['project', 'account', 'clientId', 'scopes', 'syncInterval', 'quotaLimit', 'pubsubTopic', 'webhook']);
+      if (secret) changes.push({ field: 'Client secret', before: state.api.hasClientSecret ? '••••' : '', after: '•••• (baru)' });
+      if (apiKey) changes.push({ field: 'API key', before: state.api.hasApiKey ? '••••' : '', after: '•••• (baru)' });
+      if (!changes.length) { toast('Tidak ada perubahan.'); return; }
+      Object.assign(state.api, next);
+      if (secret) state.api.hasClientSecret = true;
+      if (apiKey) state.api.hasApiKey = true;
+      log('Integrasi Google', 'Memperbarui konfigurasi Google API', { changes });
+      remote('PATCH', '/integrations/google', { ...next, ...(secret ? { clientSecret: secret } : {}), ...(apiKey ? { apiKey } : {}) });
+      touch(); render();
+      toast(isLive() ? 'Konfigurasi dikirim ke server.' : `Konfigurasi disimpan${secret || apiKey ? ' (rahasia tidak disimpan di Mode Demo)' : ''}.`, { tone: 'good' });
       return;
     }
     if (form.id === 'bsSettingsForm') {
@@ -1736,7 +2252,7 @@
       if (errs.length) { toast(errs.join(' '), { tone: 'bad' }); return; }
       const changes = diff(s, next, Object.keys(next));
       Object.assign(s, next);
-      if (changes.length) log('Pengaturan', 'Mengubah pengaturan', { changes });
+      if (changes.length) { log('Pengaturan', 'Mengubah pengaturan', { changes }); remote('PATCH', '/settings', next); }
       touch(); render(); toast(changes.length ? `Pengaturan disimpan (${changes.length} perubahan).` : 'Tidak ada perubahan.', { tone: 'good' });
     }
   });
@@ -1755,6 +2271,13 @@
     if (shell.hidden) return;
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); if (palette.open) palette.close(); else if (!modal.open) openPalette(); return; }
+    const menu = $('bsModeMenu');
+    if (!menu.hidden) {
+      const items = [...menu.querySelectorAll('[role^="menuitem"]')], i = items.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); return; }
+      if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); items[e.key === 'Home' ? 0 : items.length - 1].focus(); return; }
+      if (e.key === 'Escape' || e.key === 'Tab') { if (e.key === 'Escape') e.preventDefault(); toggleModeMenu(false); if (e.key === 'Escape') $('bsModeBtn').focus(); return; }
+    }
     if (e.key === 'Escape') {
       if (!$('bsNotif').hidden) { toggleNotif(false); $('bsNotifBtn').focus(); return; }
       if (ui.filterOpen) { ui.filterOpen = false; render(); return; }
@@ -1766,11 +2289,17 @@
     else if (e.key.toLowerCase() === 'n' && !sheet.open) { e.preventDefault(); locationForm(); }
   });
   setInterval(() => { if (!shell.hidden && !ui.running) updateChrome(); }, 30000);
+  // Live: muat ulang berkala agar edit eksternal & hasil sync terbaru muncul.
+  const liveRefreshOk = () => !shell.hidden && isLive() && ui.live.ready && !ui.running && !modal.open && document.visibilityState === 'visible';
+  setInterval(() => { if (liveRefreshOk()) loadLive({ silent: true }); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (liveRefreshOk() && Date.now() - ui.live.syncedAt > 30000) loadLive({ silent: true }); });
 
   /* ------------------------------------------------------------------ *
    * Masuk / keluar
    * ------------------------------------------------------------------ */
   function logout() {
+    if (isLive() && MODE.hasSession()) { MODE.request('POST', '/auth/logout').catch(() => {}); MODE.clearSession(); }
+    ui.live = { ready: false, loading: false, error: null, syncedAt: 0, pending: 0 };
     if (sheet.open) sheet.close();
     closeModal();
     if (mapObj) { mapObj.remove(); mapObj = null; renderedView = null; }
@@ -1782,7 +2311,7 @@
     window.dispatchEvent(new Event('resize'));
   }
   window.BranchAdmin = {
-    enter() {
+    enter(opts = {}) {
       try { loginTrigger = null; } catch (_) {}
       try { dialog.close(); } catch (_) {}
       document.querySelector('.page-container').hidden = true;
@@ -1790,11 +2319,20 @@
       document.body.classList.add('admin-active');
       document.documentElement.lang = 'id';
       shell.dataset.theme = prefs.theme || (document.body.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-      log('Dashboard', 'Masuk ke workspace', { detail: 'Sesi demo' });
+      let live = isLive(), notice = opts.notice || '';
+      if (live && !(MODE.hasSession() && MODE.getBaseUrl())) {
+        MODE.setMode('demo'); live = false;
+        notice = 'Sesi Live tidak aktif — Anda masuk di Mode Demo. Pilih “Live” di header untuk menyambung.';
+      }
+      ME = live ? userFromSession() : DEMO_USER;
+      ui.loc.selected.clear();
+      if (live) { state = blankState(); ui.live = { ready: false, loading: true, error: null, syncedAt: 0, pending: 0 }; }
+      else { state = loadState(); log('Dashboard', 'Masuk ke workspace', { detail: 'Sesi demo' }); }
       touch();
       applyLayout();
-      navigate('dashboard');
-      toast(`Selamat datang! Tekan ${MOD} K untuk mencari apa saja.`);
+      navigate(opts.view && VIEWS[opts.view] ? opts.view : 'dashboard');
+      if (live) loadLive().then(ok => ok && toast(notice || `Terhubung ke ${MODE.host()}. Selamat datang, ${ME.name}!`, { tone: 'good' }));
+      else toast(notice || `Mode Demo — data simulasi. Ganti ke Live lewat menu mode di header.`, { tone: notice ? 'warn' : 'info' });
     }
   };
 })();
