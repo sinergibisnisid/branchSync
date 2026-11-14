@@ -74,7 +74,7 @@ const themePref = readLS('branchSyncTheme');
 
 export const useApp = create<AppState>()(immer(set => ({
   lang: initialLang,
-  dark: themePref ? themePref === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches,
+  dark: themePref === 'dark',  // default terang; gelap hanya bila pengguna memilihnya (tidak mengikuti tema OS)
   screen: 'landing',
   me: { name: 'Pengguna', email: '', role: 'Pengguna', permissions: null },
   ws: null,
