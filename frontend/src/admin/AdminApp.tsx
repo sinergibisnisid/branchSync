@@ -114,6 +114,7 @@ function Sidebar({ mobile }: { mobile: boolean }) {
       <div className="bs-account">
         <span className="bs-avatar" aria-hidden="true" id="bsAccAvatar">{initials(me.name)}</span>
         <span className="bs-account-text"><strong id="bsAccName">{me.name}</strong><small id="bsAccRole">{me.role || 'Pengguna'}</small></span>
+        <button type="button" className="bs-icon-btn" aria-label="Profil saya" title="Profil saya" aria-current={view === 'profile' ? 'page' : undefined} onClick={() => navigate('profile')}><Ic name="user" /></button>
         <button type="button" className="bs-icon-btn" aria-label="Keluar ke halaman utama" title="Keluar" data-action="logout" onClick={logout}><Ic name="logout" /></button>
       </div>
     </aside>

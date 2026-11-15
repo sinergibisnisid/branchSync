@@ -73,12 +73,18 @@ func (s *Server) background(name string, fn func(ctx context.Context)) {
 type httpError struct {
 	Status  int
 	Message string
+	Field   string // opsional: kolom formulir yang salah, agar frontend bisa menandainya
 }
 
 func (e *httpError) Error() string { return e.Message }
 
 func fail(status int, format string, a ...any) error {
-	return &httpError{status, fmt.Sprintf(format, a...)}
+	return &httpError{Status: status, Message: fmt.Sprintf(format, a...)}
+}
+
+// failField: seperti fail, ditambah nama kolom formulir yang salah (dikirim sebagai "field").
+func failField(status int, field, format string, a ...any) error {
+	return &httpError{Status: status, Message: fmt.Sprintf(format, a...), Field: field}
 }
 
 var (
@@ -156,6 +162,8 @@ func (s *Server) Handler() http.Handler {
 	pub("POST /integrations/google/pubsub", s.pubsubPush)
 
 	auth("GET /me", "", s.me)
+	auth("PATCH /me", "", s.updateProfile)
+	auth("POST /me/password", "", s.changePassword)
 	auth("POST /auth/logout", "", s.logout)
 	auth("GET /bootstrap", "locations.read", s.bootstrap)
 
@@ -211,7 +219,11 @@ func (s *Server) finish(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	var he *httpError
 	if errors.As(err, &he) {
-		writeJSON(w, he.Status, map[string]string{"message": he.Message})
+		body := map[string]string{"message": he.Message}
+		if he.Field != "" {
+			body["field"] = he.Field
+		}
+		writeJSON(w, he.Status, body)
 		return
 	}
 	var pe *pgconn.PgError

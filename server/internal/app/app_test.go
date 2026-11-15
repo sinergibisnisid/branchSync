@@ -557,3 +557,80 @@ func TestReportsAndOAuthGuards(t *testing.T) {
 	st, out = e.call("GET", "/tidak-ada", nil)
 	e.must(st, 404, out, "endpoint tak dikenal")
 }
+
+func TestProfile(t *testing.T) {
+	e := setup(t)
+	e.login()
+	st, me := e.call("GET", "/me", nil)
+	e.must(st, 200, me, "me")
+	if me["username"] != "rina" || me["hasPassword"] != true || me["name"] != "Rina Admin" {
+		t.Fatalf("profil: %v", me)
+	}
+	// Nama: wajib diisi, maks. 80 karakter; perubahan tercatat di audit.
+	st, out := e.call("PATCH", "/me", map[string]any{"name": "  "})
+	e.must(st, 422, out, "nama kosong")
+	if out["field"] != "name" {
+		t.Fatalf("field: %v", out)
+	}
+	st, out = e.call("PATCH", "/me", map[string]any{"name": " Rina Wijaya "})
+	e.must(st, 200, out, "ubah nama")
+	if out["name"] != "Rina Wijaya" || out["role"] != "Administrator" {
+		t.Fatalf("profil baru: %v", out)
+	}
+	if a := find(list(e.bootstrap(), "audit"), "action", "Memperbarui profil"); a == nil || a["user"] != "Rina Wijaya" {
+		t.Fatalf("audit profil: %v", a)
+	}
+	// Viewer (tanpa users.manage) juga boleh mengubah profilnya sendiri.
+	st, out = e.call("POST", "/users", map[string]any{"name": "Vina Viewer", "email": "vina@bri.test", "role": "Viewer", "password": "viewer-pass-123"})
+	e.must(st, 201, out, "buat viewer")
+	_, vout := e.call("POST", "/auth/login", map[string]string{"username": "vina@bri.test", "password": "viewer-pass-123"})
+	vt := vout["token"].(string)
+	st, out = e.call("PATCH", "/me", map[string]any{"name": "Vina V."}, vt)
+	e.must(st, 200, out, "viewer ubah nama")
+	// Kata sandi: sandi lama wajib benar (422, bukan 401, agar sesi tidak dianggap berakhir).
+	st, other := e.call("POST", "/auth/login", map[string]string{"username": "rina", "password": "rahasia-admin-123"})
+	e.must(st, 200, other, "sesi kedua")
+	st, out = e.call("POST", "/me/password", map[string]string{"currentPassword": "salah", "newPassword": "sandi-baru-12345"})
+	e.must(st, 422, out, "sandi lama salah")
+	if out["field"] != "currentPassword" {
+		t.Fatalf("field: %v", out)
+	}
+	st, out = e.call("POST", "/me/password", map[string]string{"currentPassword": "rahasia-admin-123", "newPassword": "pendek"})
+	e.must(st, 422, out, "sandi baru pendek")
+	if out["field"] != "newPassword" {
+		t.Fatalf("field: %v", out)
+	}
+	st, out = e.call("POST", "/me/password", map[string]string{"currentPassword": "rahasia-admin-123", "newPassword": "rahasia-admin-123"})
+	e.must(st, 422, out, "sandi baru sama")
+	st, out = e.call("POST", "/me/password", map[string]string{"currentPassword": "rahasia-admin-123", "newPassword": "sandi-baru-12345"})
+	e.must(st, 204, out, "ganti sandi")
+	st, _ = e.call("GET", "/me", nil)
+	e.must(st, 200, nil, "sesi sekarang tetap aktif")
+	st, _ = e.call("GET", "/me", nil, other["token"].(string))
+	e.must(st, 401, nil, "sesi lain diputus")
+	st, _ = e.call("POST", "/auth/login", map[string]string{"username": "rina", "password": "rahasia-admin-123"})
+	e.must(st, 401, nil, "sandi lama tidak berlaku")
+	st, _ = e.call("POST", "/auth/login", map[string]string{"username": "rina", "password": "sandi-baru-12345"})
+	e.must(st, 200, nil, "sandi baru berlaku")
+	// 5 kegagalan → dikunci sementara.
+	for i := 0; i < 4; i++ {
+		e.call("POST", "/me/password", map[string]string{"currentPassword": "salah", "newPassword": "sandi-lain-12345"})
+	}
+	st, out = e.call("POST", "/me/password", map[string]string{"currentPassword": "sandi-baru-12345", "newPassword": "sandi-lain-12345"})
+	e.must(st, 429, out, "terkunci setelah 5 kegagalan")
+	// Akun tanpa kata sandi (OTP/Google) tidak bisa memakai endpoint ini.
+	st, out = e.call("POST", "/users", map[string]any{"name": "Oki OTP", "email": "oki@bri.test", "role": "Viewer"})
+	e.must(st, 201, out, "buat pengguna OTP")
+	e.call("POST", "/auth/otp/request", map[string]string{"email": "oki@bri.test"})
+	e.mail.mu.Lock()
+	code := regexp.MustCompile(`\d{6}`).FindString(e.mail.sent[len(e.mail.sent)-1].Subject)
+	e.mail.mu.Unlock()
+	_, oout := e.call("POST", "/auth/otp/verify", map[string]string{"email": "oki@bri.test", "code": code})
+	ot := oout["token"].(string)
+	_, ome := e.call("GET", "/me", nil, ot)
+	if ome["hasPassword"] != false {
+		t.Fatalf("hasPassword OTP: %v", ome)
+	}
+	st, out = e.call("POST", "/me/password", map[string]string{"currentPassword": "x", "newPassword": "sandi-baru-12345"}, ot)
+	e.must(st, 409, out, "tanpa kata sandi")
+}
