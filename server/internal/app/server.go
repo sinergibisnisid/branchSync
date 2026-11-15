@@ -120,6 +120,7 @@ type User struct {
 	Role   string          `json:"role"`
 	Status string          `json:"-"`
 	Perms  []string        `json:"permissions"`
+	Avatar string          `json:"avatar,omitempty"` // kunci foto profil: GET /avatars/{avatar}
 	perm   map[string]bool `json:"-"`
 }
 
@@ -164,6 +165,9 @@ func (s *Server) Handler() http.Handler {
 	auth("GET /me", "", s.me)
 	auth("PATCH /me", "", s.updateProfile)
 	auth("POST /me/password", "", s.changePassword)
+	auth("PUT /me/avatar", "", s.uploadAvatar)
+	auth("DELETE /me/avatar", "", s.deleteAvatar)
+	pub("GET /avatars/{key}", s.serveAvatar)
 	auth("POST /auth/logout", "", s.logout)
 	auth("GET /bootstrap", "locations.read", s.bootstrap)
 

@@ -6,12 +6,12 @@ import { create } from 'zustand';
 import * as api from '../lib/api';
 import { navCounts, notifications, openFailures } from '../lib/data';
 import { NAV, navItem, navRoot, type ViewId } from '../lib/domain';
-import { fmtNum, fmtRel, initials, MOD } from '../lib/format';
+import { fmtNum, fmtRel, MOD } from '../lib/format';
 import { useDomTranslation } from '../i18n/translator';
 import { dismissToast, getApp, setApp, setUi, toast, useApp, useOverlay, type Toast } from '../store';
 import { Drawer } from './Drawer';
 import { openPalette, Palette } from './Palette';
-import { Btn } from './ui/components';
+import { Avatar, Btn } from './ui/components';
 import { Ic } from './ui/Icon';
 import { infoModal, ModalHost } from './ui/Modal';
 import { canView, copyLink, guard, loadLive, logout, navigate, syncUrl, useCan } from './workspace';
@@ -112,7 +112,7 @@ function Sidebar({ mobile }: { mobile: boolean }) {
         ))}
       </nav>
       <div className="bs-account">
-        <span className="bs-avatar" aria-hidden="true" id="bsAccAvatar">{initials(me.name)}</span>
+        <Avatar name={me.name} avatar={me.avatar} id="bsAccAvatar" />
         <span className="bs-account-text"><strong id="bsAccName">{me.name}</strong><small id="bsAccRole">{me.role || 'Pengguna'}</small></span>
         <button type="button" className="bs-icon-btn" aria-label="Profil saya" title="Profil saya" aria-current={view === 'profile' ? 'page' : undefined} onClick={() => navigate('profile')}><Ic name="user" /></button>
         <button type="button" className="bs-icon-btn" aria-label="Keluar ke halaman utama" title="Keluar" data-action="logout" onClick={logout}><Ic name="logout" /></button>

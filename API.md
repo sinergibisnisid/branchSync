@@ -29,11 +29,16 @@ Token disimpan frontend di `sessionStorage` (hilang saat tab ditutup). Kata sand
 | GET 🔒 | `/me` | — | `user` + `{ username, hasPassword }` |
 | PATCH 🔒 | `/me` | `{ name }` | sama dengan `GET /me` (nama tampilan sendiri; tanpa izin khusus) |
 | POST 🔒 | `/me/password` | `{ currentPassword, newPassword }` | `204`. Sandi lama salah → `422` dengan `field: "currentPassword"`; sandi baru < 10 karakter atau sama → `422` dengan `field: "newPassword"`; 5 kegagalan / 15 menit → `429`; akun tanpa kata sandi (OTP/Google) → `409`. Sesi lain milik pengguna diputus, sesi yang dipakai tetap aktif |
+| PUT 🔒 | `/me/avatar` | `{ image }` (base64 atau data URL JPEG/PNG, ≤ 512 KB, 32–1024 px per sisi) | sama dengan `GET /me`, dengan `avatar` = kunci foto baru. Frontend memotong persegi & memperkecil ke 256 px JPEG sebelum mengirim. Selain JPEG/PNG (mis. SVG) → `422` dengan `field: "avatar"` |
+| DELETE 🔒 | `/me/avatar` | — | sama dengan `GET /me` tanpa `avatar` |
+| GET | `/avatars/{key}` | — | File foto (tanpa login, karena `<img>` tidak bisa mengirim token). Kunci 256-bit acak dan berganti setiap unggahan, jadi URL tidak bisa ditebak; di-cache `immutable` |
 | POST 🔒 | `/auth/logout` | — | `204` |
 
 `user` = `{ "name": "Rina Wijaya", "email": "rina@bri.co.id", "role": "Operator" }`
 
 Email, username, dan peran hanya bisa diubah Administrator lewat `PATCH /users/{id}`; `PATCH /me` hanya mengubah nama.
+`user.avatar` (opsional) berisi kunci foto profil: tampilkan dari `{base}/avatars/{avatar}`. Daftar `users[]` di
+`/bootstrap` juga memuat `avatar` (atau `null`).
 
 Opsional: `user.permissions` (array kode izin, mis. `["locations.read","reviews.reply"]`). Bila dikirim, frontend memakainya
 untuk menampilkan/menonaktifkan tombol; bila tidak, izin diambil dari `roles[]` di `/bootstrap` berdasarkan `user.role`.

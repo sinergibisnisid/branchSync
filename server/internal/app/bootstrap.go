@@ -110,8 +110,9 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request, u *User) erro
 		Role       string     `json:"role"`
 		Status     string     `json:"status"`
 		LastActive *time.Time `json:"lastActive"`
+		Avatar     *string    `json:"avatar"`
 	}
-	userSQL := `SELECT id, name, email, role, status, last_active FROM users WHERE id = $1 OR $2 ORDER BY id`
+	userSQL := `SELECT id, name, email, role, status, last_active, avatar_key FROM users WHERE id = $1 OR $2 ORDER BY id`
 	if out["users"], err = collect(ctx, s.db, userSQL, pgx.RowToStructByPos[userRow], u.ID, u.Can("users.manage")); err != nil {
 		return err
 	}
