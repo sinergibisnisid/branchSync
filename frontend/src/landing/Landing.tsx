@@ -246,7 +246,7 @@ export function Landing({ onLogin }: { onLogin: () => void }) {
 
       <footer className="site-footer"><div className="container footer-inner">
         <div className="brand small"><span className="brand-logo" aria-hidden="true">BRI</span><span className="brand-text"><strong>BranchSync</strong></span></div>
-        <p>{T('footer')}</p><p className="footer-note">{T('footerNote')}</p>
+        <p>{T('footer')}</p>
       </div></footer>
     </div>
   );
