@@ -3,7 +3,7 @@ import { GBP, REGIONS, STATUSES, TYPES, type ViewId } from '../lib/domain';
 import type { UiState } from '../store';
 import { FILTERS, QUICK } from './views/locationsModel';
 
-const VIEW_SLUG: Record<ViewId, string> = { dashboard: 'dashboard', map: 'peta', reports: 'laporan', sla: 'sla', locations: 'unit-kerja', discrepancies: 'ketidaksesuaian', duplicates: 'duplikat', claims: 'klaim', approvals: 'persetujuan', reviews: 'ulasan', sync: 'sync', audit: 'riwayat', access: 'akses', integrations: 'integrasi', settings: 'pengaturan', guide: 'panduan', scenarios: 'scenario-test' };
+const VIEW_SLUG: Record<ViewId, string> = { dashboard: 'dashboard', map: 'peta', reports: 'laporan', sla: 'sla', locations: 'unit-kerja', discrepancies: 'ketidaksesuaian', duplicates: 'duplikat', claims: 'klaim', approvals: 'persetujuan', reviews: 'ulasan', sync: 'sync', audit: 'riwayat', access: 'akses', integrations: 'integrasi', settings: 'pengaturan', profile: 'profil', guide: 'panduan', scenarios: 'scenario-test' };
 const SLUG_VIEW = Object.fromEntries(Object.entries(VIEW_SLUG).map(([v, sl]) => [sl, v])) as Record<string, ViewId>;
 export const LOC_SORTS = ['name', 'city', 'region', 'type', 'status', 'gbp', 'issues', 'lastSync', 'updatedAt'];
 export const DRAWER_TABS = ['overview', 'compare', 'reviews', 'history', 'sync'];

@@ -177,11 +177,6 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 	return s.signIn(r.Context(), w, u, "Kata sandi")
 }
 
-func (s *Server) me(w http.ResponseWriter, r *http.Request, u *User) error {
-	writeJSON(w, 200, u)
-	return nil
-}
-
 func (s *Server) logout(w http.ResponseWriter, r *http.Request, u *User) error {
 	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 	_, err := s.db.Exec(r.Context(), `DELETE FROM sessions WHERE token_hash = $1`, secret.Hash(token))

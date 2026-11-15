@@ -24,13 +24,14 @@ export type ApiErrorCode = 'error' | 'bad-url' | 'no-url' | 'no-token' | 'timeou
 export class ApiError extends Error {
   status: number;
   code: ApiErrorCode;
-  constructor(message: string, status = 0, code: ApiErrorCode = 'error') {
-    super(message); this.name = 'ApiError'; this.status = status; this.code = code;
+  field?: string; // kolom formulir yang salah (dikirim server sebagai "field")
+  constructor(message: string, status = 0, code: ApiErrorCode = 'error', field?: string) {
+    super(message); this.name = 'ApiError'; this.status = status; this.code = code; this.field = field;
   }
 }
 
 export interface SessionUser {
-  id?: number; name?: string; username?: string; email?: string; role?: string; permissions?: string[];
+  id?: number; name?: string; username?: string; email?: string; role?: string; permissions?: string[]; hasPassword?: boolean;
 }
 
 export function normalizeUrl(u: unknown): string {
@@ -84,10 +85,10 @@ export async function request<T = unknown>(method: string, path: string, body?: 
   let data: unknown = null;
   if (raw) { try { data = JSON.parse(raw); } catch { data = { message: raw.slice(0, 200) }; } }
   if (!res.ok) {
-    const d = data as { message?: string; error?: string } | null;
+    const d = data as { message?: string; error?: string; field?: string } | null;
     const msg = (d && (d.message || d.error)) || `Permintaan gagal (HTTP ${res.status}).`;
     if (res.status === 401 && auth) { clearSession(); unauthorizedListeners.forEach(fn => fn()); }
-    throw new ApiError(msg, res.status, res.status === 401 ? 'unauthorized' : res.status === 403 ? 'forbidden' : 'http');
+    throw new ApiError(msg, res.status, res.status === 401 ? 'unauthorized' : res.status === 403 ? 'forbidden' : 'http', d?.field || undefined);
   }
   return data as T;
 }

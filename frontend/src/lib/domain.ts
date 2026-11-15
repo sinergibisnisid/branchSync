@@ -55,7 +55,7 @@ export const GOOGLE_SCOPES: [string, string, string][] = [
 ];
 export const SYNC_INTERVALS: [string, string][] = [['0', 'Manual saja'], ['15', 'Setiap 15 menit'], ['60', 'Setiap jam'], ['360', 'Setiap 6 jam'], ['1440', 'Setiap hari']];
 
-export type ViewId = 'dashboard' | 'map' | 'reports' | 'sla' | 'locations' | 'discrepancies' | 'duplicates' | 'claims' | 'approvals' | 'reviews' | 'sync' | 'audit' | 'access' | 'integrations' | 'settings' | 'guide' | 'scenarios';
+export type ViewId = 'dashboard' | 'map' | 'reports' | 'sla' | 'locations' | 'discrepancies' | 'duplicates' | 'claims' | 'approvals' | 'reviews' | 'sync' | 'audit' | 'access' | 'integrations' | 'settings' | 'profile' | 'guide' | 'scenarios';
 export type CountKey = 'issues' | 'dups' | 'claims' | 'approvals' | 'reviews' | 'fails';
 // parent: halaman ini tampil sebagai tab di halaman induk (tidak muncul sendiri di sidebar).
 export interface NavItem { id: ViewId; label: string; icon: string; desc: string; perm?: string; count?: CountKey; parent?: ViewId; tab?: string }
@@ -81,6 +81,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   ] },
   { group: 'Administrasi', items: [
     { id: 'settings', label: 'Pengaturan', icon: 'sliders', tab: 'Umum', desc: 'Preferensi workspace, target SLA, aturan deteksi, dan koneksi server.' },
+    { id: 'profile', label: 'Profil Saya', icon: 'user', parent: 'settings', tab: 'Profil', desc: 'Nama tampilan dan kata sandi akun Anda.' },
     { id: 'access', label: 'Pengguna & Akses', icon: 'users', perm: 'users.manage', parent: 'settings', desc: 'Kelola pengguna, peran, dan izin akses.' },
     { id: 'integrations', label: 'Integrasi Google', icon: 'plug', perm: 'settings.write', parent: 'settings', desc: 'Koneksi Google Business Profile, kuota API, dan notifikasi.' }
   ] },

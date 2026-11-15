@@ -26,10 +26,14 @@ Token disimpan frontend di `sessionStorage` (hilang saat tab ditutup). Kata sand
 | POST | `/auth/otp/request` | `{ email }` | `204` atau `{ ok: true }` |
 | POST | `/auth/otp/verify` | `{ email, code }` | `{ token, user }` |
 | GET | `/auth/google/start?redirect_uri=<url>` | — | Login pengguna via Google. Setelah selesai, server mengarahkan kembali ke `redirect_uri#bs_token=<token>` atau `redirect_uri#bs_error=<pesan>`. Callback Google: `{base}/auth/google/callback` (daftarkan di Google Cloud). `redirect_uri` harus ber-origin yang diizinkan server |
-| GET 🔒 | `/me` | — | `user` |
+| GET 🔒 | `/me` | — | `user` + `{ username, hasPassword }` |
+| PATCH 🔒 | `/me` | `{ name }` | sama dengan `GET /me` (nama tampilan sendiri; tanpa izin khusus) |
+| POST 🔒 | `/me/password` | `{ currentPassword, newPassword }` | `204`. Sandi lama salah → `422` dengan `field: "currentPassword"`; sandi baru < 10 karakter atau sama → `422` dengan `field: "newPassword"`; 5 kegagalan / 15 menit → `429`; akun tanpa kata sandi (OTP/Google) → `409`. Sesi lain milik pengguna diputus, sesi yang dipakai tetap aktif |
 | POST 🔒 | `/auth/logout` | — | `204` |
 
 `user` = `{ "name": "Rina Wijaya", "email": "rina@bri.co.id", "role": "Operator" }`
+
+Email, username, dan peran hanya bisa diubah Administrator lewat `PATCH /users/{id}`; `PATCH /me` hanya mengubah nama.
 
 Opsional: `user.permissions` (array kode izin, mis. `["locations.read","reviews.reply"]`). Bila dikirim, frontend memakainya
 untuk menampilkan/menonaktifkan tombol; bila tidak, izin diambil dari `roles[]` di `/bootstrap` berdasarkan `user.role`.
@@ -46,6 +50,8 @@ Status HTTP non-2xx dengan body:
 ```
 
 `message` ditampilkan langsung ke pengguna, jadi tulis dalam Bahasa Indonesia yang jelas.
+Opsional: `field` berisi nama kolom formulir yang salah (mis. `"currentPassword"`), agar frontend menampilkan pesan di
+bawah kolom tersebut. Kesalahan input memakai `422`, bukan `401`, karena `401` berarti sesi berakhir.
 
 ## Memuat data
 

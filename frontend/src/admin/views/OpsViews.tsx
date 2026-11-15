@@ -137,7 +137,7 @@ export function Sla() {
 /* ---------- Pengaturan: kerangka halaman + tab (Umum · Pengguna & Akses · Integrasi Google) ----------
  * Setiap tab tetap halaman sendiri (#/pengaturan, #/pengguna-akses, #/integrasi) sehingga tautan lama
  * tetap berlaku; di sidebar hanya "Pengaturan" yang tampil. Tab tanpa izin disembunyikan. */
-function SettingsPage({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
+export function SettingsPage({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
   const view = useApp(s => s.ui.view);
   useApp(s => s.ws?.roles); // izin peran ikut data server
   const tabs = navTabs('settings').filter(n => canView(n.id));
