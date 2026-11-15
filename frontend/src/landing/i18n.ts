@@ -44,7 +44,6 @@ export const LANDING_I18N: Record<string, [string, string]> = {
   bandTitle: ['Siap mengelola jaringan Anda?', 'Ready to manage your network?'],
   bandText: ['Masuk dengan akun BranchSync Anda untuk mulai bekerja.', 'Sign in with your BranchSync account to get started.'],
   footer: ['© 2026 PT Bank Rakyat Indonesia (Persero) Tbk. Seluruh hak dilindungi.', '© 2026 PT Bank Rakyat Indonesia (Persero) Tbk. All rights reserved.'],
-  footerNote: ['Peta dan ringkasan di halaman ini memakai data contoh. Data asli tersedia di workspace setelah masuk.', 'The map and summary on this page use sample data. Real data is available in the workspace after signing in.'],
   adminWorkspace: ['Admin Workspace', 'Admin Workspace'], close: ['Tutup', 'Close'],
   loginTitle: ['Selamat datang kembali', 'Welcome back'],
   loginIntro: ['Masuk untuk mengelola jaringan kantor Anda.', 'Sign in to manage your office network.'],
