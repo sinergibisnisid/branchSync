@@ -56,7 +56,7 @@ docker compose run --rm api create-admin -email admin@bri.co.id -name "Admin Bra
 
 Perintah meminta kata sandi (minimal 10 karakter). Setelah itu buka `https://WEB_DOMAIN` → **Masuk**.
 URL server API sudah terisi otomatis (dari `.env`), jadi pengguna cukup memasukkan nama pengguna dan
-kata sandi. Pengguna lain dibuat dari **Pengguna & Akses** di aplikasi.
+kata sandi. Pengguna lain dibuat dari **Pengaturan › Pengguna & Akses** di aplikasi.
 
 ## 4. Hubungkan Google Business Profile
 

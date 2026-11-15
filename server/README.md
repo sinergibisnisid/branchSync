@@ -41,7 +41,7 @@ Perintah lain: `branchsync migrate` (migrasi saja), `branchsync version`.
 | `BS_ADDR` | | Alamat listen, default `:8080`. |
 | `BS_SESSION_TTL` | | Masa berlaku sesi, default `12h`. |
 | `BS_SMTP_HOST`, `BS_SMTP_PORT`, `BS_SMTP_USER`, `BS_SMTP_PASS`, `BS_SMTP_FROM` | | Untuk kode OTP dan laporan terjadwal. Tanpa `BS_SMTP_HOST`, email hanya dicatat di log. Port 465 = TLS langsung, lainnya STARTTLS. |
-| `BS_GOOGLE_CLIENT_ID`, `BS_GOOGLE_CLIENT_SECRET` | | Opsional — bila kosong, diambil dari halaman **Integrasi Google** di aplikasi. |
+| `BS_GOOGLE_CLIENT_ID`, `BS_GOOGLE_CLIENT_SECRET` | | Opsional — bila kosong, diambil dari **Pengaturan › Integrasi Google** di aplikasi. |
 | `BS_PUBSUB_TOKEN` | | Token rahasia pada URL push Pub/Sub (lihat di bawah). |
 | `BS_SCHEDULER` | | `false` untuk mematikan job berkala (sinkronisasi otomatis, ulasan, laporan). |
 | `BS_TRUSTED_PROXIES` | di belakang proxy | IP/CIDR reverse proxy tepercaya, dipisah koma, mis. `172.30.10.10`. Permintaan dari alamat ini memakai IP klien dari `X-Forwarded-For`. Tanpa ini, semua pengguna di belakang proxy berbagi satu batas percobaan login. Jangan isi rentang yang bisa dijangkau klien langsung. |
@@ -59,7 +59,7 @@ Perintah lain: `branchsync migrate` (migrasi saja), `branchsync version`.
 4. **OAuth client** tipe *Web application*, dengan **Authorized redirect URIs**:
    - `{BS_PUBLIC_URL}/integrations/google/oauth/callback` — menghubungkan akun GBP
    - `{BS_PUBLIC_URL}/auth/google/callback` — login pengguna dengan Google (opsional)
-5. Di aplikasi: **Integrasi Google** → isi Project ID, Client ID, Client Secret → **Simpan** →
+5. Di aplikasi: **Pengaturan › Integrasi Google** → isi Project ID, Client ID, Client Secret → **Simpan** →
    **Hubungkan** → masuk dengan akun Google yang mengelola lokasi BRI. Setelah terhubung, server
    langsung menarik akun dan lokasi:
    - lokasi Google yang `storeCode`-nya sama dengan **kode unit** di Dashboard otomatis dihubungkan;

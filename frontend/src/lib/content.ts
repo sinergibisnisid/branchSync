@@ -15,7 +15,7 @@ export const CONTENT: Content = {
       id: 'start', icon: 'zap', title: ['Memulai', 'Getting started'],
       summary: ['Masuk, memilih mode, dan mengenal tata letak workspace.', 'Sign in, choose a mode, and learn the workspace layout.'],
       steps: [
-        ['Klik “Masuk” di halaman utama, lalu masuk dengan akun BranchSync: kata sandi, kode OTP email, atau Google. Akun dibuat oleh administrator di Pengguna & Akses. Alamat server sudah diatur oleh tim TI.', 'Click “Sign in” on the home page and sign in with your BranchSync account: password, email OTP code, or Google. Accounts are created by an administrator in Users & Access. The server address is configured by your IT team.'],
+        ['Klik “Masuk” di halaman utama, lalu masuk dengan akun BranchSync: kata sandi, kode OTP email, atau Google. Akun dibuat oleh administrator di Pengaturan › Pengguna & Akses. Alamat server sudah diatur oleh tim TI.', 'Click “Sign in” on the home page and sign in with your BranchSync account: password, email OTP code, or Google. Accounts are created by an administrator in Settings › Users & Access. The server address is configured by your IT team.'],
         ['Semua data dibaca dan disimpan di server BranchSync (database PostgreSQL). Server yang terhubung tampil di header.', 'All data is read from and saved to the BranchSync server (PostgreSQL database). The connected server is shown in the header.'],
         ['Gunakan menu di sisi kiri untuk berpindah halaman. Angka oranye menandakan pekerjaan yang perlu ditindaklanjuti.', 'Use the left menu to move between pages. Orange numbers show work that needs follow-up.'],
         ['Tekan ⌘ K / Ctrl K untuk mencari unit kerja, menu, atau aksi dengan cepat.', 'Press ⌘ K / Ctrl K to quickly search locations, menus, or actions.'],
@@ -166,7 +166,7 @@ export const CONTENT: Content = {
         ['Klik “Setujui” untuk menerapkan perubahan atau “Tolak” agar data tetap seperti semula.', 'Click “Approve” to apply the change or “Reject” to keep the data as it was.'],
         ['Semua keputusan tercatat di tab “Riwayat keputusan” dan Riwayat Perubahan.', 'Every decision is recorded in “Decision history” and Change History.']
       ],
-      tips: [['Notifikasi edit eksternal diatur di Integrasi Google.', 'External edit notifications are set in Google Integration.']],
+      tips: [['Notifikasi edit eksternal diatur di Pengaturan › Integrasi Google.', 'External edit notifications are set in Settings › Google Integration.']],
       links: [['approvals', ['Buka Persetujuan', 'Open Approvals']]]
     },
     {
@@ -397,7 +397,7 @@ export const CONTENT: Content = {
       expected: ['Akan muncul di email GBP yang terintegrasi dengan BranchSync, yang dimana terdapat di Inbox email yang menunjukan approval perubahan data oleh email lain (kalau dari sisi BRI tidak approve maka data Unit Kerja tidak akan berubah (aman).', 'It appears in the GBP email integrated with BranchSync, in an inbox showing approval requests for changes by other emails (if BRI does not approve, the location data does not change — safe).'],
       note: ['Standar dan dijelaskan di RFI', 'Standard and explained in the RFI'],
       steps: [
-        { t: ['Di Integrasi Google, pastikan “Notifikasi edit dari email GBP lain” aktif.', 'In Google Integration, make sure “Notifications for edits from other GBP emails” is on.'], go: 'integrations' },
+        { t: ['Di Pengaturan › Integrasi Google, pastikan “Notifikasi edit dari email GBP lain” aktif.', 'In Settings › Google Integration, make sure “Notifications for edits from other GBP emails” is on.'], go: 'integrations' },
         { t: ['Ajukan edit pada listing dari email GBP lain. Usulan masuk ke Persetujuan Edit lewat notifikasi Google (Pub/Sub).', 'Propose an edit to the listing from another GBP email. The proposal arrives in Edit Approvals via Google notifications (Pub/Sub).'] },
         { t: ['Periksa ikon notifikasi (lonceng) dan kartu permintaan yang menunjukkan nilai sebelum–sesudah.', 'Check the notification bell and the request card showing before/after values.'], go: 'approvals' },
         { t: ['Klik “Tolak” dan pastikan data unit tidak berubah. Ulangi dengan “Setujui” dan pastikan data berubah.', 'Click “Reject” and confirm the location data is unchanged. Repeat with “Approve” and confirm the data changes.'] },

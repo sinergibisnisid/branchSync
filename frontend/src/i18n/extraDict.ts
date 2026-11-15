@@ -1,6 +1,8 @@
 // Tambahan kamus (ID → EN) untuk teks baru di versi React (hanya mode Live). Dicek sebelum adminDict.
 const DICT: Record<string, string> = {
   'Koneksi server': 'Server connection',
+  'Umum': 'General',
+  'Bagian pengaturan': 'Settings sections',
   'Penyimpanan data': 'Data storage',
   'Semua data workspace tersimpan di server BranchSync (database PostgreSQL), bukan di browser.': 'All workspace data is stored on the BranchSync server (PostgreSQL database), not in the browser.',
   'Server BranchSync (Go + PostgreSQL). Daftar endpoint ada di API.md.': 'BranchSync server (Go + PostgreSQL). The endpoint list is in API.md.',

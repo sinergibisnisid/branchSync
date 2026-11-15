@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import * as api from '../lib/api';
 import { navCounts, notifications, openFailures } from '../lib/data';
-import { NAV, navItem, type ViewId } from '../lib/domain';
+import { NAV, navItem, navRoot, type ViewId } from '../lib/domain';
 import { fmtNum, fmtRel, initials, MOD } from '../lib/format';
 import { useDomTranslation } from '../i18n/translator';
 import { dismissToast, getApp, setApp, setUi, toast, useApp, useOverlay, type Toast } from '../store';
@@ -96,13 +96,13 @@ function Sidebar({ mobile }: { mobile: boolean }) {
       </div>
       <button type="button" className="bs-search-trigger" onClick={openPalette}><Ic name="search" /><span>Cari unit atau menu…</span><kbd>{MOD} K</kbd></button>
       <nav id="bsNav" className="bs-nav">
-        {NAV.map(g => ({ ...g, items: g.items.filter(n => canView(n.id)) })).filter(g => g.items.length).map(g => (
+        {NAV.map(g => ({ ...g, items: g.items.filter(n => !n.parent && canView(n.id)) })).filter(g => g.items.length).map(g => (
           <div key={g.group} style={{ display: 'contents' }}>
             <p className="bs-nav-label">{g.group}</p>
             {g.items.map(n => {
               const c = n.count && counts ? counts[n.count] : 0;
               return (
-                <button key={n.id} type="button" aria-current={view === n.id ? 'page' : undefined} title={n.label} onClick={() => navigate(n.id)}>
+                <button key={n.id} type="button" aria-current={navRoot(view) === n.id ? 'page' : undefined} title={n.label} onClick={() => navigate(n.id)}>
                   <Ic name={n.icon} /><span className="bs-nav-text">{n.label}</span>
                   {!!c && <span className="bs-nav-count" aria-label={`${c} perlu perhatian`}>{c > 99 ? '99+' : c}</span>}
                 </button>
@@ -161,7 +161,7 @@ function Topbar({ mobile, theme }: { mobile: boolean; theme: string }) {
     <header className="bs-topbar">
       <button type="button" className="bs-icon-btn bs-menu" aria-label="Buka navigasi" aria-controls="bsSidebar" aria-expanded={mobile ? navOpen : !collapsed}
         onClick={() => { if (mobile) { setUi(ui => { ui.navOpen = true; }); requestAnimationFrame(() => (document.querySelector('#bsNav button') as HTMLElement | null)?.focus()); } else setApp(s => { s.prefs.collapsed = !s.prefs.collapsed; }); }}><Ic name="menu" /></button>
-      <nav className="bs-crumbs" aria-label="Lokasi halaman"><span>Workspace</span><Ic name="chev" /><strong id="bsCrumb">{navItem(view).label}</strong></nav>
+      <nav className="bs-crumbs" aria-label="Lokasi halaman"><span>Workspace</span><Ic name="chev" />{navItem(view).parent && <><span>{navItem(navRoot(view)).label}</span><Ic name="chev" /></>}<strong id="bsCrumb">{navItem(view).label}</strong></nav>
       <div className="bs-top-end">
         <span className="bs-save" id="bsSave" role="status" aria-live="polite" data-state={save || undefined} title={saveLabel}>{save && <>{save === 'saving' ? <span className="bs-spinner sm" aria-hidden="true" /> : <Ic name={save === 'saved' ? 'check' : 'alert'} />}<span className="bs-save-text">{saveLabel}</span></>}</span>
         <button type="button" className="bs-sync-pill" id="bsSyncPill" onClick={() => navigate('sync')}>
