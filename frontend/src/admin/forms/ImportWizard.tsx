@@ -42,9 +42,17 @@ export function sampleCSV(n = 25) {
     { city: 'Surabaya', province: 'Jawa Timur', lat: -7.2575, lng: 112.7521 }, { city: 'Medan', province: 'Sumatera Utara', lat: 3.5952, lng: 98.6722 },
     { city: 'Makassar', province: 'Sulawesi Selatan', lat: -5.1477, lng: 119.4327 }];
   const lines = [TEMPLATE_HEAD.join(',')];
+  // Nama unik terhadap unit yang sudah ada dan sesama baris contoh, agar hanya 2 baris yang sengaja salah.
+  const taken = new Set((getApp().ws?.locations || []).map(l => l.name.toLowerCase()));
+  const uniqueName = (stem: string, i: number) => {
+    let name = `${stem} ${i + 1}`;
+    for (let k = 2; taken.has(name.toLowerCase()); k++) name = `${stem} ${i + 1}-${k}`;
+    taken.add(name.toLowerCase());
+    return name;
+  };
   for (let i = 0; i < n; i++) {
     const b = base[i % base.length], p = offset(b.lat, b.lng, 1500 + r() * 6000, r() * 6.28), type = pick(r, ['KCP', 'Unit', 'ATM']);
-    const name = `${type === 'ATM' ? 'ATM BRI' : type === 'Unit' ? 'BRI Unit' : 'KCP'} ${b.city} ${pick(r, ['Raya', 'Baru', 'Timur', 'Barat', 'Utara', 'Selatan', 'Indah', 'Jaya'])} ${i + 1}`;
+    const name = uniqueName(`${type === 'ATM' ? 'ATM BRI' : type === 'Unit' ? 'BRI Unit' : 'KCP'} ${b.city} ${pick(r, ['Raya', 'Baru', 'Timur', 'Barat', 'Utara', 'Selatan', 'Indah', 'Jaya'])}`, i);
     const bad = i === 7 ? 'lat' : i === 15 ? 'status' : '';
     lines.push(['', name, type, b.city, b.province, `Jl. ${pick(r, STREETS)} No. ${10 + i}`, `(0${21 + i}) 77${1000 + i}`, type === 'ATM' ? HOURS[3] : HOURS[0], bad === 'lat' ? '' : p.lat.toFixed(5), p.lng.toFixed(5), bad === 'status' ? 'Aktif?' : 'Belum Sync'].map(v => /[,"]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(','));
   }
