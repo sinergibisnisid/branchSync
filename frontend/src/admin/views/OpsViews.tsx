@@ -1,8 +1,9 @@
-// Halaman operasional & administrasi: Sync Monitor, Riwayat Perubahan, SLA & Kinerja, Pengguna & Akses, Integrasi Google, Pengaturan.
-import { useState, type FormEvent } from 'react';
+// Halaman operasional & administrasi: Sync Monitor, Riwayat Perubahan, SLA & Kinerja, serta Pengaturan
+// (tab Umum, Pengguna & Akses, Integrasi Google).
+import { useState, type FormEvent, type ReactNode } from 'react';
 import * as api from '../../lib/api';
 import { acctOf, claimName, dailySync, diff, locName, openFailures, slaStats } from '../../lib/data';
-import { DAY, GOOGLE_SCOPES, HOUR, MIN, navItem, PERMS, SYNC_INTERVALS } from '../../lib/domain';
+import { DAY, GOOGLE_SCOPES, HOUR, MIN, navItem, navTabs, PERMS, SYNC_INTERVALS, type ViewId } from '../../lib/domain';
 import { downloadCSV } from '../../lib/files';
 import { fmtDur, fmtNum, fmtStamp, initials, pct, sum } from '../../lib/format';
 import type { AuditEntry, Workspace } from '../../lib/types';
@@ -11,7 +12,7 @@ import { apiDisconnect, apiTest, gbpOAuth, resolveFailure, toggleUser, togglePer
 import { roleForm, userForm } from '../forms/AccessForms';
 import { ActionsHead, Badge, Bar, Btn, Callout, Card, ChipRow, cx, DiffList, EmptyState, KV, Metric, Options, PageHead, SearchF, SelectF, Table, TabPanel, Tabs, When, WhenCell, WhenFull } from '../ui/components';
 import { Ic } from '../ui/Icon';
-import { guard, navigate, openDrawer, remote, runSync, sessionExpired, useCan, useWs } from '../workspace';
+import { canView, guard, navigate, openDrawer, remote, runSync, sessionExpired, useCan, useWs } from '../workspace';
 import { openTarget } from './Dashboard';
 
 /* ---------- Sync Monitor ---------- */
@@ -133,6 +134,26 @@ export function Sla() {
   </>;
 }
 
+/* ---------- Pengaturan: kerangka halaman + tab (Umum · Pengguna & Akses · Integrasi Google) ----------
+ * Setiap tab tetap halaman sendiri (#/pengaturan, #/pengguna-akses, #/integrasi) sehingga tautan lama
+ * tetap berlaku; di sidebar hanya "Pengaturan" yang tampil. Tab tanpa izin disembunyikan. */
+function SettingsPage({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
+  const view = useApp(s => s.ui.view);
+  useApp(s => s.ws?.roles); // izin peran ikut data server
+  const tabs = navTabs('settings').filter(n => canView(n.id));
+  const go = (v: string) => {
+    navigate(v as ViewId);
+    requestAnimationFrame(() => document.getElementById(`bs-tab-settings-section-${v}`)?.focus({ preventScroll: true }));
+  };
+  return <>
+    <PageHead title="Pengaturan" desc={navItem(view).desc} actions={actions} />
+    {tabs.length > 1
+      ? <><Tabs bind="settings.section" label="Bagian pengaturan" cur={view} onChange={go} items={tabs.map(n => [n.id, n.tab || n.label])} />
+        <TabPanel bind="settings.section" cur={view} cls="bs-stack-20">{children}</TabPanel></>
+      : children}
+  </>;
+}
+
 /* ---------- Pengguna & Akses ---------- */
 export function Access() {
   const ws = useWs();
@@ -142,8 +163,7 @@ export function Access() {
   const q = acc.q.trim().toLowerCase();
   const users = ws.users.filter(u => !q || `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(q));
   const setTab = (v: string) => setUi(ui => { ui.access.tab = v; });
-  return <>
-    <PageHead title="Pengguna & Akses" desc={navItem('access').desc} actions={acc.tab === 'users' ? <Btn label="Tambah pengguna" icon="plus" variant="primary" perm="users.manage" onClick={() => userForm()} /> : <Btn label="Tambah peran" icon="plus" variant="primary" perm="users.manage" onClick={() => roleForm()} />} />
+  return <SettingsPage actions={acc.tab === 'users' ? <Btn label="Tambah pengguna" icon="plus" variant="primary" perm="users.manage" onClick={() => userForm()} /> : <Btn label="Tambah peran" icon="plus" variant="primary" perm="users.manage" onClick={() => roleForm()} />}>
     <Tabs bind="access.tab" label="Pengguna & Akses" cur={acc.tab} onChange={setTab} items={[['users', 'Pengguna', ws.users.length], ['roles', 'Peran & izin', ws.roles.length]]} />
     <TabPanel bind="access.tab" cur={acc.tab}>
       {acc.tab === 'users'
@@ -171,7 +191,7 @@ export function Access() {
           <p className="bs-muted bs-pad">Administrator selalu memiliki semua izin agar workspace tidak terkunci. Izin juga diperiksa oleh server di setiap permintaan.</p>
         </Card>}
     </TabPanel>
-  </>;
+  </SettingsPage>;
 }
 
 /* ---------- Integrasi Google ---------- */
@@ -212,8 +232,7 @@ export function Integrations() {
     if (ok) { toast('Konfigurasi dikirim ke server.', { tone: 'good' }); (form.elements.namedItem('clientSecret') as HTMLInputElement).value = ''; (form.elements.namedItem('apiKey') as HTMLInputElement).value = ''; }
   };
   const secretPh = (has: boolean) => (has ? '•••••••• tersimpan — isi untuk mengganti' : 'Belum diisi');
-  return <>
-    <PageHead title="Integrasi Google" desc={navItem('integrations').desc} />
+  return <SettingsPage>
     <div className="bs-grid bs-grid-main">
       <Card title="Koneksi Google Business Profile">
         <div className="bs-integration"><span className="bs-g-mark" aria-hidden="true">G</span><div><strong>{a.connected ? 'Terhubung' : 'Belum terhubung'}</strong><small>{`Token OAuth disimpan di server BranchSync (${api.host()}).`}</small></div><Badge s={a.connected ? 'Aktif' : 'Nonaktif'} label={a.connected ? 'Terhubung' : 'Terputus'} /></div>
@@ -259,7 +278,7 @@ export function Integrations() {
         ] };
       })} /> : <EmptyState title="Belum ada akun" text="Hubungkan akun Google untuk menampilkan akun dan lokasinya." icon="info" />}
     </Card>
-  </>;
+  </SettingsPage>;
 }
 
 /* ---------- Pengaturan ---------- */
@@ -308,8 +327,7 @@ export function SettingsView() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([blob], { type: 'application/json' })); a.download = `branchsync-backup-${new Date().toISOString().slice(0, 10)}.json`; document.body.append(a); a.click(); a.remove();
     toast('Cadangan diunduh.', { tone: 'good' });
   };
-  return <>
-    <PageHead title="Pengaturan" desc={navItem('settings').desc} />
+  return <SettingsPage>
     <Card title="Koneksi server">
       <div className="bs-mode-row"><span className="bs-mode-badge" data-state="online"><Ic name="plug" /></span><div><strong>Live</strong><small>{`Masuk sebagai ${me.name} · ${api.host()}`}</small></div></div>
       <div className="bs-form-grid bs-gap"><label className="bs-field full"><span>URL server API</span><input id="bsApiUrl" type="url" inputMode="url" autoComplete="off" spellCheck={false} value={url} onChange={e => setUrl(e.target.value)} placeholder="https://api.branchsync.co.id/v1" /><small>Server BranchSync (Go + PostgreSQL). Daftar endpoint ada di API.md.</small></label></div>
@@ -326,7 +344,7 @@ export function SettingsView() {
       <div><span><strong>Penyimpanan data</strong><small>Semua data workspace tersimpan di server BranchSync (database PostgreSQL), bukan di browser.</small></span><span className="bs-badge" data-tone="good"><i />PostgreSQL</span></div>
       <div><span><strong>Cadangkan data</strong><small>Unduh seluruh data workspace yang sedang dimuat sebagai JSON.</small></span><Btn label="Unduh JSON" icon="download" onClick={backup} /></div>
     </div></Card>
-  </>;
+  </SettingsPage>;
 }
 
 export { MIN };

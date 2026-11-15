@@ -57,7 +57,8 @@ export const SYNC_INTERVALS: [string, string][] = [['0', 'Manual saja'], ['15', 
 
 export type ViewId = 'dashboard' | 'map' | 'reports' | 'sla' | 'locations' | 'discrepancies' | 'duplicates' | 'claims' | 'approvals' | 'reviews' | 'sync' | 'audit' | 'access' | 'integrations' | 'settings' | 'guide' | 'scenarios';
 export type CountKey = 'issues' | 'dups' | 'claims' | 'approvals' | 'reviews' | 'fails';
-export interface NavItem { id: ViewId; label: string; icon: string; desc: string; perm?: string; count?: CountKey }
+// parent: halaman ini tampil sebagai tab di halaman induk (tidak muncul sendiri di sidebar).
+export interface NavItem { id: ViewId; label: string; icon: string; desc: string; perm?: string; count?: CountKey; parent?: ViewId; tab?: string }
 
 export const NAV: { group: string; items: NavItem[] }[] = [
   { group: 'Monitoring', items: [
@@ -79,9 +80,9 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     { id: 'audit', label: 'Riwayat Perubahan', icon: 'history', perm: 'audit.read', desc: 'Jejak sebelum–sesudah setiap perubahan beserta pengguna internal maupun eksternal.' }
   ] },
   { group: 'Administrasi', items: [
-    { id: 'access', label: 'Pengguna & Akses', icon: 'users', perm: 'users.manage', desc: 'Kelola pengguna, peran, dan izin akses.' },
-    { id: 'integrations', label: 'Integrasi Google', icon: 'plug', perm: 'settings.write', desc: 'Koneksi Google Business Profile, kuota API, dan notifikasi.' },
-    { id: 'settings', label: 'Pengaturan', icon: 'sliders', desc: 'Preferensi workspace, target SLA, aturan deteksi, dan koneksi server.' }
+    { id: 'settings', label: 'Pengaturan', icon: 'sliders', tab: 'Umum', desc: 'Preferensi workspace, target SLA, aturan deteksi, dan koneksi server.' },
+    { id: 'access', label: 'Pengguna & Akses', icon: 'users', perm: 'users.manage', parent: 'settings', desc: 'Kelola pengguna, peran, dan izin akses.' },
+    { id: 'integrations', label: 'Integrasi Google', icon: 'plug', perm: 'settings.write', parent: 'settings', desc: 'Koneksi Google Business Profile, kuota API, dan notifikasi.' }
   ] },
   { group: 'Bantuan', items: [
     { id: 'guide', label: 'Panduan Pengguna', icon: 'book', desc: 'Cara memakai setiap fitur BranchSync, langkah demi langkah.' },
@@ -90,3 +91,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
 ];
 export const NAV_ITEMS = NAV.flatMap(g => g.items);
 export const navItem = (id: string) => NAV_ITEMS.find(n => n.id === id) || NAV_ITEMS[0];
+// Menu sidebar yang aktif untuk sebuah halaman (halaman tab → induknya).
+export const navRoot = (id: string): ViewId => navItem(id).parent || navItem(id).id;
+// Tab di halaman induk: induk sendiri + halaman yang parent-nya induk tersebut.
+export const navTabs = (root: ViewId) => NAV_ITEMS.filter(n => n.id === root || n.parent === root);

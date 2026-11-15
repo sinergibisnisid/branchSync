@@ -1,6 +1,6 @@
 // Palet perintah (⌘/Ctrl K): cari unit kerja, menu, atau aksi.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { NAV_ITEMS } from '../lib/domain';
+import { NAV_ITEMS, navItem } from '../lib/domain';
 import { getApp, setApp, useApp, useOverlay } from '../store';
 import { Ic } from './ui/Icon';
 import { can, canView, copyLink, navigate, openDrawer, runSync } from './workspace';
@@ -47,7 +47,7 @@ function PaletteBody() {
       ['Pintasan keyboard', 'keyboard', () => shortcutsModal()]
     ];
     const locs = k && ws ? ws.locations.filter(l => `${l.name} ${l.code} ${l.city}`.toLowerCase().includes(k)).slice(0, 8).map(l => ({ group: 'Unit kerja', icon: 'building', label: l.name, sub: `${l.code} · ${l.city}`, run: () => openDrawer(l.code) })) : [];
-    const nav = NAV_ITEMS.filter(n => canView(n.id) && (!k || n.label.toLowerCase().includes(k))).map(n => ({ group: 'Menu', icon: n.icon, label: n.label, sub: '', run: () => navigate(n.id) }));
+    const nav = NAV_ITEMS.filter(n => canView(n.id) && (!k || n.label.toLowerCase().includes(k))).map(n => ({ group: 'Menu', icon: n.icon, label: n.label, sub: n.parent ? navItem(n.parent).label : '', run: () => navigate(n.id) }));
     const acts = actions.filter(a => can(a[3]) && (!k || a[0].toLowerCase().includes(k))).map(([label, icon, run]) => ({ group: 'Aksi', icon, label, sub: '', run }));
     return [...locs, ...nav, ...acts];
   }, [q, ws]);
