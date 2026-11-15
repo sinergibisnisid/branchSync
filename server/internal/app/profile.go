@@ -1,7 +1,13 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"errors"
+	"image"
+	_ "image/jpeg" // format foto profil yang diterima: JPEG dan PNG
+	_ "image/png"
 	"net/http"
 	"strconv"
 	"strings"
@@ -122,4 +128,92 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request, u *User)
 		w.WriteHeader(http.StatusNoContent)
 	}
 	return err
+}
+
+// ---- Foto profil ----
+
+const (
+	avatarMaxBytes = 512 << 10 // setelah diperkecil di browser biasanya < 50 KB
+	avatarMaxSide  = 1024
+	avatarMinSide  = 32
+)
+
+// uploadAvatar menyimpan foto profil sendiri. Body: { image: "<base64>" } atau data URL
+// ("data:image/jpeg;base64,…"). Hanya JPEG/PNG yang benar-benar bisa dibaca sebagai gambar yang diterima
+// (bukan SVG/HTML), sehingga aman disajikan dari domain API.
+func (s *Server) uploadAvatar(w http.ResponseWriter, r *http.Request, u *User) error {
+	var in struct {
+		Image string `json:"image"`
+	}
+	if err := decode(r, &in); err != nil {
+		return err
+	}
+	data := in.Image
+	if i := strings.Index(data, ","); strings.HasPrefix(data, "data:") && i > 0 {
+		data = data[i+1:]
+	}
+	raw, err := base64.StdEncoding.DecodeString(data)
+	if err != nil || len(raw) == 0 {
+		return failField(422, "avatar", "File foto tidak valid.")
+	}
+	if len(raw) > avatarMaxBytes {
+		return failField(422, "avatar", "Ukuran foto maksimal 512 KB.")
+	}
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil || (format != "jpeg" && format != "png") {
+		return failField(422, "avatar", "Format foto tidak didukung. Gunakan JPG atau PNG.")
+	}
+	if cfg.Width < avatarMinSide || cfg.Height < avatarMinSide || cfg.Width > avatarMaxSide || cfg.Height > avatarMaxSide {
+		return failField(422, "avatar", "Ukuran foto harus 32–1024 piksel per sisi.")
+	}
+	key := secret.Token()
+	err = s.tx(r.Context(), func(tx pgx.Tx) error {
+		if _, err := tx.Exec(r.Context(), `UPDATE users SET avatar = $2, avatar_type = $3, avatar_key = $4 WHERE id = $1`, u.ID, raw, "image/"+format, key); err != nil {
+			return err
+		}
+		return audit(r.Context(), tx, u.Name, "Internal", "Profil", "Mengubah foto profil", "", u.Name, nil)
+	})
+	if err != nil {
+		return err
+	}
+	u.Avatar = key
+	return s.me(w, r, u)
+}
+
+func (s *Server) deleteAvatar(w http.ResponseWriter, r *http.Request, u *User) error {
+	if u.Avatar != "" {
+		err := s.tx(r.Context(), func(tx pgx.Tx) error {
+			if _, err := tx.Exec(r.Context(), `UPDATE users SET avatar = NULL, avatar_type = NULL, avatar_key = NULL WHERE id = $1`, u.ID); err != nil {
+				return err
+			}
+			return audit(r.Context(), tx, u.Name, "Internal", "Profil", "Menghapus foto profil", "", u.Name, nil)
+		})
+		if err != nil {
+			return err
+		}
+		u.Avatar = ""
+	}
+	return s.me(w, r, u)
+}
+
+// serveAvatar menyajikan foto tanpa login (tag <img> tidak bisa mengirim token). Kuncinya 256 bit acak
+// dan berganti setiap unggahan, jadi URL tidak bisa ditebak dan boleh di-cache selamanya.
+func (s *Server) serveAvatar(w http.ResponseWriter, r *http.Request) error {
+	var raw []byte
+	var typ string
+	err := s.db.QueryRow(r.Context(), `SELECT avatar, avatar_type FROM users WHERE avatar_key = $1 AND avatar IS NOT NULL`, r.PathValue("key")).Scan(&raw, &typ)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return errNotFound("Foto")
+	}
+	if err != nil {
+		return err
+	}
+	h := w.Header()
+	h.Set("Content-Type", typ)
+	h.Set("Cache-Control", "public, max-age=31536000, immutable")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Content-Security-Policy", "default-src 'none'")
+	h.Set("Cross-Origin-Resource-Policy", "cross-origin")
+	_, _ = w.Write(raw)
+	return nil
 }

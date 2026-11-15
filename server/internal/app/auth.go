@@ -77,11 +77,11 @@ func (s *Server) clientIP(r *http.Request) string { return s.cfg.ClientIP(r) }
 
 // ---- Sesi ----
 
-const userCols = `u.id, u.name, u.email, u.role, u.status, coalesce(ro.permissions, '{}')`
+const userCols = `u.id, u.name, u.email, u.role, u.status, coalesce(ro.permissions, '{}'), coalesce(u.avatar_key, '')`
 
 func scanUser(row pgx.Row) (*User, error) {
 	u := &User{}
-	if err := row.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Status, &u.Perms); err != nil {
+	if err := row.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Status, &u.Perms, &u.Avatar); err != nil {
 		return nil, err
 	}
 	u.perm = map[string]bool{}
@@ -154,7 +154,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 	u := &User{}
 	err := s.db.QueryRow(r.Context(), `SELECT `+userCols+`, u.password_hash FROM users u LEFT JOIN roles ro ON ro.name = u.role
 		WHERE lower(u.username) = lower($1) OR lower(u.email) = lower($1) LIMIT 1`, in.Username).
-		Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Status, &u.Perms, &hash)
+		Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Status, &u.Perms, &u.Avatar, &hash)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}

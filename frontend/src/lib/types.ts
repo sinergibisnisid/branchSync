@@ -43,7 +43,7 @@ export interface AuditEntry {
   id: number; time: number; user: string; actor: 'Internal' | 'Eksternal'; module: string; action: string; target: string; detail: string; changes: Change[];
 }
 
-export interface User { id: number; name: string; email: string; role: string; status: 'Aktif' | 'Nonaktif'; lastActive: number | null }
+export interface User { id: number; name: string; email: string; role: string; status: 'Aktif' | 'Nonaktif'; lastActive: number | null; avatar?: string | null }
 export interface Role { name: string; permissions: string[] }
 
 export interface ApiConfig {
@@ -73,4 +73,4 @@ export interface Workspace {
   settings: Settings; discNotes: Record<string, DiscNote>; dupIgnored: string[];
 }
 
-export interface Me { name: string; email: string; role: string; permissions: string[] | null }
+export interface Me { name: string; email: string; role: string; permissions: string[] | null; avatar?: string }

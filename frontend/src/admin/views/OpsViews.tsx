@@ -10,7 +10,7 @@ import type { AuditEntry, Workspace } from '../../lib/types';
 import { getApp, setUi, toast, useApp, type UiState } from '../../store';
 import { apiDisconnect, apiTest, gbpOAuth, resolveFailure, toggleUser, togglePerm } from '../actions';
 import { roleForm, userForm } from '../forms/AccessForms';
-import { ActionsHead, Badge, Bar, Btn, Callout, Card, ChipRow, cx, DiffList, EmptyState, KV, Metric, Options, PageHead, SearchF, SelectF, Table, TabPanel, Tabs, When, WhenCell, WhenFull } from '../ui/components';
+import { ActionsHead, Avatar, Badge, Bar, Btn, Callout, Card, ChipRow, cx, DiffList, EmptyState, KV, Metric, Options, PageHead, SearchF, SelectF, Table, TabPanel, Tabs, When, WhenCell, WhenFull } from '../ui/components';
 import { Ic } from '../ui/Icon';
 import { canView, guard, navigate, openDrawer, remote, runSync, sessionExpired, useCan, useWs } from '../workspace';
 import { openTarget } from './Dashboard';
@@ -173,7 +173,7 @@ export function Access() {
           <Table heads={['Pengguna', 'Peran', 'Status', 'Aktif terakhir', ActionsHead]} rows={users.map(u => {
             const self = u.email === me.email;
             return { key: u.id, cells: [
-              <span className="bs-user"><span className="bs-avatar sm" aria-hidden="true">{initials(u.name)}</span><span><strong>{u.name}</strong><small>{u.email}</small></span></span>,
+              <span className="bs-user"><Avatar name={u.name} avatar={u.avatar} cls="sm" /><span><strong>{u.name}</strong><small>{u.email}</small></span></span>,
               u.role, <Badge s={u.status} />, <When t={u.lastActive} />,
               { c: <><Btn icon="edit" variant="icon ghost sm" title={`Edit ${u.name}`} perm="users.manage" onClick={() => userForm(u.id)} /><Btn label={u.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'} variant="sm ghost" perm="users.manage" disabled={self} title={self ? 'Akun Anda sendiri' : undefined} onClick={() => toggleUser(u.id)} /></>, cls: 'bs-td-actions' }
             ] };

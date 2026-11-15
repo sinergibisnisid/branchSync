@@ -14,7 +14,7 @@ import { applyRoute, currentHash, parseRoute } from './route';
 /* ---------- Pengguna & izin ---------- */
 export function meFromSession(): Me {
   const u = api.getUser() || {};
-  return { name: u.name || u.username || u.email || 'Pengguna', email: u.email || '', role: u.role || 'Pengguna', permissions: Array.isArray(u.permissions) ? u.permissions : null };
+  return { name: u.name || u.username || u.email || 'Pengguna', email: u.email || '', role: u.role || 'Pengguna', permissions: Array.isArray(u.permissions) ? u.permissions : null, avatar: u.avatar || '' };
 }
 export function permsOf(me: Me, ws: Workspace | null): Set<string> {
   if (Array.isArray(me.permissions)) return new Set(me.permissions);

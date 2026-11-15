@@ -81,7 +81,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   ] },
   { group: 'Administrasi', items: [
     { id: 'settings', label: 'Pengaturan', icon: 'sliders', tab: 'Umum', desc: 'Preferensi workspace, target SLA, aturan deteksi, dan koneksi server.' },
-    { id: 'profile', label: 'Profil Saya', icon: 'user', parent: 'settings', tab: 'Profil', desc: 'Nama tampilan dan kata sandi akun Anda.' },
+    { id: 'profile', label: 'Profil Saya', icon: 'user', parent: 'settings', tab: 'Profil', desc: 'Foto, nama tampilan, dan kata sandi akun Anda.' },
     { id: 'access', label: 'Pengguna & Akses', icon: 'users', perm: 'users.manage', parent: 'settings', desc: 'Kelola pengguna, peran, dan izin akses.' },
     { id: 'integrations', label: 'Integrasi Google', icon: 'plug', perm: 'settings.write', parent: 'settings', desc: 'Koneksi Google Business Profile, kuota API, dan notifikasi.' }
   ] },

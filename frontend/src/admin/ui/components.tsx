@@ -3,7 +3,8 @@
  */
 import { useEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type KeyboardEvent } from 'react';
 import { DAY, SL, TONE } from '../../lib/domain';
-import { fmtDate, fmtNum, fmtRel } from '../../lib/format';
+import * as api from '../../lib/api';
+import { fmtDate, fmtNum, fmtRel, initials } from '../../lib/format';
 import type { Change } from '../../lib/types';
 import { deniedMsg, guard, navigate, useCan } from '../workspace';
 import type { ViewId } from '../../lib/domain';
@@ -53,6 +54,16 @@ export function Card({ title, sub, actions, cls = '', flush = false, children }:
       <header className="bs-card-head"><div><h2>{title}</h2>{sub && <p>{sub}</p>}</div>{actions && <div className="bs-card-actions">{actions}</div>}</header>
       <div className={cx('bs-card-body', flush && 'flush')}>{children}</div>
     </section>
+  );
+}
+/* ---------- Avatar: foto profil bila ada, selain itu inisial nama ---------- */
+export function Avatar({ name, avatar, cls = '', id }: { name: string; avatar?: string | null; cls?: string; id?: string }) {
+  const [broken, setBroken] = useState('');
+  const src = api.avatarUrl(avatar);
+  return (
+    <span className={cx('bs-avatar', cls, src && broken !== src && 'has-img')} aria-hidden="true" id={id}>
+      {src && broken !== src ? <img src={src} alt="" loading="lazy" decoding="async" onError={() => setBroken(src)} /> : initials(name)}
+    </span>
   );
 }
 export function PageHead({ title, desc, actions }: { title: ReactNode; desc: ReactNode; actions?: ReactNode }) {

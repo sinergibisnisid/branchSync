@@ -31,7 +31,7 @@ export class ApiError extends Error {
 }
 
 export interface SessionUser {
-  id?: number; name?: string; username?: string; email?: string; role?: string; permissions?: string[]; hasPassword?: boolean;
+  id?: number; name?: string; username?: string; email?: string; role?: string; permissions?: string[]; hasPassword?: boolean; avatar?: string;
 }
 
 export function normalizeUrl(u: unknown): string {
@@ -46,6 +46,8 @@ export function normalizeUrl(u: unknown): string {
 const configUrl = () => { try { return normalizeUrl(window.BRANCHSYNC_CONFIG?.apiBaseUrl || ''); } catch { return ''; } };
 export const getBaseUrl = (): string => local.get(K.url) || configUrl();
 export const setBaseUrl = (u: string): string => { const n = normalizeUrl(u); local.set(K.url, n); return n; };
+// URL foto profil dari kuncinya (GET /avatars/{key} tanpa login; kunci acak berganti setiap unggahan).
+export const avatarUrl = (key?: string | null): string => (key && getBaseUrl() ? `${getBaseUrl()}/avatars/${encodeURIComponent(key)}` : '');
 export const host = (): string => { try { return new URL(getBaseUrl()).host; } catch { return ''; } };
 
 export const getToken = (): string => session.get(K.token) || '';

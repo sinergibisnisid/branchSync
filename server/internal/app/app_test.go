@@ -9,6 +9,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"io"
 	"log/slog"
 	"net/http"
@@ -633,4 +636,84 @@ func TestProfile(t *testing.T) {
 	}
 	st, out = e.call("POST", "/me/password", map[string]string{"currentPassword": "x", "newPassword": "sandi-baru-12345"}, ot)
 	e.must(st, 409, out, "tanpa kata sandi")
+}
+
+func testJPEG(t *testing.T, w, h int) string {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for x := 0; x < w; x++ {
+		for y := 0; y < h; y++ {
+			img.Set(x, y, color.RGBA{0, 82, 156, 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, nil); err != nil {
+		t.Fatal(err)
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
+}
+
+func TestAvatar(t *testing.T) {
+	e := setup(t)
+	e.login()
+	get := func(key string) *http.Response {
+		res, err := http.Get(e.api.URL + "/v1/avatars/" + key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res
+	}
+	// Bukan gambar, SVG, terlalu kecil → ditolak dengan field "avatar".
+	for name, img := range map[string]string{
+		"bukan base64":  "%%%",
+		"teks":          base64.StdEncoding.EncodeToString([]byte("halo")),
+		"svg":           base64.StdEncoding.EncodeToString([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`)),
+		"terlalu kecil": testJPEG(t, 16, 16),
+	} {
+		st, out := e.call("PUT", "/me/avatar", map[string]string{"image": img})
+		e.must(st, 422, out, name)
+		if out["field"] != "avatar" {
+			t.Fatalf("%s: field %v", name, out)
+		}
+	}
+	// Unggah (data URL) → kunci di /me dan /bootstrap, file tersaji publik dengan cache selamanya.
+	st, out := e.call("PUT", "/me/avatar", map[string]string{"image": "data:image/jpeg;base64," + testJPEG(t, 256, 256)})
+	e.must(st, 200, out, "unggah foto")
+	key, _ := out["avatar"].(string)
+	if len(key) < 40 || out["username"] != "rina" {
+		t.Fatalf("profil setelah unggah: %v", out)
+	}
+	if a := find(list(e.bootstrap(), "users"), "email", "admin@bri.test"); a["avatar"] != key {
+		t.Fatalf("bootstrap avatar: %v", a)
+	}
+	res := get(key)
+	if res.StatusCode != 200 || res.Header.Get("Content-Type") != "image/jpeg" || !strings.Contains(res.Header.Get("Cache-Control"), "immutable") || res.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("sajikan foto: %d %v", res.StatusCode, res.Header)
+	}
+	if res := get("kunci-tebakan"); res.StatusCode != 404 {
+		t.Fatalf("kunci asal: %d", res.StatusCode)
+	}
+	// Login ulang ikut membawa kunci foto; mengganti foto mengganti kunci (URL lama tidak berlaku).
+	st, lout := e.call("POST", "/auth/login", map[string]string{"username": "rina", "password": "rahasia-admin-123"})
+	e.must(st, 200, lout, "login")
+	if lout["user"].(map[string]any)["avatar"] != key {
+		t.Fatalf("user saat login: %v", lout["user"])
+	}
+	_, out = e.call("PUT", "/me/avatar", map[string]string{"image": testJPEG(t, 300, 200)})
+	key2, _ := out["avatar"].(string)
+	if key2 == "" || key2 == key || get(key).StatusCode != 404 || get(key2).StatusCode != 200 {
+		t.Fatalf("ganti foto: %v", out)
+	}
+	// Hapus.
+	st, out = e.call("DELETE", "/me/avatar", nil)
+	e.must(st, 200, out, "hapus foto")
+	if _, ok := out["avatar"]; ok || get(key2).StatusCode != 404 {
+		t.Fatalf("setelah hapus: %v", out)
+	}
+	if find(list(e.bootstrap(), "audit"), "action", "Mengubah foto profil") == nil || find(list(e.bootstrap(), "audit"), "action", "Menghapus foto profil") == nil {
+		t.Fatal("audit foto")
+	}
+	st, _ = e.call("PUT", "/me/avatar", map[string]string{"image": testJPEG(t, 64, 64)}, "token-palsu")
+	e.must(st, 401, nil, "tanpa sesi")
 }

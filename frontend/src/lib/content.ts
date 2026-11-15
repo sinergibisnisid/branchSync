@@ -20,7 +20,7 @@ export const CONTENT: Content = {
         ['Gunakan menu di sisi kiri untuk berpindah halaman. Angka oranye menandakan pekerjaan yang perlu ditindaklanjuti.', 'Use the left menu to move between pages. Orange numbers show work that needs follow-up.'],
         ['Tekan ⌘ K / Ctrl K untuk mencari unit kerja, menu, atau aksi dengan cepat.', 'Press ⌘ K / Ctrl K to quickly search locations, menus, or actions.'],
         ['Ganti bahasa (ID/EN) dan tema terang/gelap dari tombol di header.', 'Switch language (ID/EN) and light/dark theme from the header buttons.'],
-        ['Ubah nama tampilan dan kata sandi Anda di Pengaturan › Profil, atau klik ikon orang di samping nama Anda di bawah sidebar.', 'Change your display name and password in Settings › Profile, or click the person icon next to your name at the bottom of the sidebar.']
+        ['Ubah foto profil, nama tampilan, dan kata sandi Anda di Pengaturan › Profil, atau klik ikon orang di samping nama Anda di bawah sidebar.', 'Change your profile photo, display name, and password in Settings › Profile, or click the person icon next to your name at the bottom of the sidebar.']
       ],
       tips: [['Tekan “?” untuk melihat semua pintasan keyboard.', 'Press “?” to see all keyboard shortcuts.']],
       links: [['dashboard', ['Buka Dashboard', 'Open Dashboard']]]
